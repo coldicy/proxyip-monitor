@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proxy Monitor · 节点长期监测</title>
+<style>
+:root{--bg:#07111d;--panel:rgba(10,24,40,.78);--line:rgba(144,180,212,.18);--text:#edf7ff;--muted:#8ea6bc;--accent:#61dbff;--accent2:#2dd4bf;--warm:#ffb869;--ok:#34d399;--err:#fb7185;--warn:#fbbf24;--r:22px}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--text);min-height:100vh;background:radial-gradient(circle at top left,rgba(45,212,191,.16),transparent 28%),radial-gradient(circle at 85% 12%,rgba(97,219,255,.16),transparent 24%),linear-gradient(180deg,#06101b,#0a1624)}
+.shell{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{margin:0;font-size:1.7rem;letter-spacing:-.03em}
+h1 em{font-style:normal;color:var(--accent)}
+.sub{margin:6px 0 0;color:var(--muted);font-size:.9rem}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);padding:11px 16px;border-radius:14px;font-weight:700;cursor:pointer;transition:.2s}
+button:hover{border-color:rgba(97,219,255,.4);background:rgba(97,219,255,.1)}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#052538;border:none}
+button.warm{background:linear-gradient(135deg,var(--warm),#ff9a3d);color:#3a2105;border:none}
+button:disabled{opacity:.55;cursor:wait}
+.pill{padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.8rem;color:var(--muted)}
+.pill.busy{color:var(--warn);border-color:rgba(251,191,36,.35)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;backdrop-filter:blur(14px)}
+.card span{display:block;color:var(--muted);font-size:.8rem;margin-bottom:8px}
+.card strong{font-size:1.7rem;letter-spacing:-.03em}
+.card.ok strong{color:var(--ok)}.card.q strong{color:var(--accent)}.card.off strong{color:var(--err)}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.tab.on{color:#fff;border-color:rgba(97,219,255,.5);background:linear-gradient(135deg,rgba(97,219,255,.2),rgba(45,212,191,.14))}
+.muted{color:var(--muted);font-size:.82rem}
+.list{display:grid;gap:12px}
+.row{display:grid;grid-template-columns:minmax(0,2.4fr) repeat(4,minmax(64px,.7fr)) minmax(110px,1.1fr) auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;backdrop-filter:blur(14px)}
+.row.quality{border-color:rgba(52,211,153,.35);box-shadow:inset 3px 0 0 var(--ok)}
+.row.offline{opacity:.62}
+.who b{display:block;font-size:.95rem;word-break:break-all}
+.who span{color:var(--muted);font-size:.76rem;word-break:break-all}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block;margin-right:10px}
+.dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.dot.off{background:var(--err)}
+.main{display:flex;align-items:center;min-width:0}
+.num{font-weight:700;font-size:.95rem;text-align:right}
+.num i{font-style:normal;color:var(--muted);font-size:.72rem;margin-left:2px}
+.num small{display:block;color:var(--muted);font-weight:400;font-size:.7rem}
+svg{display:block}
+.badge{padding:7px 12px;border-radius:999px;font-size:.76rem;font-weight:800;white-space:nowrap}
+.badge.q{background:rgba(52,211,153,.14);color:#a5f3cf;border:1px solid rgba(52,211,153,.3)}
+.badge.on{background:rgba(97,219,255,.1);color:#bff4ff;border:1px solid rgba(97,219,255,.25)}
+.badge.off{background:rgba(251,113,133,.1);color:#fecdd7;border:1px solid rgba(251,113,133,.25)}
+.empty{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:rgba(5,18,32,.95);border:1px solid rgba(97,219,255,.3);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast.err{border-color:rgba(251,113,133,.4);color:#ffd1d8}
+@media(max-width:860px){.cards{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr 1fr;gap:8px}.row .sparkcell{display:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div>
+      <h1>Proxy <em>Monitor</em></h1>
+      <p class="sub">节点延迟 / 带宽长期监测 · 优质节点筛选 · GitHub 同步</p>
+    </div>
+    <div class="actions">
+      <span class="pill" id="cycleInfo">--</span>
+      <button id="btnCheck" class="primary">⚡ 立即检测</button>
+      <button id="btnReload">🔄 重载配置</button>
+      <button id="btnUpload" class="warm">📤 上传优质节点</button>
+    </div>
+  </header>
+  <section class="cards" id="cards"></section>
+  <section class="toolbar">
+    <div class="tabs" id="tabs"></div>
+    <span class="muted" id="cfgInfo"></span>
+  </section>
+  <section class="list" id="list"></section>
+</div>
+<div id="toast"></div>
+<script>
+let STATE=null,TAB='all';
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtT=ts=>ts?new Date(ts).toLocaleTimeString():'--';
+function toast(msg,err){const t=$('#toast');t.innerText=msg;t.className=err?'show err':'show';clearTimeout(t._h);t._h=setTimeout(()=>t.className='',2600);}
+function spark(vals){
+  const v=vals.filter(x=>x!=null);if(v.length<2)return'<span class="muted">--</span>';
+  const w=110,h=30,m=Math.max(...v,1);
+  const pts=v.map((x,i)=>`${(i*(w/(v.length-1))).toFixed(1)},${(h-3-(x/m)*(h-6)).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="#61dbff" stroke-width="2" stroke-linecap="round" opacity=".9"/></svg>`;
+}
+async function load(){const r=await fetch('/api/state');STATE=await r.json();render();}
+function render(){
+  const s=STATE;if(!s)return;
+  $('#cycleInfo').textContent=s.checking?'⏳ 检测中...':`上次检测 ${fmtT(s.lastCycle)} · 每 ${s.intervalSec}s`;
+  $('#cycleInfo').className='pill'+(s.checking?' busy':'');
+  $('#cfgInfo').textContent=`优质标准：成功率≥${Math.round(s.config.qualityRate*100)}%（近${s.config.qualityWindow}次）`+(s.config.maxTlsMs>0?` · TLS≤${s.config.maxTlsMs}ms`:'')+(s.config.minSpeedKBps>0?` · 速度≥${s.config.minSpeedKBps}KB/s`:'');
+  $('#cards').innerHTML=`
+    <div class="card"><span>节点总数</span><strong>${s.summary.total}</strong></div>
+    <div class="card ok"><span>当前在线</span><strong>${s.summary.online}</strong></div>
+    <div class="card q"><span>优质节点</span><strong>${s.summary.quality}</strong></div>
+    <div class="card off"><span>离线</span><strong>${s.summary.offline}</strong></div>`;
+  const tabs=[['all','全部'],['online','在线'],['quality','优质'],['offline','离线']];
+  const cnt={all:s.items.length,online:s.summary.online,quality:s.summary.quality,offline:s.summary.offline};
+  $('#tabs').innerHTML=tabs.map(([k,l])=>`<span class="tab${TAB===k?' on':''}" data-tab="${k}">${l} (${cnt[k]})</span>`).join('');
+  let items=s.items.filter(i=>TAB==='all'||(TAB==='online'&&i.latest&&i.latest.ok)||(TAB==='quality'&&i.quality.quality)||(TAB==='offline'&&!(i.latest&&i.latest.ok)));
+  items.sort((a,b)=>(a.quality.medTls??99999)-(b.quality.medTls??99999));
+  if(!items.length){$('#list').innerHTML='<div class="empty">暂无数据，等待第一次检测完成...</div>';return;}
+  $('#list').innerHTML=items.map(i=>{
+    const on=i.latest&&i.latest.ok;
+    const mbps=i.latest&&i.latest.speed!=null?(i.latest.speed*8/1000).toFixed(1):null;
+    const badge=i.quality.quality?'<span class="badge q">优质</span>':on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>';
+    return `<div class="row${i.quality.quality?' quality':''}${on?'':' offline'}">
+      <div class="main"><span class="dot ${on?'on':'off'}"></span><div class="who"><b>${esc(i.label)}</b><span>${esc(i.ip||'未解析')}${i.quality.medSpeed!=null?` · 中位速度 ${i.quality.medSpeed}KB/s`:''}</span></div></div>
+      <div class="num">${i.quality.medTls!=null?i.quality.medTls+'<i>ms</i>':'--'}<small>TLS中位</small></div>
+      <div class="num">${on&&i.latest.tls!=null?i.latest.tls+'<i>ms</i>':'--'}<small>TLS最新</small></div>
+      <div class="num">${on&&i.latest.tcp!=null?i.latest.tcp+'<i>ms</i>':'--'}<small>TCP</small></div>
+      <div class="num">${i.latest&&i.latest.speed!=null?i.latest.speed+'<i>KB/s</i>':'--'}<small>${mbps?mbps+' Mbps':''}</small></div>
+      <div class="sparkcell">${spark(i.spark)}</div>
+      <div>${badge}<div class="muted" style="text-align:right;margin-top:4px">${Math.round(i.quality.rate*100)}%</div></div>
+    </div>`;
+  }).join('');
+}
+document.addEventListener('click',e=>{
+  const tab=e.target.closest('[data-tab]');if(tab){TAB=tab.dataset.tab;render();}
+});
+$('#btnCheck').onclick=async()=>{await fetch('/api/check',{method:'POST'});toast('已触发检测');setTimeout(load,800);};
+$('#btnReload').onclick=async()=>{const r=await(await fetch('/api/reload',{method:'POST'})).json();toast(`已重载配置：${r.count} 个节点`);load();};
+$('#btnUpload').onclick=async()=>{
+  if(!STATE.github.configured)return toast('未配置 GitHub（GITHUB_TOKEN / GITHUB_REPO）',true);
+  const btn=$('#btnUpload');btn.disabled=true;
+  try{const r=await(await fetch('/api/upload',{method:'POST'})).json();
+    r.ok?toast(`✅ 已上传 ${r.count} 个优质节点到 GitHub`):toast(r.error,true);
+  }catch(e){toast(e.message,true);}
+  btn.disabled=false;load();
+};
+load();setInterval(load,5000);
+</script>
+</body>
+</html>

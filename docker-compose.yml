@@ -1,0 +1,22 @@
+services:
+  proxy-monitor:
+    build: .
+    container_name: proxy-monitor
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./config/ip.txt:/app/config/ip.txt   # 修改后点“重载配置”即生效，无需重启
+      - ./data:/app/data                     # 历史数据持久化，重启不丢
+    environment:
+      - INTERVAL_SEC=60          # 监测间隔(秒)
+      - CONCURRENCY=10           # 并发数
+      - MAX_TLS_MS=800           # 优质阈值：TLS 中位延迟上限，0=不限
+      - MIN_SPEED_KBPS=300       # 优质阈值：速度下限(KB/s)，0=不限
+      - QUALITY_WINDOW=10        # 取最近 N 次判定
+      - QUALITY_SUCCESS_RATE=0.8 # 成功率阈值
+      - GITHUB_TOKEN=            # ghp_xxxx（repo 权限）
+      - GITHUB_REPO=             # 你的用户名/仓库名
+      - GITHUB_PATH=proxyip.txt  # 上传到仓库的文件路径
+      - GITHUB_BRANCH=main
+      - GITHUB_AUTO_UPLOAD=false # true=优质列表变化时自动上传
