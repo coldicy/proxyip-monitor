@@ -56,7 +56,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;transition:border-color .15s,transform .15s}
 .row:hover{border-color:var(--line2);transform:translateY(-1px)}
 .row.quality{border-color:rgba(61,220,151,.4);box-shadow:inset 3px 0 0 var(--ok)}
-.row.offline{opacity:.55}
+.row.offline{opacity:.7}
 .main{display:flex;align-items:center;gap:12px;min-width:0}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
@@ -64,13 +64,13 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(61,220,151,.5)}50%{box-shadow:0 0 0 6px rgba(61,220,151,0)}}
 .who{min-width:0;flex:1}
 .who b{display:block;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* 🌟 信息行：横向流式布局，每个 kv 为不可拆分整体，仅整块换行 */
 .subline{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:5px}
 .kv{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap}
 .kv em{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em}
 .kv b{color:#d9edfb;font-size:.74rem;font-weight:700;font-variant-numeric:tabular-nums}
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
+.kv b.err{color:var(--err) !important;font-weight:800}
 .bars{display:inline-flex;align-items:flex-end;gap:3px;height:20px}
 .bars i{width:6px;height:16px;border-radius:2px;cursor:pointer;transition:.15s}
 .bars i:hover{transform:scaleY(1.25)}
@@ -178,7 +178,8 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
         <label>监测间隔(秒)<input id="cInterval" type="number"></label>
         <label>单次超时(秒)<input id="cTimeout" type="number"></label>
         <label>并发数<input id="cConcurrency" type="number"></label>
-        <label>探针 URL<input id="cProbe" type="text"></label>
+        <label>官方探针 URL<input id="cProbe" type="text"></label>
+        <label>🌟 自定义终极探针 URL<input id="cCustomProbe" type="text" placeholder="https://your-domain.com/generate_204"></label>
         <label>域名 DNS 查询间隔(秒)<input id="cDnsTtl" type="number"></label>
         <label>已发现 IP 保留(小时)<input id="cRetain" type="number"></label>
         <label>优质 TLS 上限(ms,0=不限)<input id="cMaxTls" type="number"></label>
@@ -209,7 +210,6 @@ function el(id){return document.getElementById(id);}
 function esc(v){v=String(v==null?'':v);return v.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pad(n){return n<10?'0'+n:''+n;}
 function fmtT(ts){return ts?new Date(ts).toLocaleTimeString():'--';}
-/* 🌟 完整日期时间：年-月-日 时:分:秒 */
 function fmtDT(ts){ if(!ts)return '--'; var d=new Date(ts);
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
 function flag(cc){ if(!cc||cc.length!==2)return ''; cc=cc.toUpperCase();
@@ -315,13 +315,19 @@ function render(){
     var on=i.latest&&i.latest.ok;
     var mbps=(i.latest&&i.latest.speed!=null)?(i.latest.speed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
-    /* 🌟 横向信息行：标签+值 成组横排 */
+    
     var kv='';
     if(i.isDomain&&i.ip)kv+='<span class="kv" title="域名解析到的真实测试 IP"><em>解析</em><b>'+esc(i.host)+' → '+esc(i.ip)+'</b></span>';
     if(i.colo)kv+='<span class="kv" title="Cloudflare 接入机房（colo）"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)kv+='<span class="kv" title="节点出口地区（loc）"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp&&i.exitIp!==i.ip)kv+='<span class="kv" title="代理出口 IP（CF 看到的来源 IP）"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(i.latest&&i.latest.t)kv+='<span class="kv" title="最近一次检测完成时间"><em>最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></span>';
+    
+    // 🌟 核心新增：离线原因高亮展示
+    if (!on && i.latest && i.latest.failReason) {
+      kv += '<span class="kv" title="节点被淘汰的具体原因"><em>淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></span>';
+    }
+
     var ratePct=Math.round(i.quality.rate*100);
     var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
@@ -338,7 +344,6 @@ function render(){
   }catch(e){ var c=el('cycleInfo'); c.textContent='渲染错误: '+e.message; c.className='pill busy'; }
 }
 
-/* 悬浮提示 */
 var tipEl=el('tip');
 document.addEventListener('mouseover',function(e){
   var b=e.target.closest?e.target.closest('[data-tip]'):null;
@@ -350,7 +355,6 @@ document.addEventListener('mouseover',function(e){
 });
 window.addEventListener('scroll',function(){tipEl.classList.remove('show');},true);
 
-/* 日志面板 */
 function openLogs(){ el('logPanel').classList.remove('hidden'); pollLogs(); }
 function pollLogs(){ if(el('logPanel').classList.contains('hidden'))return;
   fetch('/api/logs').then(function(r){return r.json();}).then(function(d){
@@ -364,7 +368,6 @@ el('btnLogs').onclick=openLogs;
 el('logClose').onclick=function(){el('logPanel').classList.add('hidden');};
 el('logPanel').addEventListener('click',function(e){if(e.target.id==='logPanel')el('logPanel').classList.add('hidden');});
 
-/* 事件 */
 document.addEventListener('click',function(e){
   var ci=e.target.closest('[data-ci]');
   if(ci){var it=LAST_VIEW[+ci.getAttribute('data-ci')];if(it){copyText(lineOf(it)).then(function(){toast('✅ 已复制 '+((it.ip||it.host)+':'+it.port));});}return;}
@@ -384,7 +387,7 @@ el('mClose').onclick=function(){el('modal').classList.add('hidden');};
 el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
 el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
-    dnsTtlSec:+el('cDnsTtl').value,retainHours:+el('cRetain').value,probeUrl:el('cProbe').value,
+    dnsTtlSec:+el('cDnsTtl').value,retainHours:+el('cRetain').value,probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
     maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
     github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked}};
   fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
@@ -412,7 +415,7 @@ function openModal(){
   Promise.all([fetch('/api/config').then(function(r){return r.json();}),fetch('/api/ipfile').then(function(r){return r.json();})]).then(function(arr){
     var c=arr[0],ipf=arr[1];
     el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;el('cConcurrency').value=c.concurrency;
-    el('cDnsTtl').value=c.dnsTtlSec;el('cRetain').value=c.retainHours;el('cProbe').value=c.probeUrl;
+    el('cDnsTtl').value=c.dnsTtlSec;el('cRetain').value=c.retainHours;el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
     el('cMaxTls').value=c.maxTlsMs;el('cMinSpeed').value=c.minSpeedKBps;el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
     el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;el('cGhAuto').checked=!!c.github.auto;
     el('ipText').value=ipf.content||'';
