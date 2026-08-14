@@ -154,14 +154,8 @@ async function testTarget(u){
       
       if (code === '403') {
         point.ok = false;
-        point.failReason = `SNI白名单/WAF拦截 (HTTP 403)`;
-      } else if (code === '000') {
-        point.ok = false;
-        point.failReason = `自定义探针无响应 (HTTP 000)`;
-      } else if (code.startsWith('5')) {
-        point.ok = false;
-        point.failReason = `自定义探针源站异常 (HTTP ${code})`;
-      }
+        point.failReason = `反代IP不可用：Error 1034: Edge IP Restricted`;
+      } 
       // 204, 200, 301, 302, 404 等均视为 SNI 透传成功，保持 point.ok = true
     } catch (e) {
       point.ok = false;
