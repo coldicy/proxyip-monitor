@@ -5,79 +5,98 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Proxy Monitor · 节点长期监测</title>
 <style>
-:root{--bg:#07111d;--panel:rgba(10,24,40,.78);--line:rgba(144,180,212,.18);--text:#edf7ff;--muted:#8ea6bc;--accent:#61dbff;--accent2:#2dd4bf;--warm:#ffb869;--ok:#34d399;--err:#fb7185;--warn:#fbbf24;--r:22px}
+:root{--panel:rgba(10,24,40,.78);--line:rgba(144,180,212,.18);--text:#edf7ff;--muted:#8ea6bc;--accent:#61dbff;--accent2:#2dd4bf;--warm:#ffb869;--ok:#34d399;--err:#fb7185;--warn:#fbbf24;--r:22px}
 *{box-sizing:border-box}html,body{margin:0}
-body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--text);min-height:100vh;background:radial-gradient(circle at top left,rgba(45,212,191,.16),transparent 28%),radial-gradient(circle at 85% 12%,rgba(97,219,255,.16),transparent 24%),linear-gradient(180deg,#06101b,#0a1624)}
-.shell{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
-header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px}
-h1{margin:0;font-size:1.7rem;letter-spacing:-.03em}h1 em{font-style:normal;color:var(--accent)}
-.sub{margin:6px 0 0;color:var(--muted);font-size:.9rem}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--text);min-height:100vh;background:linear-gradient(180deg,#06101b,#0a1624);overflow-x:hidden}
+.orb{position:fixed;border-radius:50%;filter:blur(90px);opacity:.45;z-index:-1;animation:drift 20s ease-in-out infinite alternate}
+.orb.a{width:460px;height:460px;background:#0e3a4d;top:-140px;left:-140px}
+.orb.b{width:420px;height:420px;background:#123a2e;bottom:-160px;right:-140px;animation-delay:-10s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(70px,50px) scale(1.18)}}
+.shell{max-width:1280px;margin:0 auto;padding:30px 22px 70px}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+.brand{display:flex;align-items:center;gap:16px}
+.logo{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:28px;background:linear-gradient(135deg,rgba(97,219,255,.28),rgba(45,212,191,.2));border:1px solid rgba(97,219,255,.4);box-shadow:0 0 30px rgba(97,219,255,.28),inset 0 0 18px rgba(97,219,255,.15)}
+h1{margin:0;font-size:1.8rem;letter-spacing:-.03em}h1 em{font-style:normal;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{margin:5px 0 0;color:var(--muted);font-size:.9rem}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 button{border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);padding:11px 16px;border-radius:14px;font-weight:700;cursor:pointer;transition:.2s;font-size:.88rem}
-button:hover{border-color:rgba(97,219,255,.4);background:rgba(97,219,255,.1)}
-button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#052538;border:none}
-button.warm{background:linear-gradient(135deg,var(--warm),#ff9a3d);color:#3a2105;border:none}
-button:disabled{opacity:.55;cursor:wait}
+button:hover{border-color:rgba(97,219,255,.45);background:rgba(97,219,255,.12);transform:translateY(-1px)}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#052538;border:none;box-shadow:0 6px 18px rgba(45,212,191,.25)}
+button.warm{background:linear-gradient(135deg,var(--warm),#ff9a3d);color:#3a2105;border:none;box-shadow:0 6px 18px rgba(255,154,61,.22)}
+button:disabled{opacity:.55;cursor:wait;transform:none}
 .pill{padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.8rem;color:var(--muted)}
 .pill.busy{color:var(--warn);border-color:rgba(251,191,36,.35)}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;backdrop-filter:blur(14px)}
-.card span{display:block;color:var(--muted);font-size:.8rem;margin-bottom:8px}
-.card strong{font-size:1.7rem;letter-spacing:-.03em}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;backdrop-filter:blur(14px);transition:.2s}
+.card:hover{transform:translateY(-2px);border-color:rgba(97,219,255,.3)}
+.card::after{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.5}
+.card.ok::after{background:var(--ok)}.card.off::after{background:var(--err)}.card.q::after{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.card span{display:flex;justify-content:space-between;color:var(--muted);font-size:.8rem;margin-bottom:10px}
+.card strong{font-size:1.8rem;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .card.ok strong{color:var(--ok)}.card.q strong{color:var(--accent)}.card.off strong{color:var(--err)}
 .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
-.tab{padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.tab{padding:9px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted);transition:.2s}
+.tab:hover{color:#fff}
 .tab.on{color:#fff;border-color:rgba(97,219,255,.5);background:linear-gradient(135deg,rgba(97,219,255,.2),rgba(45,212,191,.14))}
-.filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:14px;backdrop-filter:blur(14px)}
+.filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;backdrop-filter:blur(14px)}
 .filterbar label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;font-weight:700}
-.filterbar input,.filterbar select{width:76px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 10px;font-size:.84rem;outline:none}
+.filterbar input,.filterbar select{width:76px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 10px;font-size:.84rem;outline:none;transition:.2s}
 .filterbar select{width:auto}
-.filterbar input:focus,.filterbar select:focus{border-color:rgba(97,219,255,.5)}
+.filterbar input:focus,.filterbar select:focus{border-color:rgba(97,219,255,.5);box-shadow:0 0 0 3px rgba(97,219,255,.12)}
+#fSearch{width:150px}
 .spacer{flex:1}.muted{color:var(--muted);font-size:.8rem}
 .list{display:grid;gap:12px}
-.row{display:grid;grid-template-columns:minmax(0,2.6fr) repeat(4,minmax(62px,.65fr)) minmax(110px,1fr) auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 18px;backdrop-filter:blur(14px)}
-.row.quality{border-color:rgba(52,211,153,.35);box-shadow:inset 3px 0 0 var(--ok)}
-.row.offline{opacity:.6}
+.row{display:grid;grid-template-columns:minmax(0,2.6fr) repeat(4,minmax(62px,.65fr)) minmax(110px,1fr) auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;backdrop-filter:blur(14px);transition:.2s}
+.row:hover{transform:translateY(-2px);border-color:rgba(97,219,255,.3);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.row.quality{border-color:rgba(52,211,153,.4);box-shadow:inset 3px 0 0 var(--ok)}
+.row.offline{opacity:.55}
 .main{display:flex;align-items:center;min-width:0}
-.dot{width:9px;height:9px;border-radius:50%;flex:none;margin-right:10px}
-.dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}.dot.off{background:var(--err)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;margin-right:12px}
+.dot.on{background:var(--ok);box-shadow:0 0 12px var(--ok);animation:pulse 2s infinite}
+.dot.off{background:var(--err)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}50%{box-shadow:0 0 0 6px rgba(52,211,153,0)}}
 .who b{display:block;font-size:.95rem;word-break:break-all}
 .who span{color:var(--muted);font-size:.75rem;word-break:break-all}
-.chip{display:inline-block;padding:1px 7px;border-radius:999px;background:rgba(97,219,255,.12);color:#bff4ff;border:1px solid rgba(97,219,255,.25);font-size:.68rem;font-weight:800;margin-right:4px}
-.num{font-weight:700;font-size:.95rem;text-align:right}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;background:rgba(97,219,255,.12);color:#bff4ff;border:1px solid rgba(97,219,255,.25);font-size:.68rem;font-weight:800;margin-right:4px}
+.num{font-weight:700;font-size:.98rem;text-align:right;font-variant-numeric:tabular-nums}
 .num i{font-style:normal;color:var(--muted);font-size:.7rem;margin-left:2px}
 .num small{display:block;color:var(--muted);font-weight:400;font-size:.68rem}
 .badge{padding:7px 12px;border-radius:999px;font-size:.76rem;font-weight:800;white-space:nowrap}
 .badge.q{background:rgba(52,211,153,.14);color:#a5f3cf;border:1px solid rgba(52,211,153,.3)}
 .badge.on{background:rgba(97,219,255,.1);color:#bff4ff;border:1px solid rgba(97,219,255,.25)}
 .badge.off{background:rgba(251,113,133,.1);color:#fecdd7;border:1px solid rgba(251,113,133,.25)}
-.empty{padding:44px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+.empty{padding:46px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+footer{margin-top:26px;text-align:center;color:var(--muted);font-size:.78rem}
 /* 设置弹窗 */
 .overlay{position:fixed;inset:0;background:rgba(3,8,14,.6);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .overlay.hidden{display:none}
-.modal{width:min(680px,100%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#0b1a2b,#0a1624);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+.modal{width:min(700px,100%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#0b1a2b,#0a1624);border:1px solid var(--line);border-radius:var(--r);padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
 .mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .mhead h2{margin:0;font-size:1.2rem}
 .mtabs{display:flex;gap:8px;margin-bottom:16px}
-.mtab{padding:9px 14px;border-radius:999px;border:1px solid var(--line);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.mtab{padding:9px 15px;border-radius:999px;border:1px solid var(--line);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted)}
 .mtab.on{color:#fff;border-color:rgba(97,219,255,.5);background:rgba(97,219,255,.12)}
 .mbody.hidden{display:none}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid2 label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:.78rem;font-weight:700}
-.grid2 input,.grid2 select{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font-size:.88rem;outline:none}
+.grid2 input{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font-size:.88rem;outline:none}
 .grid2 input:focus{border-color:rgba(97,219,255,.5)}
 .mfoot{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
-textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);border-radius:14px;padding:14px;font:12px/1.6 ui-monospace,monospace;outline:none}
-#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:rgba(5,18,32,.95);border:1px solid rgba(97,219,255,.3);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99}
+textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);border-radius:14px;padding:14px;font:12px/1.7 ui-monospace,monospace;outline:none}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:rgba(5,18,32,.95);border:1px solid rgba(97,219,255,.3);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 #toast.show{opacity:1;transform:translate(-50%,0)}#toast.err{border-color:rgba(251,113,133,.4);color:#ffd1d8}
 @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr 1fr}.sparkcell{display:none}.grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+<div class="orb a"></div><div class="orb b"></div>
 <div class="shell">
   <header>
-    <div><h1>Proxy <em>Monitor</em></h1><p class="sub">节点延迟 / 带宽长期监测 · 优质筛选 · 一键复制 · GitHub 同步</p></div>
+    <div class="brand">
+      <div class="logo">📡</div>
+      <div><h1>Proxy <em>Monitor</em></h1><p class="sub">节点延迟 / 带宽长期监测 · 域名全 IPv4 展开 · 优质筛选 · GitHub 同步</p></div>
+    </div>
     <div class="actions">
       <span class="pill" id="cycleInfo">--</span>
       <button id="btnSettings">⚙️ 设置</button>
@@ -89,6 +108,7 @@ textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);bor
   <section class="bar"><div class="tabs" id="tabs"></div><span class="muted" id="cfgInfo"></span></section>
   <section class="filterbar">
     <span class="muted" style="font-weight:800">筛选</span>
+    <input id="fSearch" type="text" placeholder="🔍 搜索 名称/IP/COLO/LOC">
     <label>TLS ≤<input id="fTls" type="number" placeholder="ms"></label>
     <label>速度 ≥<input id="fSpeed" type="number" placeholder="KB/s"></label>
     <label>成功率 ≥<input id="fRate" type="number" placeholder="%"></label>
@@ -101,28 +121,25 @@ textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);bor
     <button id="btnCopy" class="primary">📋 复制筛选节点</button>
   </section>
   <section class="list" id="list"></section>
+  <footer>Proxy Monitor v4 · 数据每轮自动持久化 · 优质节点 = 成功率 + TLS + 带宽 综合判定</footer>
 </div>
 
-<!-- 设置弹窗 -->
 <div id="modal" class="overlay hidden">
   <div class="modal">
     <div class="mhead"><h2>⚙️ 设置</h2><button id="mClose">✕</button></div>
-    <div class="mtabs">
-      <span class="mtab on" data-mtab="cfg">运行配置</span>
-      <span class="mtab" data-mtab="ips">节点列表 ip.txt</span>
-    </div>
+    <div class="mtabs"><span class="mtab on" data-mtab="cfg">运行配置</span><span class="mtab" data-mtab="ips">节点列表 ip.txt</span></div>
     <div id="mCfg" class="mbody">
       <div class="grid2">
         <label>监测间隔(秒)<input id="cInterval" type="number"></label>
         <label>单次超时(秒)<input id="cTimeout" type="number"></label>
         <label>并发数<input id="cConcurrency" type="number"></label>
         <label>探针 URL<input id="cProbe" type="text"></label>
-        <label>优质 TLS 上限(ms, 0=不限)<input id="cMaxTls" type="number"></label>
-        <label>优质速度下限(KB/s, 0=不限)<input id="cMinSpeed" type="number"></label>
+        <label>优质 TLS 上限(ms,0=不限)<input id="cMaxTls" type="number"></label>
+        <label>优质速度下限(KB/s,0=不限)<input id="cMinSpeed" type="number"></label>
         <label>质量判定窗口(次)<input id="cWindow" type="number"></label>
         <label>成功率阈值(0-1)<input id="cRate" type="number" step="0.05"></label>
         <label>GitHub Token<input id="cGhToken" type="password" placeholder="ghp_xxxx"></label>
-        <label>GitHub 仓库 (owner/repo)<input id="cGhRepo" type="text"></label>
+        <label>GitHub 仓库(owner/repo)<input id="cGhRepo" type="text"></label>
         <label>上传文件路径<input id="cGhPath" type="text"></label>
         <label>分支<input id="cGhBranch" type="text"></label>
       </div>
@@ -142,108 +159,15 @@ let STATE=null,TAB='all',LAST_VIEW=[];
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtT=ts=>ts?new Date(ts).toLocaleTimeString():'--';
-function toast(msg,err){const t=$('#toast');t.innerText=msg;t.className=err?'show err':'show';clearTimeout(t._h);t._h=setTimeout(()=>t.className='',2600);}
-function spark(vals){const v=vals.filter(x=>x!=null);if(v.length<2)return'<span class="muted">--</span>';const w=110,h=30,m=Math.max(...v,1);const pts=v.map((x,i)=>`${(i*(w/(v.length-1))).toFixed(1)},${(h-3-(x/m)*(h-6)).toFixed(1)}`).join(' ');return `<svg width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="#61dbff" stroke-width="2" stroke-linecap="round" opacity=".9"/></svg>`;}
-function copyText(text){if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(text);return new Promise(res=>{const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();res();});}
+function toast(m,e){const t=$('#toast');t.innerText=m;t.className=e?'show err':'show';clearTimeout(t._h);t._h=setTimeout(()=>t.className='',2600);}
+function spark(vals){const v=vals.filter(x=>x!=null);if(v.length<2)return'<span class="muted">--</span>';const w=110,h=30,m=Math.max(...v,1);const step=w/(v.length-1);
+  const pts=v.map((x,i)=>`${(i*step).toFixed(1)},${(h-3-(x/m)*(h-6)).toFixed(1)}`);
+  const area=`0,${h} `+pts.join(' ')+` ${w},${h}`;
+  return `<svg width="${w}" height="${h}"><polygon points="${area}" fill="rgba(97,219,255,.12)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#61dbff" stroke-width="2" stroke-linecap="round" style="filter:drop-shadow(0 0 4px rgba(97,219,255,.6))"/></svg>`;}
+function copyText(t){if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);return new Promise(r=>{const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0';document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();r();});}
 async function load(){const r=await fetch('/api/state');STATE=await r.json();render();}
-
 function getView(){
   let items=STATE.items.filter(i=>TAB==='all'||(TAB==='online'&&i.latest&&i.latest.ok)||(TAB==='quality'&&i.quality.quality)||(TAB==='offline'&&!(i.latest&&i.latest.ok)));
-  const fTls=parseFloat($('#fTls').value),fSp=parseFloat($('#fSpeed').value),fRate=parseFloat($('#fRate').value),fColo=$('#fColo').value,fLoc=$('#fLoc').value;
-  if(!isNaN(fTls))items=items.filter(i=>i.quality.medTls!=null&&i.quality.medTls<=fTls);
-  if(!isNaN(fSp))items=items.filter(i=>i.quality.medSpeed!=null&&i.quality.medSpeed>=fSp);
-  if(!isNaN(fRate))items=items.filter(i=>i.quality.rate*100>=fRate);
-  if(fColo)items=items.filter(i=>(i.colo||'')===fColo);
-  if(fLoc)items=items.filter(i=>(i.loc||'')===fLoc);
-  const sort=$('#sortBy').value;
-  items.sort((a,b)=>sort==='speed'?(b.quality.medSpeed??-1)-(a.quality.medSpeed??-1):sort==='rate'?b.quality.rate-a.quality.rate:(a.quality.medTls??99999)-(b.quality.medTls??99999));
-  return items;
-}
-
-function render(){
-  const s=STATE;if(!s)return;
-  $('#cycleInfo').textContent=s.checking?'⏳ 检测中...':`上次 ${fmtT(s.lastCycle)} · 每${s.intervalSec}s`;
-  $('#cycleInfo').className='pill'+(s.checking?' busy':'');
-  $('#cfgInfo').textContent=`优质标准：成功率≥${Math.round(s.config.qualityRate*100)}%（近${s.config.qualityWindow}次）`+(s.config.maxTlsMs>0?` · TLS≤${s.config.maxTlsMs}ms`:'')+(s.config.minSpeedKBps>0?` · ≥${s.config.minSpeedKBps}KB/s`:'');
-  $('#cards').innerHTML=`<div class="card"><span>节点总数</span><strong>${s.summary.total}</strong></div><div class="card ok"><span>当前在线</span><strong>${s.summary.online}</strong></div><div class="card q"><span>优质节点</span><strong>${s.summary.quality}</strong></div><div class="card off"><span>离线</span><strong>${s.summary.offline}</strong></div>`;
-  const cnt={all:s.items.length,online:s.summary.online,quality:s.summary.quality,offline:s.summary.offline};
-  $('#tabs').innerHTML=[['all','全部'],['online','在线'],['quality','优质'],['offline','离线']].map(([k,l])=>`<span class="tab${TAB===k?' on':''}" data-tab="${k}">${l} (${cnt[k]})</span>`).join('');
-  const colos=[...new Set(s.items.map(i=>i.colo).filter(Boolean))].sort();
-  const locs=[...new Set(s.items.map(i=>i.loc).filter(Boolean))].sort();
-  const cc=$('#fColo').value,cl=$('#fLoc').value;
-  $('#fColo').innerHTML='<option value="">全部</option>'+colos.map(c=>`<option${c===cc?' selected':''}>${c}</option>`).join('');
-  $('#fLoc').innerHTML='<option value="">全部</option>'+locs.map(c=>`<option${c===cl?' selected':''}>${c}</option>`).join('');
-  LAST_VIEW=getView();
-  $('#filterCount').textContent=`筛选出 ${LAST_VIEW.length} / ${s.items.length} 个`;
-  if(!LAST_VIEW.length){$('#list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';return;}
-  $('#list').innerHTML=LAST_VIEW.map(i=>{
-    const on=i.latest&&i.latest.ok;
-    const mbps=i.latest&&i.latest.speed!=null?(i.latest.speed*8/1000).toFixed(1):null;
-    const badge=i.quality.quality?'<span class="badge q">优质</span>':on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>';
-    const chips=(i.colo?`<span class="chip">${esc(i.colo)}</span>`:'')+(i.loc?`<span class="chip">${esc(i.loc)}</span>`:'');
-    return `<div class="row${i.quality.quality?' quality':''}${on?'':' offline'}">
-      <div class="main"><span class="dot ${on?'on':'off'}"></span><div class="who"><b>${esc(i.label)}</b><span>${esc(i.ip||'未解析')} ${chips}${i.quality.medSpeed!=null?`· 中位 ${i.quality.medSpeed}KB/s`:''}</span></div></div>
-      <div class="num">${i.quality.medTls!=null?i.quality.medTls+'<i>ms</i>':'--'}<small>TLS中位</small></div>
-      <div class="num">${on&&i.latest.tls!=null?i.latest.tls+'<i>ms</i>':'--'}<small>TLS最新</small></div>
-      <div class="num">${on&&i.latest.tcp!=null?i.latest.tcp+'<i>ms</i>':'--'}<small>TCP</small></div>
-      <div class="num">${i.latest&&i.latest.speed!=null?i.latest.speed+'<i>KB/s</i>':'--'}<small>${mbps?mbps+' Mbps':''}</small></div>
-      <div class="sparkcell">${spark(i.spark)}</div>
-      <div>${badge}<div class="muted" style="text-align:right;margin-top:4px">${Math.round(i.quality.rate*100)}%</div></div>
-    </div>`;
-  }).join('');
-}
-
-// ===== 复制（带 #loc | colo | tls 注释） =====
-$('#btnCopy').onclick=async()=>{
-  if(!LAST_VIEW.length)return toast('当前没有可复制的节点',true);
-  const lines=LAST_VIEW.map(i=>{
-    const cmt=[i.loc,i.colo,i.quality.medTls!=null?i.quality.medTls+'ms':null,i.quality.medSpeed!=null?i.quality.medSpeed+'KB/s':null].filter(Boolean).join(' | ');
-    return `${i.host}:${i.port}`+(cmt?`  #${cmt}`:'');
-  });
-  await copyText(lines.join('\n'));
-  toast(`✅ 已复制 ${lines.length} 个节点（含注释）`);
-};
-
-// ===== 设置弹窗 =====
-async function openModal(){
-  $('#modal').classList.remove('hidden');
-  const [cfg,ipf]=await Promise.all([fetch('/api/config').then(r=>r.json()),fetch('/api/ipfile').then(r=>r.json())]);
-  $('#cInterval').value=cfg.intervalSec;$('#cTimeout').value=cfg.timeoutSec;$('#cConcurrency').value=cfg.concurrency;
-  $('#cProbe').value=cfg.probeUrl;$('#cMaxTls').value=cfg.maxTlsMs;$('#cMinSpeed').value=cfg.minSpeedKBps;
-  $('#cWindow').value=cfg.qualityWindow;$('#cRate').value=cfg.qualityRate;
-  $('#cGhToken').value=cfg.github.token;$('#cGhRepo').value=cfg.github.repo;$('#cGhPath').value=cfg.github.path;
-  $('#cGhBranch').value=cfg.github.branch;$('#cGhAuto').checked=!!cfg.github.auto;
-  $('#ipText').value=ipf.content||'';
-}
-$('#btnSettings').onclick=openModal;
-$('#mClose').onclick=()=>$('#modal').classList.add('hidden');
-$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')$('#modal').classList.add('hidden');});
-document.addEventListener('click',e=>{const m=e.target.closest('[data-mtab]');if(m){document.querySelectorAll('.mtab').forEach(x=>x.classList.toggle('on',x===m));$('#mCfg').classList.toggle('hidden',m.dataset.mtab!=='cfg');$('#mIps').classList.toggle('hidden',m.dataset.mtab!=='ips');}});
-$('#saveCfg').onclick=async()=>{
-  const body={intervalSec:+$('#cInterval').value,timeoutSec:+$('#cTimeout').value,concurrency:+$('#cConcurrency').value,probeUrl:$('#cProbe').value,maxTlsMs:+$('#cMaxTls').value,minSpeedKBps:+$('#cMinSpeed').value,qualityWindow:+$('#cWindow').value,qualityRate:+$('#cRate').value,github:{token:$('#cGhToken').value,repo:$('#cGhRepo').value,path:$('#cGhPath').value,branch:$('#cGhBranch').value,auto:$('#cGhAuto').checked}};
-  const r=await(await fetch('/api/config',{method:'POST',body:JSON.stringify(body)})).json();
-  r.ok?toast('✅ 配置已保存并生效'):(toast(r.error||'保存失败',true));
-  load();
-};
-$('#saveIps').onclick=async()=>{
-  const r=await(await fetch('/api/ipfile',{method:'POST',body:JSON.stringify({content:$('#ipText').value})})).json();
-  r.ok?toast(`✅ 已保存 ip.txt，${r.count} 个节点`):toast(r.error||'保存失败',true);
-  load();
-};
-
-// ===== 其它 =====
-document.addEventListener('click',e=>{const t=e.target.closest('[data-tab]');if(t){TAB=t.dataset.tab;render();}});
-['fTls','fSpeed','fRate','fColo','fLoc','sortBy'].forEach(id=>document.getElementById(id).addEventListener('change',render));
-['fTls','fSpeed','fRate'].forEach(id=>document.getElementById(id).addEventListener('input',render));
-$('#fReset').onclick=()=>{['fTls','fSpeed','fRate'].forEach(id=>$('#'+id).value='');$('#fColo').value='';$('#fLoc').value='';render();};
-$('#btnCheck').onclick=async()=>{await fetch('/api/check',{method:'POST'});toast('已触发检测');setTimeout(load,800);};
-$('#btnUpload').onclick=async()=>{
-  if(!STATE.github.configured)return toast('未配置 GitHub（设置 → GitHub Token/仓库）',true);
-  const b=$('#btnUpload');b.disabled=true;
-  try{const r=await(await fetch('/api/upload',{method:'POST'})).json();r.ok?toast(`✅ 已上传 ${r.count} 个优质节点`):toast(r.error,true);}catch(e){toast(e.message,true);}
-  b.disabled=false;load();
-};
-load();setInterval(load,5000);
-</script>
-</body>
-</html>
+  const q=($('#fSearch').value||'').trim().toLowerCase();
+  if(q)items=items.filter(i=>[i.label,i.ip,i.host,i.colo,i.loc].some(v=>v&&String(v).toLowerCase().includes(q)));
+  const fTls=parseFloat($('#fTls').value),fSp=parseFloat($('#fSpeed').value),fRate=parseFloat($('#f
