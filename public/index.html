@@ -15,40 +15,38 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--text);min-
 .shell{max-width:1280px;margin:0 auto;padding:30px 22px 70px}
 header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:24px}
 .brand{display:flex;align-items:center;gap:16px}
-.logo{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:28px;background:linear-gradient(135deg,rgba(97,219,255,.28),rgba(45,212,191,.2));border:1px solid rgba(97,219,255,.4);box-shadow:0 0 30px rgba(97,219,255,.28),inset 0 0 18px rgba(97,219,255,.15)}
+.logo{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:28px;background:linear-gradient(135deg,rgba(97,219,255,.28),rgba(45,212,191,.2));border:1px solid rgba(97,219,255,.4);box-shadow:0 0 30px rgba(97,219,255,.28)}
 h1{margin:0;font-size:1.8rem;letter-spacing:-.03em}h1 em{font-style:normal;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .sub{margin:5px 0 0;color:var(--muted);font-size:.9rem}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 button{border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);padding:11px 16px;border-radius:14px;font-weight:700;cursor:pointer;transition:.2s;font-size:.88rem}
 button:hover{border-color:rgba(97,219,255,.45);background:rgba(97,219,255,.12);transform:translateY(-1px)}
-button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#052538;border:none;box-shadow:0 6px 18px rgba(45,212,191,.25)}
-button.warm{background:linear-gradient(135deg,var(--warm),#ff9a3d);color:#3a2105;border:none;box-shadow:0 6px 18px rgba(255,154,61,.22)}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#052538;border:none}
+button.warm{background:linear-gradient(135deg,var(--warm),#ff9a3d);color:#3a2105;border:none}
 button:disabled{opacity:.55;cursor:wait;transform:none}
 .pill{padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.8rem;color:var(--muted)}
 .pill.busy{color:var(--warn);border-color:rgba(251,191,36,.35)}
+.pill.err{color:var(--err);border-color:rgba(251,113,133,.4)}
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
 .card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;backdrop-filter:blur(14px);transition:.2s}
-.card:hover{transform:translateY(-2px);border-color:rgba(97,219,255,.3)}
+.card:hover{transform:translateY(-2px)}
 .card::after{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.5}
-.card.ok::after{background:var(--ok)}.card.off::after{background:var(--err)}.card.q::after{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.card.ok::after{background:var(--ok)}.card.off::after{background:var(--err)}
 .card span{display:flex;justify-content:space-between;color:var(--muted);font-size:.8rem;margin-bottom:10px}
 .card strong{font-size:1.8rem;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .card.ok strong{color:var(--ok)}.card.q strong{color:var(--accent)}.card.off strong{color:var(--err)}
 .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
-.tab{padding:9px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted);transition:.2s}
-.tab:hover{color:#fff}
+.tab{padding:9px 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.84rem;font-weight:700;cursor:pointer;color:var(--muted)}
 .tab.on{color:#fff;border-color:rgba(97,219,255,.5);background:linear-gradient(135deg,rgba(97,219,255,.2),rgba(45,212,191,.14))}
-.filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;backdrop-filter:blur(14px)}
+.filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:16px}
 .filterbar label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;font-weight:700}
-.filterbar input,.filterbar select{width:76px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 10px;font-size:.84rem;outline:none;transition:.2s}
-.filterbar select{width:auto}
-.filterbar input:focus,.filterbar select:focus{border-color:rgba(97,219,255,.5);box-shadow:0 0 0 3px rgba(97,219,255,.12)}
-#fSearch{width:150px}
+.filterbar input,.filterbar select{width:76px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 10px;font-size:.84rem;outline:none}
+.filterbar select{width:auto}#fSearch{width:150px}
 .spacer{flex:1}.muted{color:var(--muted);font-size:.8rem}
 .list{display:grid;gap:12px}
-.row{display:grid;grid-template-columns:minmax(0,2.6fr) repeat(4,minmax(62px,.65fr)) minmax(110px,1fr) auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;backdrop-filter:blur(14px);transition:.2s}
-.row:hover{transform:translateY(-2px);border-color:rgba(97,219,255,.3);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.row{display:grid;grid-template-columns:minmax(0,2.6fr) repeat(4,minmax(62px,.65fr)) minmax(110px,1fr) auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;transition:.2s}
+.row:hover{transform:translateY(-2px);border-color:rgba(97,219,255,.3)}
 .row.quality{border-color:rgba(52,211,153,.4);box-shadow:inset 3px 0 0 var(--ok)}
 .row.offline{opacity:.55}
 .main{display:flex;align-items:center;min-width:0}
@@ -68,10 +66,9 @@ button:disabled{opacity:.55;cursor:wait;transform:none}
 .badge.off{background:rgba(251,113,133,.1);color:#fecdd7;border:1px solid rgba(251,113,133,.25)}
 .empty{padding:46px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
 footer{margin-top:26px;text-align:center;color:var(--muted);font-size:.78rem}
-/* 设置弹窗 */
 .overlay{position:fixed;inset:0;background:rgba(3,8,14,.6);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .overlay.hidden{display:none}
-.modal{width:min(700px,100%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#0b1a2b,#0a1624);border:1px solid var(--line);border-radius:var(--r);padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.modal{width:min(700px,100%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#0b1a2b,#0a1624);border:1px solid var(--line);border-radius:var(--r);padding:24px}
 .mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .mhead h2{margin:0;font-size:1.2rem}
 .mtabs{display:flex;gap:8px;margin-bottom:16px}
@@ -81,10 +78,9 @@ footer{margin-top:26px;text-align:center;color:var(--muted);font-size:.78rem}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid2 label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:.78rem;font-weight:700}
 .grid2 input{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font-size:.88rem;outline:none}
-.grid2 input:focus{border-color:rgba(97,219,255,.5)}
 .mfoot{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
 textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);border-radius:14px;padding:14px;font:12px/1.7 ui-monospace,monospace;outline:none}
-#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:rgba(5,18,32,.95);border:1px solid rgba(97,219,255,.3);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:rgba(5,18,32,.95);border:1px solid rgba(97,219,255,.3);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99}
 #toast.show{opacity:1;transform:translate(-50%,0)}#toast.err{border-color:rgba(251,113,133,.4);color:#ffd1d8}
 @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr 1fr}.sparkcell{display:none}.grid2{grid-template-columns:1fr}}
 </style>
@@ -108,7 +104,7 @@ textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);bor
   <section class="bar"><div class="tabs" id="tabs"></div><span class="muted" id="cfgInfo"></span></section>
   <section class="filterbar">
     <span class="muted" style="font-weight:800">筛选</span>
-    <input id="fSearch" type="text" placeholder="🔍 搜索 名称/IP/COLO/LOC">
+    <input id="fSearch" type="text" placeholder="搜索 名称/IP/COLO/LOC">
     <label>TLS ≤<input id="fTls" type="number" placeholder="ms"></label>
     <label>速度 ≥<input id="fSpeed" type="number" placeholder="KB/s"></label>
     <label>成功率 ≥<input id="fRate" type="number" placeholder="%"></label>
@@ -121,7 +117,7 @@ textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);bor
     <button id="btnCopy" class="primary">📋 复制筛选节点</button>
   </section>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor v4 · 数据每轮自动持久化 · 优质节点 = 成功率 + TLS + 带宽 综合判定</footer>
+  <footer>Proxy Monitor v5 · 数据每轮自动持久化 · 优质节点 = 成功率 + TLS + 带宽 综合判定</footer>
 </div>
 
 <div id="modal" class="overlay hidden">
@@ -155,19 +151,155 @@ textarea#ipText{width:100%;min-height:260px;background:rgba(255,255,255,.05);bor
 <div id="toast"></div>
 
 <script>
-let STATE=null,TAB='all',LAST_VIEW=[];
-const $=s=>document.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmtT=ts=>ts?new Date(ts).toLocaleTimeString():'--';
-function toast(m,e){const t=$('#toast');t.innerText=m;t.className=e?'show err':'show';clearTimeout(t._h);t._h=setTimeout(()=>t.className='',2600);}
-function spark(vals){const v=vals.filter(x=>x!=null);if(v.length<2)return'<span class="muted">--</span>';const w=110,h=30,m=Math.max(...v,1);const step=w/(v.length-1);
-  const pts=v.map((x,i)=>`${(i*step).toFixed(1)},${(h-3-(x/m)*(h-6)).toFixed(1)}`);
-  const area=`0,${h} `+pts.join(' ')+` ${w},${h}`;
-  return `<svg width="${w}" height="${h}"><polygon points="${area}" fill="rgba(97,219,255,.12)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#61dbff" stroke-width="2" stroke-linecap="round" style="filter:drop-shadow(0 0 4px rgba(97,219,255,.6))"/></svg>`;}
-function copyText(t){if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);return new Promise(r=>{const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0';document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();r();});}
-async function load(){const r=await fetch('/api/state');STATE=await r.json();render();}
+(function(){
+'use strict';
+var STATE=null, TAB='all', LAST_VIEW=[];
+function el(id){ return document.getElementById(id); }
+function esc(v){ v=String(v==null?'':v); return v.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function fmtT(ts){ return ts? new Date(ts).toLocaleTimeString():'--'; }
+var toastTimer=null;
+function toast(msg,isErr){ var t=el('toast'); t.innerText=msg; t.className=isErr?'show err':'show'; if(toastTimer)clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.className='';},2600); }
+
+function spark(vals){
+  var v=(vals||[]).filter(function(x){return x!=null;});
+  if(v.length<2) return '<span class="muted">--</span>';
+  var w=110,h=30,m=Math.max.apply(null,v.concat([1])),step=w/(v.length-1);
+  var pts=v.map(function(x,i){return (i*step).toFixed(1)+','+(h-3-(x/m)*(h-6)).toFixed(1);});
+  var area='0,'+h+' '+pts.join(' ')+' '+w+','+h;
+  return '<svg width="'+w+'" height="'+h+'"><polygon points="'+area+'" fill="rgba(97,219,255,.12)"/><polyline points="'+pts.join(' ')+'" fill="none" stroke="#61dbff" stroke-width="2" stroke-linecap="round"/></svg>';
+}
+function copyText(text){
+  if(navigator.clipboard&&window.isSecureContext) return navigator.clipboard.writeText(text);
+  return new Promise(function(res){var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);res();});
+}
+function load(){
+  return fetch('/api/state').then(function(r){return r.json();}).then(function(s){STATE=s;render();})
+    .catch(function(e){ var c=el('cycleInfo'); c.textContent='加载失败: '+e.message; c.className='pill err'; });
+}
 function getView(){
-  let items=STATE.items.filter(i=>TAB==='all'||(TAB==='online'&&i.latest&&i.latest.ok)||(TAB==='quality'&&i.quality.quality)||(TAB==='offline'&&!(i.latest&&i.latest.ok)));
-  const q=($('#fSearch').value||'').trim().toLowerCase();
-  if(q)items=items.filter(i=>[i.label,i.ip,i.host,i.colo,i.loc].some(v=>v&&String(v).toLowerCase().includes(q)));
-  const fTls=parseFloat($('#fTls').value),fSp=parseFloat($('#fSpeed').value),fRate=parseFloat($('#f
+  var items=STATE.items.filter(function(i){
+    if(TAB==='online')return i.latest&&i.latest.ok;
+    if(TAB==='quality')return i.quality.quality;
+    if(TAB==='offline')return !(i.latest&&i.latest.ok);
+    return true;
+  });
+  var q=(el('fSearch').value||'').trim().toLowerCase();
+  if(q) items=items.filter(function(i){return [i.label,i.ip,i.host,i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;});});
+  var fTls=parseFloat(el('fTls').value),fSp=parseFloat(el('fSpeed').value),fRate=parseFloat(el('fRate').value),fColo=el('fColo').value,fLoc=el('fLoc').value;
+  if(!isNaN(fTls))items=items.filter(function(i){return i.quality.medTls!=null&&i.quality.medTls<=fTls;});
+  if(!isNaN(fSp))items=items.filter(function(i){return i.quality.medSpeed!=null&&i.quality.medSpeed>=fSp;});
+  if(!isNaN(fRate))items=items.filter(function(i){return i.quality.rate*100>=fRate;});
+  if(fColo)items=items.filter(function(i){return (i.colo||'')===fColo;});
+  if(fLoc)items=items.filter(function(i){return (i.loc||'')===fLoc;});
+  var s=el('sortBy').value;
+  items.sort(function(a,b){
+    if(s==='speed')return (b.quality.medSpeed!=null?b.quality.medSpeed:-1)-(a.quality.medSpeed!=null?a.quality.medSpeed:-1);
+    if(s==='rate')return b.quality.rate-a.quality.rate;
+    return (a.quality.medTls!=null?a.quality.medTls:99999)-(b.quality.medTls!=null?b.quality.medTls:99999);
+  });
+  return items;
+}
+function render(){
+  if(!STATE||!STATE.items){return;}
+  var s=STATE;
+  el('cycleInfo').textContent=s.checking?'⏳ 检测中...':'上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s';
+  el('cycleInfo').className='pill'+(s.checking?' busy':'');
+  el('cfgInfo').textContent='优质标准：成功率≥'+Math.round(s.config.qualityRate*100)+'%（近'+s.config.qualityWindow+'次）'+(s.config.maxTlsMs>0?' · TLS≤'+s.config.maxTlsMs+'ms':'')+(s.config.minSpeedKBps>0?' · ≥'+s.config.minSpeedKBps+'KB/s':'');
+  el('cards').innerHTML=
+    '<div class="card"><span>节点总数</span><strong>'+s.summary.total+'</strong></div>'+
+    '<div class="card ok"><span>当前在线</span><strong>'+s.summary.online+'</strong></div>'+
+    '<div class="card q"><span>优质节点</span><strong>'+s.summary.quality+'</strong></div>'+
+    '<div class="card off"><span>离线</span><strong>'+s.summary.offline+'</strong></div>';
+  var cnt={all:s.items.length,online:s.summary.online,quality:s.summary.quality,offline:s.summary.offline};
+  el('tabs').innerHTML=[['all','全部'],['online','在线'],['quality','优质'],['offline','离线']].map(function(t){
+    return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+' ('+cnt[t[0]]+')</span>';
+  }).join('');
+  var colos={},locs={};
+  s.items.forEach(function(i){if(i.colo)colos[i.colo]=1;if(i.loc)locs[i.loc]=1;});
+  var cc=el('fColo').value,cl=el('fLoc').value;
+  el('fColo').innerHTML='<option value="">全部</option>'+Object.keys(colos).sort().map(function(c){return '<option'+(c===cc?' selected':'')+'>'+c+'</option>';}).join('');
+  el('fLoc').innerHTML='<option value="">全部</option>'+Object.keys(locs).sort().map(function(c){return '<option'+(c===cl?' selected':'')+'>'+c+'</option>';}).join('');
+  LAST_VIEW=getView();
+  el('filterCount').textContent='筛选出 '+LAST_VIEW.length+' / '+s.items.length+' 个';
+  if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';return;}
+  el('list').innerHTML=LAST_VIEW.map(function(i){
+    var on=i.latest&&i.latest.ok;
+    var mbps=(i.latest&&i.latest.speed!=null)?(i.latest.speed*8/1000).toFixed(1):null;
+    var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
+    var chips=(i.colo?'<span class="chip">'+esc(i.colo)+'</span>':'')+(i.loc?'<span class="chip">'+esc(i.loc)+'</span>':'');
+    var addr=(i.isDomain&&i.ip&&i.host!==i.ip)?(esc(i.host)+' → '+esc(i.ip)):(i.ip?esc(i.ip):'⚠️ 解析失败');
+    return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
+      '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b><span>'+addr+' '+chips+(i.quality.medSpeed!=null?'· 中位 '+i.quality.medSpeed+'KB/s':'')+'</span></div></div>'+
+      '<div class="num">'+(i.quality.medTls!=null?i.quality.medTls+'<i>ms</i>':'--')+'<small>TLS中位</small></div>'+
+      '<div class="num">'+(on&&i.latest.tls!=null?i.latest.tls+'<i>ms</i>':'--')+'<small>TLS最新</small></div>'+
+      '<div class="num">'+(on&&i.latest.tcp!=null?i.latest.tcp+'<i>ms</i>':'--')+'<small>TCP</small></div>'+
+      '<div class="num">'+(i.latest&&i.latest.speed!=null?i.latest.speed+'<i>KB/s</i>':'--')+'<small>'+(mbps?mbps+' Mbps':'')+'</small></div>'+
+      '<div class="sparkcell">'+spark(i.spark)+'</div>'+
+      '<div>'+badge+'<div class="muted" style="text-align:right;margin-top:4px">'+Math.round(i.quality.rate*100)+'%</div></div>'+
+    '</div>';
+  }).join('');
+}
+
+// ===== 事件绑定（先绑定，后加载，避免任何一步失败导致全瘫） =====
+el('btnCopy').onclick=function(){
+  if(!LAST_VIEW.length){toast('当前没有可复制的节点',true);return;}
+  var lines=LAST_VIEW.map(function(i){
+    var cmt=[i.loc,i.colo,(i.quality.medTls!=null?i.quality.medTls+'ms':null),(i.quality.medSpeed!=null?i.quality.medSpeed+'KB/s':null)].filter(Boolean).join(' | ');
+    return (i.ip||i.host)+':'+i.port+(cmt?'  #'+cmt:'');
+  });
+  copyText(lines.join('\n')).then(function(){toast('✅ 已复制 '+lines.length+' 个节点（含注释）');});
+};
+el('btnSettings').onclick=openModal;
+el('mClose').onclick=function(){el('modal').classList.add('hidden');};
+el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
+document.addEventListener('click',function(e){
+  var m=e.target.closest('[data-mtab]');
+  if(m){
+    document.querySelectorAll('.mtab').forEach(function(x){x.classList.toggle('on',x===m);});
+    el('mCfg').classList.toggle('hidden',m.getAttribute('data-mtab')!=='cfg');
+    el('mIps').classList.toggle('hidden',m.getAttribute('data-mtab')!=='ips');
+  }
+  var t=e.target.closest('[data-tab]');
+  if(t){TAB=t.getAttribute('data-tab');render();}
+});
+el('saveCfg').onclick=function(){
+  var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,probeUrl:el('cProbe').value,maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked}};
+  fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
+    if(r.ok)toast('✅ 配置已保存并生效');else toast(r.error||'保存失败',true);
+    load();
+  }).catch(function(e){toast(e.message,true);});
+};
+el('saveIps').onclick=function(){
+  fetch('/api/ipfile',{method:'POST',body:JSON.stringify({content:el('ipText').value})}).then(function(r){return r.json();}).then(function(r){
+    if(r.ok)toast('✅ 已保存 ip.txt，展开为 '+r.count+' 个测试单元');else toast(r.error||'保存失败',true);
+    load();
+  }).catch(function(e){toast(e.message,true);});
+};
+['fTls','fSpeed','fRate','fColo','fLoc','sortBy','fSearch'].forEach(function(id){el(id).addEventListener('input',render);});
+el('fReset').onclick=function(){['fTls','fSpeed','fRate','fSearch'].forEach(function(id){el(id).value='';});el('fColo').value='';el('fLoc').value='';render();};
+el('btnCheck').onclick=function(){fetch('/api/check',{method:'POST'});toast('已触发检测');setTimeout(load,800);};
+el('btnUpload').onclick=function(){
+  if(!STATE||!STATE.github.configured){toast('未配置 GitHub（设置 → Token/仓库）',true);return;}
+  var b=el('btnUpload');b.disabled=true;
+  fetch('/api/upload',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
+    if(r.ok)toast('✅ 已上传 '+r.count+' 个优质节点');else toast(r.error||'上传失败',true);
+    b.disabled=false;load();
+  }).catch(function(e){toast(e.message,true);b.disabled=false;});
+};
+function openModal(){
+  el('modal').classList.remove('hidden');
+  Promise.all([fetch('/api/config').then(function(r){return r.json();}),fetch('/api/ipfile').then(function(r){return r.json();})]).then(function(arr){
+    var cfg=arr[0],ipf=arr[1];
+    el('cInterval').value=cfg.intervalSec;el('cTimeout').value=cfg.timeoutSec;el('cConcurrency').value=cfg.concurrency;el('cProbe').value=cfg.probeUrl;
+    el('cMaxTls').value=cfg.maxTlsMs;el('cMinSpeed').value=cfg.minSpeedKBps;el('cWindow').value=cfg.qualityWindow;el('cRate').value=cfg.qualityRate;
+    el('cGhToken').value=cfg.github.token;el('cGhRepo').value=cfg.github.repo;el('cGhPath').value=cfg.github.path;el('cGhBranch').value=cfg.github.branch;el('cGhAuto').checked=!!cfg.github.auto;
+    el('ipText').value=ipf.content||'';
+  }).catch(function(e){toast('打开设置失败: '+e.message,true);});
+}
+
+load();
+setInterval(load,5000);
+})();
+</script>
+</body>
+</html>

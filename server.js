@@ -202,19 +202,26 @@ async function autoUpload() { const { content } = buildUploadContent(); if (cont
 
 // ==================== API ====================
 function buildState() {
-  const items = state.units.map(u => {
-    const hist = state.history[u.id] || [];
-    const latest = hist.length ? hist[hist.length - 1] : null;
-    return { id: u.id, label: u.label, host: u.host, port: u.port, isDomain: u.isDomain,
-      ip: u.ip, colo: latest ? latest.colo : null, loc: latest ? latest.loc : null,
-      latest, quality: computeQuality(hist), spark: hist.slice(-40).map(p => p.tls) };
-  });
-  const online = items.filter(i => i.latest && i.latest.ok).length;
-  const quality = items.filter(i => i.quality.quality).length;
-  return { checking: state.checking, lastCycle: state.lastCycle, intervalSec: CONFIG.intervalSec,
-    config: { maxTlsMs: CONFIG.maxTlsMs, minSpeedKBps: CONFIG.minSpeedKBps, qualityWindow: CONFIG.qualityWindow, qualityRate: CONFIG.qualityRate },
-    github: { configured: !!(CONFIG.github.token && CONFIG.github.repo), auto: CONFIG.github.auto, lastUpload: state.github.lastUpload, lastError: state.github.lastError },
-    summary: { total: items.length, online, quality, offline: items.length - online }, items };
+  try {
+    const items = state.units.map(u => {
+      const hist = state.history[u.id] || [];
+      const latest = hist.length ? hist[hist.length - 1] : null;
+      return { id: u.id, label: u.label, host: u.host, port: u.port, isDomain: u.isDomain,
+        ip: u.ip, colo: latest ? latest.colo : null, loc: latest ? latest.loc : null,
+        latest, quality: computeQuality(hist), spark: hist.slice(-40).map(p => p.tls) };
+    });
+    const online = items.filter(i => i.latest && i.latest.ok).length;
+    const quality = items.filter(i => i.quality.quality).length;
+    return { checking: state.checking, lastCycle: state.lastCycle, intervalSec: CONFIG.intervalSec,
+      config: { maxTlsMs: CONFIG.maxTlsMs, minSpeedKBps: CONFIG.minSpeedKBps, qualityWindow: CONFIG.qualityWindow, qualityRate: CONFIG.qualityRate },
+      github: { configured: !!(CONFIG.github.token && CONFIG.github.repo), auto: CONFIG.github.auto, lastUpload: state.github.lastUpload, lastError: state.github.lastError },
+      summary: { total: items.length, online, quality, offline: items.length - online }, items };
+  } catch (e) {
+    return { checking:false, lastCycle:null, intervalSec:CONFIG.intervalSec,
+      config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate},
+      github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:null,lastError:e.message},
+      summary:{total:0,online:0,quality:0,offline:0}, items:[] };
+  }
 }
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost'); const p = url.pathname;
