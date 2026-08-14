@@ -1,7 +1,7 @@
 /**
- * Proxy Monitor v6
- * 修复：域名行消失问题 → 引入 disc 粘性缓存（DNS TTL + IP 保留时长 + 持久化）
- * 行 ID = 域名@IP，轮换/去重不丢行；旧 ip:port 历史自动迁移
+ * Proxy Monitor v7
+ * 新增：检测进度(progress) / 运行日志(/api/logs) / 每节点近40次明细(recent)
+ * 继承：域名粘性缓存、全IPv4展开、网页配置、ip.txt 自愈创建、--noproxy 直连
  */
 const http = require('http');
 const fs = require('fs');
@@ -18,8 +18,8 @@ const CONFIG = {
   probeUrl: process.env.PROBE_URL || 'https://www.cloudflare.com/cdn-cgi/trace',
   timeoutSec: parseInt(process.env.TIMEOUT_SEC || '5', 10),
   concurrency: parseInt(process.env.CONCURRENCY || '10', 10),
-  dnsTtlSec: parseInt(process.env.DNS_TTL_SEC || '300', 10),     // 域名 DNS 查询间隔
-  retainHours: parseInt(process.env.RETAIN_HOURS || '168', 10),  // 已发现 IP 保留时长
+  dnsTtlSec: parseInt(process.env.DNS_TTL_SEC || '300', 10),
+  retainHours: parseInt(process.env.RETAIN_HOURS || '168', 10),
   maxTlsMs: parseFloat(process.env.MAX_TLS_MS || '0'),
   minSpeedKBps: parseFloat(process.env.MIN_SPEED_KBPS || '0'),
   qualityWindow: parseInt(process.env.QUALITY_WINDOW || '10', 10),
@@ -32,8 +32,11 @@ CONFIG.dataFile = path.join(CONFIG.dataDir, 'history.json');
 CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 
 const state = { units: [], history: {}, disc: {}, lastCycle: null, checking: false,
+  progress: { tested: 0, total: 0 }, logs: [],
   github: { lastUpload: null, lastError: null }, lastUploadedContent: '' };
 let cycleTimer = null;
+
+function log(m){ state.logs.push({ t: Date.now(), m: String(m) }); if (state.logs.length > 400) state.logs = state.logs.slice(-400); }
 
 // ==================== 配置 ====================
 function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)?n:d;};
@@ -73,44 +76,45 @@ function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{ret
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
 
-// ==================== 🌟 粘性单元构建（域名不消失的核心） ====================
+// ==================== ip.txt 自愈 ====================
+function ensureIpFile(){
+  try{
+    fs.mkdirSync(path.dirname(CONFIG.ipFile),{recursive:true});
+    let st=null; try{st=fs.statSync(CONFIG.ipFile);}catch(e){}
+    if(st&&st.isDirectory()){ try{fs.rmdirSync(CONFIG.ipFile);}catch(e){
+      console.error('⚠️ '+CONFIG.ipFile+' 是非空目录，请在宿主机 rm -rf config/ip.txt 后重启'); return false; } }
+    if(!fs.existsSync(CONFIG.ipFile)){
+      fs.writeFileSync(CONFIG.ipFile,'# 每行一个节点：ip:port 或 域名:port（不写端口默认443）\n# 1.2.3.4:443\n# cdn.example.com:8443\n');
+      console.log('📄 已自动创建示例 ip.txt'); }
+    return true;
+  }catch(e){ console.error('ensureIpFile error:',e.message); return false; }
+}
+
+// ==================== 粘性单元构建 ====================
 async function refreshUnits(){
-  const now=Date.now();
-  const targets=parseIpFile();
-  const map=new Map();
-  const seenKeys=new Set();
+  const now=Date.now(); const targets=parseIpFile(); const map=new Map(); const seenKeys=new Set();
   for(const t of targets){
-    if(net.isIPv4(t.host)){
-      const id=t.host+':'+t.port;
-      map.set(id,{id,ip:t.host,port:t.port,host:t.host,label:t.label,isDomain:false});
-    } else if(net.isIPv6(t.host)){
-      /* 按要求跳过 IPv6 */
-    } else {
+    if(net.isIPv4(t.host)){ map.set(t.host+':'+t.port,{id:t.host+':'+t.port,ip:t.host,port:t.port,host:t.host,label:t.label,isDomain:false}); }
+    else if(net.isIPv6(t.host)){ /* 跳过 IPv6 */ }
+    else{
       const key=t.host+':'+t.port; seenKeys.add(key);
       let entry=state.disc[key];
       const need=!entry||(now-entry.queriedAt)>CONFIG.dnsTtlSec*1000;
       if(need){
-        let ips=[]; try{ ips=await Promise.race([dnsPromises.resolve4(t.host),new Promise((_,rj)=>setTimeout(()=>rj(new Error('t')),4000))]); }catch(e){ ips=[]; }
+        let ips=[]; try{ips=await Promise.race([dnsPromises.resolve4(t.host),new Promise((_,rj)=>setTimeout(()=>rj(new Error('t')),4000))]);}catch(e){ips=[];}
         if(!entry){entry=state.disc[key]={queriedAt:now,ips:{}};}
         entry.queriedAt=now;
         (ips||[]).filter(ip=>net.isIPv4(ip)).forEach(ip=>{entry.ips[ip]=now;});
       }
       const aliveIps=Object.keys(entry.ips).filter(ip=>(now-entry.ips[ip])<=CONFIG.retainHours*3600*1000);
-      if(!aliveIps.length){
-        const id='dom:'+key;
-        map.set(id,{id,ip:null,port:t.port,host:t.host,label:t.label,isDomain:true});
-      } else {
-        aliveIps.forEach(ip=>{
-          const id='dom:'+key+'@'+ip;
-          // 历史迁移：旧 ip:port 数据延续到新 ID，不丢曲线
-          if(!state.history[id]&&state.history[ip+':'+t.port]) state.history[id]=state.history[ip+':'+t.port];
-          map.set(id,{id,ip,port:t.port,host:t.host,label:t.label,isDomain:true});
-        });
-      }
+      if(!aliveIps.length){ map.set('dom:'+key,{id:'dom:'+key,ip:null,port:t.port,host:t.host,label:t.label,isDomain:true}); }
+      else{ aliveIps.forEach(ip=>{
+        const id='dom:'+key+'@'+ip;
+        if(!state.history[id]&&state.history[ip+':'+t.port])state.history[id]=state.history[ip+':'+t.port];
+        map.set(id,{id,ip,port:t.port,host:t.host,label:t.label,isDomain:true}); }); }
     }
   }
-  // 清理已从 ip.txt 移除的域名缓存
-  Object.keys(state.disc).forEach(k=>{ if(!seenKeys.has(k)) delete state.disc[k]; });
+  Object.keys(state.disc).forEach(k=>{ if(!seenKeys.has(k))delete state.disc[k]; });
   state.units=[...map.values()];
 }
 
@@ -146,22 +150,29 @@ async function runCycle(){
   if(state.checking)return; state.checking=true;
   try{
     await refreshUnits();
+    state.progress={tested:0,total:state.units.length};
+    log('🔄 开始检测 '+state.units.length+' 个节点（并发 '+CONFIG.concurrency+'）');
     const queue=[...state.units];
     const workers=Array.from({length:Math.min(CONFIG.concurrency,Math.max(queue.length,1))},async()=>{
       while(queue.length){ const u=queue.shift(); const point=await testTarget(u);
         if(!state.history[u.id])state.history[u.id]=[];
         state.history[u.id].push(point);
-        if(state.history[u.id].length>600)state.history[u.id]=state.history[u.id].slice(-600); } });
+        if(state.history[u.id].length>600)state.history[u.id]=state.history[u.id].slice(-600);
+        state.progress.tested++;
+        log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' tls='+point.tls+'ms'+(point.speed!=null?' speed='+point.speed+'KB/s':'')):' 失败')); } });
     await Promise.all(workers);
     state.lastCycle=Date.now();
+    const online=state.units.filter(u=>{const h=state.history[u.id];return h&&h.length&&h[h.length-1].ok;}).length;
+    const quality=state.units.filter(u=>computeQuality(state.history[u.id]).quality).length;
+    log('🏁 检测完成：在线 '+online+' / 优质 '+quality+' / 总数 '+state.units.length);
     try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.dataFile,JSON.stringify({history:state.history,disc:state.disc}));}catch(e){}
-    if(CONFIG.github.auto)autoUpload().catch(e=>{state.github.lastError=e.message;});
-  }finally{state.checking=false;}
+    if(CONFIG.github.auto)autoUpload().catch(e=>{state.github.lastError=e.message;log('⚠️ 自动上传失败: '+e.message);});
+  }finally{ state.checking=false; }
 }
 function loadData(){ try{const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
   if(d&&d.history)state.history=d.history; if(d&&d.disc)state.disc=d.disc; }catch(e){} }
 
-// ==================== GitHub（按 ip:port 去重） ====================
+// ==================== GitHub ====================
 function buildUploadContent(){
   const seen=new Map();
   state.units.filter(u=>u.ip).forEach(u=>{ const q=computeQuality(state.history[u.id]); if(!q.quality)return;
@@ -185,6 +196,7 @@ async function uploadGithub(){
   const putRes=await fetch(api,{method:'PUT',headers,body:JSON.stringify(body)});
   if(!putRes.ok)throw new Error('GitHub 上传失败: HTTP '+putRes.status);
   state.github.lastUpload=Date.now(); state.github.lastError=null; state.lastUploadedContent=content;
+  log('📤 已上传 '+count+' 个优质节点到 GitHub');
   return{count};
 }
 async function autoUpload(){ const{content}=buildUploadContent(); if(content===state.lastUploadedContent)return; await uploadGithub(); }
@@ -194,15 +206,16 @@ function buildState(){
   try{
     const items=state.units.map(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
       return{ id:u.id,label:u.label,host:u.host,port:u.port,isDomain:u.isDomain,ip:u.ip,
-        colo:latest?latest.colo:null,loc:latest?latest.loc:null,latest,quality:computeQuality(hist),spark:hist.slice(-40).map(p=>p.tls) }; });
+        colo:latest?latest.colo:null,loc:latest?latest.loc:null,latest,quality:computeQuality(hist),
+        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,tls:p.tls,speed:p.speed})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length;
     const quality=items.filter(i=>i.quality.quality).length;
-    return{ checking:state.checking,lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
+    return{ checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
       config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,dnsTtlSec:CONFIG.dnsTtlSec,retainHours:CONFIG.retainHours},
       github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:state.github.lastUpload,lastError:state.github.lastError},
       summary:{total:items.length,online,quality,offline:items.length-online},items };
   }catch(e){
-    return{checking:false,lastCycle:null,intervalSec:CONFIG.intervalSec,
+    return{checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
       config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:0.8,dnsTtlSec:300,retainHours:168},
       github:{configured:false,auto:false,lastUpload:null,lastError:e.message},
       summary:{total:0,online:0,quality:0,offline:0},items:[]};
@@ -214,11 +227,14 @@ const server=http.createServer(async(req,res)=>{
   try{
     if(p==='/'||p==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(fs.readFileSync(path.join(__dirname,'public','index.html')));}
     if(p==='/api/state')return json(buildState());
+    if(p==='/api/logs')return json({logs:state.logs});
     if(p==='/api/config'&&req.method==='GET')return json(publicConfig());
-    if(p==='/api/config'&&req.method==='POST'){setConfig(JSON.parse(await readBody(req)||'{}'));persistConfig();restartTimer();return json({ok:true,config:publicConfig()});}
+    if(p==='/api/config'&&req.method==='POST'){setConfig(JSON.parse(await readBody(req)||'{}'));persistConfig();restartTimer();log('🛠️ 配置已更新');return json({ok:true,config:publicConfig()});}
     if(p==='/api/ipfile'&&req.method==='GET'){let c='';try{c=fs.readFileSync(CONFIG.ipFile,'utf8');}catch(e){}return json({content:c});}
-    if(p==='/api/ipfile'&&req.method==='POST'){const{content}=JSON.parse(await readBody(req)||'{}');fs.mkdirSync(path.dirname(CONFIG.ipFile),{recursive:true});fs.writeFileSync(CONFIG.ipFile,String(content??''));await refreshUnits();return json({ok:true,count:state.units.length});}
-    if(p==='/api/check'&&req.method==='POST'){runCycle();return json({ok:true});}
+    if(p==='/api/ipfile'&&req.method==='POST'){const{content}=JSON.parse(await readBody(req)||'{}');
+      if(!ensureIpFile())return json({ok:false,error:'ip.txt 路径被占用为目录，请在宿主机 rm -rf config/ip.txt 后重试'},500);
+      fs.writeFileSync(CONFIG.ipFile,String(content??''));await refreshUnits();log('📝 ip.txt 已更新，'+state.units.length+' 个测试单元');return json({ok:true,count:state.units.length});}
+    if(p==='/api/check'&&req.method==='POST'){log('🖱️ 手动触发检测');runCycle();return json({ok:true});}
     if(p==='/api/reload'&&req.method==='POST'){await refreshUnits();return json({ok:true,count:state.units.length});}
     if(p==='/api/upload'&&req.method==='POST'){try{return json({ok:true,...(await uploadGithub())});}catch(e){state.github.lastError=e.message;return json({ok:false,error:e.message},500);}}
     return json({error:'not found'},404);
@@ -226,8 +242,10 @@ const server=http.createServer(async(req,res)=>{
 });
 
 try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
+ensureIpFile();
 loadData();
 server.listen(CONFIG.port,async()=>{
-  console.log(`🚀 Proxy Monitor v6 on http://0.0.0.0:${CONFIG.port}`);
+  console.log(`🚀 Proxy Monitor v7 on http://0.0.0.0:${CONFIG.port}`);
+  log('🚀 服务启动');
   await refreshUnits(); runCycle(); restartTimer();
 });
