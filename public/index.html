@@ -62,12 +62,15 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
 .dot.off{background:var(--err)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(61,220,151,.5)}50%{box-shadow:0 0 0 6px rgba(61,220,151,0)}}
-.who{min-width:0}
+.who{min-width:0;flex:1}
 .who b{display:block;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.subline{color:var(--muted);font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;margin-top:2px}
-.kv{margin-right:12px}
-.kv em{font-style:normal;color:var(--muted);opacity:.75;font-size:.66rem;margin-right:4px}
-.kv b{color:#cfe8f7;font-size:.72rem;font-weight:700}
+/* 🌟 信息行：横向流式布局，每个 kv 为不可拆分整体，仅整块换行 */
+.subline{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:5px}
+.kv{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap}
+.kv em{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em}
+.kv b{color:#d9edfb;font-size:.74rem;font-weight:700;font-variant-numeric:tabular-nums}
+.kv b.colo{color:var(--accent)}
+.kv b.time{color:var(--muted);font-weight:600}
 .bars{display:inline-flex;align-items:flex-end;gap:3px;height:20px}
 .bars i{width:6px;height:16px;border-radius:2px;cursor:pointer;transition:.15s}
 .bars i:hover{transform:scaleY(1.25)}
@@ -204,7 +207,11 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 var STATE=null,TAB='all',LAST_VIEW=[];
 function el(id){return document.getElementById(id);}
 function esc(v){v=String(v==null?'':v);return v.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function pad(n){return n<10?'0'+n:''+n;}
 function fmtT(ts){return ts?new Date(ts).toLocaleTimeString():'--';}
+/* 🌟 完整日期时间：年-月-日 时:分:秒 */
+function fmtDT(ts){ if(!ts)return '--'; var d=new Date(ts);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
 function flag(cc){ if(!cc||cc.length!==2)return ''; cc=cc.toUpperCase();
   var A=0x1F1E6; try{return String.fromCodePoint(A+cc.charCodeAt(0)-65,A+cc.charCodeAt(1)-65);}catch(e){return '';} }
 var toastTimer=null;
@@ -215,7 +222,6 @@ function load(){ return fetch('/api/state').then(function(r){return r.json();}).
   .catch(function(e){var c=el('cycleInfo');c.textContent='加载失败: '+e.message;}); }
 
 function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.config[k]:d; }
-/* 单次检测是否达标：成功 + TLS≤上限 + 速度≥下限 */
 function pointGood(p){
   var H=cfgNum('maxTlsMs',0), S=cfgNum('minSpeedKBps',0);
   if(!p.ok)return false;
@@ -282,7 +288,6 @@ function render(){
     el('cycleInfo').textContent='上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s';
     el('cycleInfo').className='pill';
   }
-  /* 🌟 文案修正：明确“每次达标”语义 */
   var crit=[];
   if(s.config.maxTlsMs>0)crit.push('TLS≤'+s.config.maxTlsMs);
   if(s.config.minSpeedKBps>0)crit.push('≥'+s.config.minSpeedKBps+'KB/s');
@@ -310,14 +315,13 @@ function render(){
     var on=i.latest&&i.latest.ok;
     var mbps=(i.latest&&i.latest.speed!=null)?(i.latest.speed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
-    var tested=(i.latest&&i.latest.t)?fmtT(i.latest.t):'';
-    /* 🌟 标签化信息行：含义清晰 */
+    /* 🌟 横向信息行：标签+值 成组横排 */
     var kv='';
     if(i.isDomain&&i.ip)kv+='<span class="kv" title="域名解析到的真实测试 IP"><em>解析</em><b>'+esc(i.host)+' → '+esc(i.ip)+'</b></span>';
-    if(i.colo)kv+='<span class="kv" title="Cloudflare 接入机房（colo）"><em>数据中心</em><b>'+esc(i.colo)+'</b></span>';
+    if(i.colo)kv+='<span class="kv" title="Cloudflare 接入机房（colo）"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)kv+='<span class="kv" title="节点出口地区（loc）"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp&&i.exitIp!==i.ip)kv+='<span class="kv" title="代理出口 IP（CF 看到的来源 IP）"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
-    if(tested)kv+='<span class="kv" title="最近一次检测完成时间"><em>末测</em><b>'+tested+'</b></span>';
+    if(i.latest&&i.latest.t)kv+='<span class="kv" title="最近一次检测完成时间"><em>最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></span>';
     var ratePct=Math.round(i.quality.rate*100);
     var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
