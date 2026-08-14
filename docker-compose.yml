@@ -6,7 +6,7 @@ services:
     ports:
       - "8787:8787"
     volumes:
-      - ./config/ip.txt:/app/config/ip.txt   # 修改后点“重载配置”即生效，无需重启
+      - ./config:/app/config   # 修改后点“重载配置”即生效，无需重启
       - ./data:/app/data                     # 历史数据持久化，重启不丢
     environment:
       - INTERVAL_SEC=60          # 监测间隔(秒)
