@@ -1,7 +1,7 @@
 /**
- * Proxy Monitor v8
- * 优质判定重构：窗口内【每一次】单独判定达标(成功+TLS≤上限+速度≥下限)，达标率≥阈值才优质(默认100%)
- * 继承：进度/日志/近40次明细/粘性缓存/全IPv4/网页配置/ip.txt自愈/--noproxy
+ * Proxy Monitor v9 (终极验证版)
+ * 新增：自定义探针二次验证 (防 403/SNI白名单假反代)
+ * 新增：离线节点淘汰原因追踪 (failReason)
  */
 const http = require('http');
 const fs = require('fs');
@@ -16,6 +16,7 @@ const CONFIG = {
   dataDir: process.env.DATA_DIR || '/app/data',
   intervalSec: parseInt(process.env.INTERVAL_SEC || '60', 10),
   probeUrl: process.env.PROBE_URL || 'https://www.cloudflare.com/cdn-cgi/trace',
+  customProbeUrl: process.env.CUSTOM_PROBE_URL || 'https://proxyip-check.coldicy.cc.cd/generate_204', // 🌟 终极验证探针
   timeoutSec: parseInt(process.env.TIMEOUT_SEC || '5', 10),
   concurrency: parseInt(process.env.CONCURRENCY || '10', 10),
   dnsTtlSec: parseInt(process.env.DNS_TTL_SEC || '300', 10),
@@ -23,7 +24,7 @@ const CONFIG = {
   maxTlsMs: parseFloat(process.env.MAX_TLS_MS || '0'),
   minSpeedKBps: parseFloat(process.env.MIN_SPEED_KBPS || '0'),
   qualityWindow: parseInt(process.env.QUALITY_WINDOW || '10', 10),
-  qualityRate: parseFloat(process.env.QUALITY_RATE || '1'),   // 🌟 达标率阈值，默认 1 = 每次都必须达标
+  qualityRate: parseFloat(process.env.QUALITY_RATE || '1'),
   github: { token: process.env.GITHUB_TOKEN || '', repo: process.env.GITHUB_REPO || '',
     path: process.env.GITHUB_PATH || 'proxyip.txt', branch: process.env.GITHUB_BRANCH || 'main',
     auto: process.env.GITHUB_AUTO_UPLOAD === 'true' },
@@ -46,6 +47,7 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
   if(o.dnsTtlSec!=null)CONFIG.dnsTtlSec=Math.max(30,Math.round(num(o.dnsTtlSec,CONFIG.dnsTtlSec)));
   if(o.retainHours!=null)CONFIG.retainHours=Math.max(1,Math.round(num(o.retainHours,CONFIG.retainHours)));
   if(o.probeUrl)CONFIG.probeUrl=String(o.probeUrl);
+  if(o.customProbeUrl!=null)CONFIG.customProbeUrl=String(o.customProbeUrl);
   if(o.maxTlsMs!=null)CONFIG.maxTlsMs=num(o.maxTlsMs,0);
   if(o.minSpeedKBps!=null)CONFIG.minSpeedKBps=num(o.minSpeedKBps,0);
   if(o.qualityWindow!=null)CONFIG.qualityWindow=Math.max(1,Math.round(num(o.qualityWindow,CONFIG.qualityWindow)));
@@ -55,8 +57,8 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
     if(g.path!=null)CONFIG.github.path=String(g.path)||'proxyip.txt'; if(g.branch!=null)CONFIG.github.branch=String(g.branch)||'main';
     if(g.auto!=null)CONFIG.github.auto=(g.auto===true||g.auto==='true'); } }
 function publicConfig(){ return { intervalSec:CONFIG.intervalSec, timeoutSec:CONFIG.timeoutSec, concurrency:CONFIG.concurrency,
-  dnsTtlSec:CONFIG.dnsTtlSec, retainHours:CONFIG.retainHours, probeUrl:CONFIG.probeUrl, maxTlsMs:CONFIG.maxTlsMs,
-  minSpeedKBps:CONFIG.minSpeedKBps, qualityWindow:CONFIG.qualityWindow, qualityRate:CONFIG.qualityRate, github:{...CONFIG.github} }; }
+  dnsTtlSec:CONFIG.dnsTtlSec, retainHours:CONFIG.retainHours, probeUrl:CONFIG.probeUrl, customProbeUrl:CONFIG.customProbeUrl,
+  maxTlsMs:CONFIG.maxTlsMs, minSpeedKBps:CONFIG.minSpeedKBps, qualityWindow:CONFIG.qualityWindow, qualityRate:CONFIG.qualityRate, github:{...CONFIG.github} }; }
 function persistConfig(){ try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.configFile,JSON.stringify(publicConfig(),null,2));}catch(e){} }
 function restartTimer(){ if(cycleTimer)clearInterval(cycleTimer); cycleTimer=setInterval(runCycle,CONFIG.intervalSec*1000); }
 
@@ -76,18 +78,14 @@ function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{ret
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
 
-// ==================== ip.txt 自愈 ====================
 function ensureIpFile(){
   try{
     fs.mkdirSync(path.dirname(CONFIG.ipFile),{recursive:true});
     let st=null; try{st=fs.statSync(CONFIG.ipFile);}catch(e){}
-    if(st&&st.isDirectory()){ try{fs.rmdirSync(CONFIG.ipFile);}catch(e){
-      console.error('⚠️ '+CONFIG.ipFile+' 是非空目录，请在宿主机 rm -rf config/ip.txt 后重启'); return false; } }
-    if(!fs.existsSync(CONFIG.ipFile)){
-      fs.writeFileSync(CONFIG.ipFile,'# 每行一个节点：ip:port 或 域名:port（不写端口默认443）\n# 1.2.3.4:443\n# cdn.example.com:8443\n');
-      console.log('📄 已自动创建示例 ip.txt'); }
+    if(st&&st.isDirectory()){ try{fs.rmdirSync(CONFIG.ipFile);}catch(e){ return false; } }
+    if(!fs.existsSync(CONFIG.ipFile)){ fs.writeFileSync(CONFIG.ipFile,'# 每行一个节点\n# 1.2.3.4:443\n'); }
     return true;
-  }catch(e){ console.error('ensureIpFile error:',e.message); return false; }
+  }catch(e){ return false; }
 }
 
 // ==================== 粘性单元构建 ====================
@@ -95,7 +93,7 @@ async function refreshUnits(){
   const now=Date.now(); const targets=parseIpFile(); const map=new Map(); const seenKeys=new Set();
   for(const t of targets){
     if(net.isIPv4(t.host)){ map.set(t.host+':'+t.port,{id:t.host+':'+t.port,ip:t.host,port:t.port,host:t.host,label:t.label,isDomain:false}); }
-    else if(net.isIPv6(t.host)){ /* 跳过 IPv6 */ }
+    else if(net.isIPv6(t.host)){ }
     else{
       const key=t.host+':'+t.port; seenKeys.add(key);
       let entry=state.disc[key];
@@ -118,33 +116,72 @@ async function refreshUnits(){
   state.units=[...map.values()];
 }
 
-// ==================== 测试 ====================
+// ==================== 🌟 核心测试逻辑 (含终极验证) ====================
 async function testTarget(u){
-  const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null};
-  if(!u.ip)return point;
+  const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null,failReason:null};
+  if(!u.ip){ point.failReason='无有效IP'; return point; }
+  
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
+  
+  // 1. 官方探针 (测延迟与元数据)
   const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${probe.host}:${u.port}${probe.path}'`;
   const raw=await runCurl(latCmd,ms+1500); const lat=parseCurlJson(raw);
-  if(lat&&lat.http&&String(lat.http)!=='000'){ point.ok=true; point.tcp=Math.round(lat.tcp*1000); point.tls=Math.round(lat.tls*1000);
+  
+  if(lat && lat.http && String(lat.http)!=='000'){ 
+    point.ok=true; point.tcp=Math.round(lat.tcp*1000); point.tls=Math.round(lat.tls*1000);
     const info=parseTrace(raw.trim().split('\n').slice(0,-1).join('\n'));
-    point.colo=info.colo||null; point.loc=info.loc||null; point.exitIp=info.ip||null; }
+    point.colo=info.colo||null; point.loc=info.loc||null; point.exitIp=info.ip||null; 
+  } else {
+    point.failReason = `官方探针不通 (HTTP ${lat ? lat.http : '000'})`;
+    return point; // 第一关失败，直接淘汰
+  }
+
+  // 2. 官方测速 (测带宽)
   if(point.ok){
     const spCmd=`curl -4 -k -s --noproxy '*' -o /dev/null --retry 0 -w '\\n{"speed":%{speed_download},"http":%{http_code}}' --resolve "speed.cloudflare.com:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec+3} 'https://speed.cloudflare.com:${u.port}/__down?bytes=524288'`;
     const sp=parseCurlJson(await runCurl(spCmd,ms+4000));
-    if(sp&&sp.http===200&&sp.speed>0)point.speed=Math.round(sp.speed/1024); }
+    if(sp && sp.http===200 && sp.speed>0) point.speed=Math.round(sp.speed/1024); 
+  }
+
+  // 🌟 3. 终极验证：自定义探针 (防 403/SNI白名单假反代)
+  if (point.ok && CONFIG.customProbeUrl) {
+    try {
+      const cu = new URL(CONFIG.customProbeUrl);
+      const customCmd = `curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${cu.hostname}:${u.port}${cu.pathname}'`;
+      const customRaw = await runCurl(customCmd, ms + 1500);
+      const customRes = parseCurlJson(customRaw);
+      const code = customRes ? String(customRes.http) : '000';
+      
+      if (code === '403') {
+        point.ok = false;
+        point.failReason = `SNI白名单/WAF拦截 (HTTP 403)`;
+      } else if (code === '000') {
+        point.ok = false;
+        point.failReason = `自定义探针无响应 (HTTP 000)`;
+      } else if (code.startsWith('5')) {
+        point.ok = false;
+        point.failReason = `自定义探针源站异常 (HTTP ${code})`;
+      }
+      // 204, 200, 301, 302, 404 等均视为 SNI 透传成功，保持 point.ok = true
+    } catch (e) {
+      point.ok = false;
+      point.failReason = `自定义探针配置错误`;
+    }
+  }
+
   return point;
 }
 
-// ==================== 🌟 优质判定（每次达标制） ====================
+// ==================== 质量判定 ====================
 function tlsOk(p){ return CONFIG.maxTlsMs<=0 || (p.tls!=null&&p.tls<=CONFIG.maxTlsMs); }
 function speedOk(p){ return CONFIG.minSpeedKBps<=0 || (p.speed!=null&&p.speed>=CONFIG.minSpeedKBps); }
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
   if(!recent.length)return{quality:false,rate:0,goodRate:0,medTls:null,medSpeed:null};
   const oks=recent.filter(p=>p.ok);
-  const rate=oks.length/recent.length;                                   // 成功率
-  const good=recent.filter(p=>p.ok&&tlsOk(p)&&speedOk(p)).length;        // 达标次数
-  const goodRate=good/recent.length;                                     // 达标率
+  const rate=oks.length/recent.length;
+  const good=recent.filter(p=>p.ok&&tlsOk(p)&&speedOk(p)).length;
+  const goodRate=good/recent.length;
   const med=a=>a.length?a[Math.floor(a.length/2)]:null;
   const medTls=med(oks.map(p=>p.tls).filter(v=>v!=null).sort((a,b)=>a-b));
   const medSpeed=med(oks.map(p=>p.speed).filter(v=>v!=null).sort((a,b)=>a-b));
@@ -164,7 +201,7 @@ async function runCycle(){
         state.history[u.id].push(point);
         if(state.history[u.id].length>600)state.history[u.id]=state.history[u.id].slice(-600);
         state.progress.tested++;
-        log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' tls='+point.tls+'ms'+(point.speed!=null?' speed='+point.speed+'KB/s':'')):' 失败')); } });
+        log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' tls='+point.tls+'ms'+(point.speed!=null?' speed='+point.speed+'KB/s':'')):(' 失败: '+point.failReason))); } });
     await Promise.all(workers);
     state.lastCycle=Date.now();
     const online=state.units.filter(u=>{const h=state.history[u.id];return h&&h.length&&h[h.length-1].ok;}).length;
@@ -217,12 +254,12 @@ function buildState(){
     const online=items.filter(i=>i.latest&&i.latest.ok).length;
     const quality=items.filter(i=>i.quality.quality).length;
     return{ checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
-      config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,dnsTtlSec:CONFIG.dnsTtlSec,retainHours:CONFIG.retainHours},
+      config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,dnsTtlSec:CONFIG.dnsTtlSec,retainHours:CONFIG.retainHours,customProbeUrl:CONFIG.customProbeUrl},
       github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:state.github.lastUpload,lastError:state.github.lastError},
       summary:{total:items.length,online,quality,offline:items.length-online},items };
   }catch(e){
     return{checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
-      config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:1,dnsTtlSec:300,retainHours:168},
+      config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:1,dnsTtlSec:300,retainHours:168,customProbeUrl:''},
       github:{configured:false,auto:false,lastUpload:null,lastError:e.message},
       summary:{total:0,online:0,quality:0,offline:0},items:[]};
   }
@@ -251,7 +288,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile();
 loadData();
 server.listen(CONFIG.port,async()=>{
-  console.log(`🚀 Proxy Monitor v8 on http://0.0.0.0:${CONFIG.port}`);
-  log('🚀 服务启动');
+  console.log(`🚀 Proxy Monitor v9 on http://0.0.0.0:${CONFIG.port}`);
+  log('🚀 服务启动 (终极验证版)');
   await refreshUnits(); runCycle(); restartTimer();
 });
