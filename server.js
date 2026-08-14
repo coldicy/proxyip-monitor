@@ -1,7 +1,7 @@
 /**
- * Proxy Monitor v7
- * 新增：检测进度(progress) / 运行日志(/api/logs) / 每节点近40次明细(recent)
- * 继承：域名粘性缓存、全IPv4展开、网页配置、ip.txt 自愈创建、--noproxy 直连
+ * Proxy Monitor v8
+ * 优质判定重构：窗口内【每一次】单独判定达标(成功+TLS≤上限+速度≥下限)，达标率≥阈值才优质(默认100%)
+ * 继承：进度/日志/近40次明细/粘性缓存/全IPv4/网页配置/ip.txt自愈/--noproxy
  */
 const http = require('http');
 const fs = require('fs');
@@ -23,7 +23,7 @@ const CONFIG = {
   maxTlsMs: parseFloat(process.env.MAX_TLS_MS || '0'),
   minSpeedKBps: parseFloat(process.env.MIN_SPEED_KBPS || '0'),
   qualityWindow: parseInt(process.env.QUALITY_WINDOW || '10', 10),
-  qualityRate: parseFloat(process.env.QUALITY_SUCCESS_RATE || '0.8'),
+  qualityRate: parseFloat(process.env.QUALITY_RATE || '1'),   // 🌟 达标率阈值，默认 1 = 每次都必须达标
   github: { token: process.env.GITHUB_TOKEN || '', repo: process.env.GITHUB_REPO || '',
     path: process.env.GITHUB_PATH || 'proxyip.txt', branch: process.env.GITHUB_BRANCH || 'main',
     auto: process.env.GITHUB_AUTO_UPLOAD === 'true' },
@@ -118,7 +118,7 @@ async function refreshUnits(){
   state.units=[...map.values()];
 }
 
-// ==================== 测试 / 质量 ====================
+// ==================== 测试 ====================
 async function testTarget(u){
   const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null};
   if(!u.ip)return point;
@@ -134,18 +134,23 @@ async function testTarget(u){
     if(sp&&sp.http===200&&sp.speed>0)point.speed=Math.round(sp.speed/1024); }
   return point;
 }
+
+// ==================== 🌟 优质判定（每次达标制） ====================
+function tlsOk(p){ return CONFIG.maxTlsMs<=0 || (p.tls!=null&&p.tls<=CONFIG.maxTlsMs); }
+function speedOk(p){ return CONFIG.minSpeedKBps<=0 || (p.speed!=null&&p.speed>=CONFIG.minSpeedKBps); }
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
-  if(!recent.length)return{quality:false,rate:0,medTls:null,medSpeed:null};
-  const oks=recent.filter(p=>p.ok); const rate=oks.length/recent.length;
+  if(!recent.length)return{quality:false,rate:0,goodRate:0,medTls:null,medSpeed:null};
+  const oks=recent.filter(p=>p.ok);
+  const rate=oks.length/recent.length;                                   // 成功率
+  const good=recent.filter(p=>p.ok&&tlsOk(p)&&speedOk(p)).length;        // 达标次数
+  const goodRate=good/recent.length;                                     // 达标率
   const med=a=>a.length?a[Math.floor(a.length/2)]:null;
   const medTls=med(oks.map(p=>p.tls).filter(v=>v!=null).sort((a,b)=>a-b));
   const medSpeed=med(oks.map(p=>p.speed).filter(v=>v!=null).sort((a,b)=>a-b));
-  let quality=rate>=CONFIG.qualityRate;
-  if(quality&&CONFIG.maxTlsMs>0)quality=medTls!=null&&medTls<=CONFIG.maxTlsMs;
-  if(quality&&CONFIG.minSpeedKBps>0)quality=medSpeed!=null&&medSpeed>=CONFIG.minSpeedKBps;
-  return{quality,rate,medTls,medSpeed};
+  return{quality:goodRate>=CONFIG.qualityRate,rate,goodRate,medTls,medSpeed};
 }
+
 async function runCycle(){
   if(state.checking)return; state.checking=true;
   try{
@@ -206,7 +211,8 @@ function buildState(){
   try{
     const items=state.units.map(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
       return{ id:u.id,label:u.label,host:u.host,port:u.port,isDomain:u.isDomain,ip:u.ip,
-        colo:latest?latest.colo:null,loc:latest?latest.loc:null,latest,quality:computeQuality(hist),
+        colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
+        latest,quality:computeQuality(hist),
         recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,tls:p.tls,speed:p.speed})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length;
     const quality=items.filter(i=>i.quality.quality).length;
@@ -216,7 +222,7 @@ function buildState(){
       summary:{total:items.length,online,quality,offline:items.length-online},items };
   }catch(e){
     return{checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
-      config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:0.8,dnsTtlSec:300,retainHours:168},
+      config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:1,dnsTtlSec:300,retainHours:168},
       github:{configured:false,auto:false,lastUpload:null,lastError:e.message},
       summary:{total:0,online:0,quality:0,offline:0},items:[]};
   }
@@ -245,7 +251,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile();
 loadData();
 server.listen(CONFIG.port,async()=>{
-  console.log(`🚀 Proxy Monitor v7 on http://0.0.0.0:${CONFIG.port}`);
+  console.log(`🚀 Proxy Monitor v8 on http://0.0.0.0:${CONFIG.port}`);
   log('🚀 服务启动');
   await refreshUnits(); runCycle(); restartTimer();
 });
