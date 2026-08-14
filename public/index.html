@@ -117,7 +117,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · 域名全 IPv4 展开 · 优质筛选 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · 域名全 IPv4 展开 · 优质筛选 · GitHub 同步 · 生命周期管理</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -156,8 +156,8 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 
   <div class="listhead"><span>节点</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 中位</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP</span><span class="r">速度</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>状态条：🟩达标 🟥未达标(失败/超延迟/低速) · 悬浮查看单次明细<br>
-  数据中心 = Cloudflare 接入机房(colo) · 地区 = 节点出口地区(loc) · 出口 = 代理出口IP · 优质 = 窗口内每次检测均达标</footer>
+  <footer>状态条：🟩达标 🟥未达标(失败/超延迟/低速) ⬜失败 · 悬浮查看单次明细<br>
+  数据中心 = Cloudflare 接入机房(colo) · 地区 = 节点出口地区(loc) · 出口 = 代理出口IP · 优质 = 窗口内每次检测均达标 · 长期离线纯IP将被自动清理并记入「清除记录」</footer>
 </div>
 
 <div id="tip"></div>
@@ -172,7 +172,11 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="modal" class="overlay hidden">
   <div class="modal">
     <div class="mhead"><h2>⚙️ 设置</h2><button class="btn" id="mClose">✕</button></div>
-    <div class="mtabs"><span class="mtab on" data-mtab="cfg">运行配置</span><span class="mtab" data-mtab="ips">节点列表 ip.txt</span></div>
+    <div class="mtabs">
+      <span class="mtab on" data-mtab="cfg">运行配置</span>
+      <span class="mtab" data-mtab="ips">节点列表 ip.txt</span>
+      <span class="mtab" data-mtab="grave">🗑️ 清除记录</span>
+    </div>
     <div id="mCfg" class="mbody">
       <div class="grid2">
         <label>监测间隔(秒)<input id="cInterval" type="number"></label>
@@ -180,6 +184,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
         <label>并发数<input id="cConcurrency" type="number"></label>
         <label>官方探针 URL<input id="cProbe" type="text"></label>
         <label>🌟 自定义终极探针 URL<input id="cCustomProbe" type="text" placeholder="https://your-domain.com/generate_204"></label>
+        <label>🗑️ 自动清理离线节点(天, 0=关闭)<input id="cAutoClean" type="number" step="0.5"></label>
         <label>域名 DNS 查询间隔(秒)<input id="cDnsTtl" type="number"></label>
         <label>已发现 IP 保留(小时)<input id="cRetain" type="number"></label>
         <label>优质 TLS 上限(ms,0=不限)<input id="cMaxTls" type="number"></label>
@@ -198,6 +203,13 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     <div id="mIps" class="mbody hidden">
       <textarea id="ipText" spellcheck="false"></textarea>
       <div class="mfoot"><button class="btn primary" id="saveIps">💾 保存并重载节点</button></div>
+    </div>
+    <div id="mGrave" class="mbody hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="muted" style="font-size:.8rem">长期离线被自动移除的纯 IP 节点记录（域名解析的死 IP 不在此列）</span>
+        <button class="btn" id="clearGrave" style="padding:6px 12px;font-size:.76rem">清空记录</button>
+      </div>
+      <div id="graveList" style="max-height:50vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;font:12px/1.8 ui-monospace,monospace;color:var(--muted)">加载中...</div>
     </div>
   </div>
 </div>
@@ -266,16 +278,14 @@ function getView(){
   return items;
 }
 
-// 🌟 统一格式：ip:port#LOC | tls | speed
+/* 🌟 统一格式：ip:port#LOC | tls | speed(Mbps) */
 function lineOf(i){
-  var ipPort = (i.ip||i.host)+':'+i.port;
-  var region = i.loc || i.colo || 'Unknown';
-  var tls = i.quality.medTls != null ? i.quality.medTls+'ms' : '?ms';
-  var speedStr = '?Mbps';
-  if (i.quality.medSpeed != null) {
-    speedStr = (i.quality.medSpeed * 8 / 1000).toFixed(1) + 'Mbps';
-  }
-  return ipPort + '#' + region + ' | ' + tls + ' | ' + speedStr;
+  var ipPort=(i.ip||i.host)+':'+i.port;
+  var region=i.loc||i.colo||'Unknown';
+  var tls=i.quality.medTls!=null?i.quality.medTls+'ms':'?ms';
+  var speedStr='?Mbps';
+  if(i.quality.medSpeed!=null){speedStr=(i.quality.medSpeed*8/1000).toFixed(1)+'Mbps';}
+  return ipPort+'#'+region+' | '+tls+' | '+speedStr;
 }
 
 function render(){
@@ -303,7 +313,7 @@ function render(){
   if(s.config.minSpeedKBps>0)crit.push('≥'+s.config.minSpeedKBps+'KB/s');
   var critStr=crit.length?crit.join(' · '):'仅要求成功';
   var need=Math.round(s.config.qualityRate*100);
-  el('cfgInfo').textContent='优质 = 近'+s.config.qualityWindow+'次'+(need>=100?'全部达标':'≥'+need+'%达标')+'（'+critStr+'）';
+  el('cfgInfo').textContent='优质 = 近'+s.config.qualityWindow+'次'+(need>=100?'全部达标':'≥'+need+'%达标')+'（'+critStr+'）'+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天自动清理':'');
   el('barsHead').textContent='近 '+s.config.qualityWindow+' 次状态';
   el('cards').innerHTML=
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数</span></div></div>'+
@@ -325,18 +335,15 @@ function render(){
     var on=i.latest&&i.latest.ok;
     var mbps=(i.latest&&i.latest.speed!=null)?(i.latest.speed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
-    
     var kv='';
     if(i.isDomain&&i.ip)kv+='<span class="kv" title="域名解析到的真实测试 IP"><em>解析</em><b>'+esc(i.host)+' → '+esc(i.ip)+'</b></span>';
     if(i.colo)kv+='<span class="kv" title="Cloudflare 接入机房（colo）"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)kv+='<span class="kv" title="节点出口地区（loc）"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp&&i.exitIp!==i.ip)kv+='<span class="kv" title="代理出口 IP（CF 看到的来源 IP）"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(i.latest&&i.latest.t)kv+='<span class="kv" title="最近一次检测完成时间"><em>最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></span>';
-    
-    if (!on && i.latest && i.latest.failReason) {
-      kv += '<span class="kv" title="节点被淘汰的具体原因"><em>淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></span>';
+    if(!on&&i.latest&&i.latest.failReason){
+      kv+='<span class="kv" title="节点被淘汰的具体原因"><em>淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></span>';
     }
-
     var ratePct=Math.round(i.quality.rate*100);
     var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
@@ -353,6 +360,7 @@ function render(){
   }catch(e){ var c=el('cycleInfo'); c.textContent='渲染错误: '+e.message; c.className='pill busy'; }
 }
 
+/* 悬浮提示 */
 var tipEl=el('tip');
 document.addEventListener('mouseover',function(e){
   var b=e.target.closest?e.target.closest('[data-tip]'):null;
@@ -364,6 +372,7 @@ document.addEventListener('mouseover',function(e){
 });
 window.addEventListener('scroll',function(){tipEl.classList.remove('show');},true);
 
+/* 日志面板 */
 function openLogs(){ el('logPanel').classList.remove('hidden'); pollLogs(); }
 function pollLogs(){ if(el('logPanel').classList.contains('hidden'))return;
   fetch('/api/logs').then(function(r){return r.json();}).then(function(d){
@@ -377,26 +386,56 @@ el('btnLogs').onclick=openLogs;
 el('logClose').onclick=function(){el('logPanel').classList.add('hidden');};
 el('logPanel').addEventListener('click',function(e){if(e.target.id==='logPanel')el('logPanel').classList.add('hidden');});
 
+/* 🌟 清除记录 (Graveyard) */
+function loadGraveyard(){
+  fetch('/api/graveyard').then(function(r){return r.json();}).then(function(d){
+    var list=el('graveList');
+    if(!d.graveyard||!d.graveyard.length){ list.innerHTML='<div style="text-align:center;padding:24px">暂无清除记录，节点池非常健康！</div>'; return; }
+    var arr=d.graveyard.slice().sort(function(a,b){return b.removedAt-a.removedAt;});
+    list.innerHTML=arr.map(function(g){
+      return '<div style="border-bottom:1px dashed var(--line);padding:8px 0">'+
+        '<b style="color:var(--err)">'+esc(g.label)+'</b>'+
+        '<span style="float:right">清除于 '+fmtDT(g.removedAt)+'</span><br>'+
+        '<span>原因: '+esc(g.reason)+' · 最后在线: '+fmtDT(g.lastOnlineAt)+'</span>'+
+      '</div>';
+    }).join('');
+  }).catch(function(){ el('graveList').innerHTML='<div style="text-align:center;padding:24px">加载失败</div>'; });
+}
+el('clearGrave').onclick=function(){
+  if(!confirm('确定要清空所有清除记录吗？'))return;
+  fetch('/api/graveyard/clear',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
+    if(r.ok){toast('✅ 清除记录已清空');loadGraveyard();}
+  }).catch(function(e){toast(e.message,true);});
+};
+
+/* 事件委托 */
 document.addEventListener('click',function(e){
   var ci=e.target.closest('[data-ci]');
-  if(ci){var it=LAST_VIEW[+ci.getAttribute('data-ci')];if(it){copyText(lineOf(it)).then(function(){toast('✅ 已复制 '+((it.ip||it.host)+':'+it.port));});}return;}
+  if(ci){var it=LAST_VIEW[+ci.getAttribute('data-ci')];if(it){copyText(lineOf(it)).then(function(){toast('✅ 已复制 '+lineOf(it).split('#')[0]);});}return;}
   var m=e.target.closest('[data-mtab]');
-  if(m){document.querySelectorAll('.mtab').forEach(function(x){x.classList.toggle('on',x===m);});
-    el('mCfg').classList.toggle('hidden',m.getAttribute('data-mtab')!=='cfg');
-    el('mIps').classList.toggle('hidden',m.getAttribute('data-mtab')!=='ips');return;}
+  if(m){
+    document.querySelectorAll('.mtab').forEach(function(x){x.classList.toggle('on',x===m);});
+    var tab=m.getAttribute('data-mtab');
+    el('mCfg').classList.toggle('hidden',tab!=='cfg');
+    el('mIps').classList.toggle('hidden',tab!=='ips');
+    el('mGrave').classList.toggle('hidden',tab!=='grave');
+    if(tab==='grave')loadGraveyard();
+    return;
+  }
   var t=e.target.closest('[data-tab]');
   if(t){TAB=t.getAttribute('data-tab');render();}
 });
 el('btnCopy').onclick=function(){
   if(!LAST_VIEW.length){toast('当前没有可复制的节点',true);return;}
-  copyText(LAST_VIEW.map(lineOf).join('\n')).then(function(){toast('✅ 已复制 '+LAST_VIEW.length+' 个节点（含注释）');});
+  copyText(LAST_VIEW.map(lineOf).join('\n')).then(function(){toast('✅ 已复制 '+LAST_VIEW.length+' 个节点（统一格式）');});
 };
 el('btnSettings').onclick=openModal;
 el('mClose').onclick=function(){el('modal').classList.add('hidden');};
 el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
 el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
-    dnsTtlSec:+el('cDnsTtl').value,retainHours:+el('cRetain').value,probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
+    dnsTtlSec:+el('cDnsTtl').value,retainHours:+el('cRetain').value,autoCleanDays:+el('cAutoClean').value,
+    probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
     maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
     github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked,uploadIntervalMin:+el('cGhInterval').value}};
   fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
@@ -415,7 +454,7 @@ el('btnUpload').onclick=function(){
   if(!STATE||!STATE.github.configured){toast('未配置 GitHub（设置 → Token/仓库）',true);return;}
   var b=el('btnUpload');b.disabled=true;
   fetch('/api/upload',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
-    if(r.ok)toast('✅ 已上传 '+r.count+' 个节点 ('+r.fileCount+' 个文件)');else toast(r.error||'上传失败',true);
+    if(r.ok)toast('✅ 已上传 '+r.count+' 个节点 ('+(r.fileCount||1)+' 个文件)');else toast(r.error||'上传失败',true);
     b.disabled=false;load();
   }).catch(function(e){toast(e.message,true);b.disabled=false;});
 };
@@ -424,10 +463,11 @@ function openModal(){
   Promise.all([fetch('/api/config').then(function(r){return r.json();}),fetch('/api/ipfile').then(function(r){return r.json();})]).then(function(arr){
     var c=arr[0],ipf=arr[1];
     el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;el('cConcurrency').value=c.concurrency;
-    el('cDnsTtl').value=c.dnsTtlSec;el('cRetain').value=c.retainHours;el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
+    el('cDnsTtl').value=c.dnsTtlSec;el('cRetain').value=c.retainHours;el('cAutoClean').value=c.autoCleanDays||0;
+    el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
     el('cMaxTls').value=c.maxTlsMs;el('cMinSpeed').value=c.minSpeedKBps;el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
-    el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;el('cGhAuto').checked=!!c.github.auto;
-    el('cGhInterval').value=c.github.uploadIntervalMin||0;
+    el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;
+    el('cGhAuto').checked=!!c.github.auto;el('cGhInterval').value=c.github.uploadIntervalMin||0;
     el('ipText').value=ipf.content||'';
   }).catch(function(e){toast('打开设置失败: '+e.message,true);});
 }
