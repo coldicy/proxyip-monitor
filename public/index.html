@@ -188,8 +188,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
         <label>达标率阈值(0-1, 1=每次都必须达标)<input id="cRate" type="number" step="0.05"></label>
         <label>GitHub Token<input id="cGhToken" type="password" placeholder="ghp_xxxx"></label>
         <label>GitHub 仓库(owner/repo)<input id="cGhRepo" type="text"></label>
-        <label>上传文件路径<input id="cGhPath" type="text"></label>
+        <label>上传文件前缀(如 proxyip)<input id="cGhPath" type="text"></label>
         <label>分支<input id="cGhBranch" type="text"></label>
+        <label>⏰ 定时上传周期(分钟, 0=关闭)<input id="cGhInterval" type="number"></label>
       </div>
       <div class="grid2" style="margin-top:12px"><label style="flex-direction:row;align-items:center;gap:8px"><input id="cGhAuto" type="checkbox" style="width:auto"> 优质列表变化时自动上传 GitHub</label></div>
       <div class="mfoot"><button class="btn primary" id="saveCfg">💾 保存配置</button></div>
@@ -264,10 +265,19 @@ function getView(){
     return (a.quality.medTls!=null?a.quality.medTls:99999)-(b.quality.medTls!=null?b.quality.medTls:99999); });
   return items;
 }
+
+// 🌟 统一格式：ip:port#LOC | tls | speed
 function lineOf(i){
-  var cmt=[i.loc,i.colo,(i.quality.medTls!=null?i.quality.medTls+'ms':null),(i.quality.medSpeed!=null?i.quality.medSpeed+'KB/s':null)].filter(Boolean).join(' | ');
-  return (i.ip||i.host)+':'+i.port+(cmt?'  #'+cmt:'');
+  var ipPort = (i.ip||i.host)+':'+i.port;
+  var region = i.loc || i.colo || 'Unknown';
+  var tls = i.quality.medTls != null ? i.quality.medTls+'ms' : '?ms';
+  var speedStr = '?Mbps';
+  if (i.quality.medSpeed != null) {
+    speedStr = (i.quality.medSpeed * 8 / 1000).toFixed(1) + 'Mbps';
+  }
+  return ipPort + '#' + region + ' | ' + tls + ' | ' + speedStr;
 }
+
 function render(){
   try{
   if(!STATE||!STATE.items)return;
@@ -323,7 +333,6 @@ function render(){
     if(i.exitIp&&i.exitIp!==i.ip)kv+='<span class="kv" title="代理出口 IP（CF 看到的来源 IP）"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(i.latest&&i.latest.t)kv+='<span class="kv" title="最近一次检测完成时间"><em>最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></span>';
     
-    // 🌟 核心新增：离线原因高亮展示
     if (!on && i.latest && i.latest.failReason) {
       kv += '<span class="kv" title="节点被淘汰的具体原因"><em>淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></span>';
     }
@@ -389,7 +398,7 @@ el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
     dnsTtlSec:+el('cDnsTtl').value,retainHours:+el('cRetain').value,probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
     maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
-    github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked}};
+    github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked,uploadIntervalMin:+el('cGhInterval').value}};
   fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
     if(r.ok)toast('✅ 配置已保存并生效');else toast(r.error||'保存失败',true); load();
   }).catch(function(e){toast(e.message,true);});
@@ -406,7 +415,7 @@ el('btnUpload').onclick=function(){
   if(!STATE||!STATE.github.configured){toast('未配置 GitHub（设置 → Token/仓库）',true);return;}
   var b=el('btnUpload');b.disabled=true;
   fetch('/api/upload',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
-    if(r.ok)toast('✅ 已上传 '+r.count+' 个优质节点');else toast(r.error||'上传失败',true);
+    if(r.ok)toast('✅ 已上传 '+r.count+' 个节点 ('+r.fileCount+' 个文件)');else toast(r.error||'上传失败',true);
     b.disabled=false;load();
   }).catch(function(e){toast(e.message,true);b.disabled=false;});
 };
@@ -418,6 +427,7 @@ function openModal(){
     el('cDnsTtl').value=c.dnsTtlSec;el('cRetain').value=c.retainHours;el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
     el('cMaxTls').value=c.maxTlsMs;el('cMinSpeed').value=c.minSpeedKBps;el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
     el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;el('cGhAuto').checked=!!c.github.auto;
+    el('cGhInterval').value=c.github.uploadIntervalMin||0;
     el('ipText').value=ipf.content||'';
   }).catch(function(e){toast('打开设置失败: '+e.message,true);});
 }
