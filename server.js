@@ -1,8 +1,8 @@
 /**
- * Proxy Monitor v17 (IP 主键模型)
- * 重构：单元 ID = ip:port；多域名同IP合并为一个节点(sources记录来源)，每轮只测一次
- * 重构：屏蔽/删除/清理按IP生效；旧 域名@IP 历史自动迁移合并
- * 继承：v16 日志闭环/每文件计数/指纹去重 / 三重验证 / 手册 / 生命周期
+ * Proxy Monitor v18 (屏蔽逻辑统一)
+ * 统一：自动清理与手动清理都写入屏蔽名单；屏蔽IP不被域名二次解析、也不因ip.txt重写而显示
+ * 释放：清空清除记录 = 解除全部屏蔽（唯一释放口）
+ * 继承：v17 IP主键模型 / 三重验证 / 日志闭环 / 每文件计数 / 手册
  */
 const http = require('http');
 const fs = require('fs');
@@ -10,7 +10,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v17';
+const VERSION = 'v18';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -108,8 +108,6 @@ function rewriteIpFileRemoving(idSet){ try{ const text=fs.readFileSync(CONFIG.ip
   const newLines=text.split(/\r?\n/).filter(line=>{ const raw=line.split('#')[0].trim(); if(!raw)return true;
     const id=lineId(raw); return !(id&&idSet.has(id)); });
   fs.writeFileSync(CONFIG.ipFile,newLines.join('\n')); return true; }catch(e){ log('⚠️ 写入 ip.txt 失败: '+e.message); return false; } }
-
-/* 历史迁移：把旧的 域名@IP / 多个域名@IP 历史合并到新 ip:port 键 */
 function migrateHistory(ip,port){
   const id=ip+':'+port;
   if(state.history[id]&&state.history[id].length)return;
@@ -121,12 +119,13 @@ function migrateHistory(ip,port){
   if(merged.length){ merged.sort((a,b)=>a.t-b.t); state.history[id]=merged.slice(-600); legacy.forEach(k=>delete state.history[k]); }
 }
 
-// ==================== 🌟 IP主键单元构建 ====================
+// ==================== IP主键单元构建（屏蔽对 纯IP+域名 双生效） ====================
 async function refreshUnits(){
   const now=Date.now(); const targets=parseIpFile(); const map=new Map(); const seenKeys=new Set();
   for(const t of targets){
     if(net.isIPv4(t.host)){
       const id=t.host+':'+t.port;
+      if(state.blocked[id])continue;                 // 🌟 v18：屏蔽的纯IP也不显示
       if(!map.has(id))map.set(id,{id,ip:t.host,port:t.port,sources:[],isDomain:false,label:id});
     }
     else if(net.isIPv6(t.host)){ }
@@ -140,7 +139,7 @@ async function refreshUnits(){
       let added=0;
       for(const ip of Object.keys(entry.ips)){
         const pid=ip+':'+t.port;
-        if(state.blocked[pid])continue;               // 被屏蔽的IP不再加入
+        if(state.blocked[pid])continue;              // 屏蔽的IP不被域名二次解析
         if(!map.has(pid)){ migrateHistory(ip,t.port); map.set(pid,{id:pid,ip,port:t.port,sources:[],isDomain:false,label:pid}); }
         const u=map.get(pid); if(!u.sources.includes(t.host))u.sources.push(t.host);
         added++; }
@@ -193,7 +192,7 @@ function computeQuality(points){
     avgTls:avg(oks.map(p=>p.tls).filter(v=>v!=null)), avgSpeed:avg(oks.map(p=>p.speed).filter(v=>v!=null))};
 }
 
-// ==================== 生命周期清理（按IP） ====================
+// ==================== 生命周期清理（自动清理也写屏蔽） ====================
 async function cleanGraveyard(){
   if(CONFIG.autoCleanDays<=0)return;
   const threshold=Date.now()-CONFIG.autoCleanDays*24*3600*1000;
@@ -201,16 +200,17 @@ async function cleanGraveyard(){
   for(const u of state.units){ if(!u.ip)continue;
     const since=offlineSince(u.id);
     if(since<threshold){ toRemove.add(u.ip+':'+u.port);
+      state.blocked[u.ip+':'+u.port]=Date.now();        // 🌟 v18：自动清理也屏蔽
       for(const key of Object.keys(state.disc))delete state.disc[key].ips[u.ip];
       delete state.history[u.id];
       pushGrave(u.id,u.id,since,'auto',`离线超 ${CONFIG.autoCleanDays} 天（自动清理）`); n++; } }
   if(n){ rewriteIpFileRemoving(toRemove);
     if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
     persistGraveyard(); await refreshUnits();
-    log(`🗑️ 自动清理 ${n} 个长期离线节点`); }
+    log(`🗑️ 自动清理 ${n} 个长期离线节点（已屏蔽）`); }
 }
 
-// ==================== 手动删除（按IP全局生效） ====================
+// ==================== 手动删除（与自动统一的屏蔽语义） ====================
 async function removeUnits(ids){
   let removed=0; const lineIds=new Set(); let changed=false;
   for(const id of ids){ const u=state.units.find(x=>x.id===id); if(!u)continue;
@@ -224,7 +224,7 @@ async function removeUnits(ids){
   if(changed){ rewriteIpFileRemoving(lineIds);
     if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
     persistGraveyard(); await refreshUnits(); }
-  log(`🗑️ 手动删除 ${removed} 个节点`); return removed;
+  log(`🗑️ 手动删除 ${removed} 个节点（已屏蔽）`); return removed;
 }
 
 async function runCycle(){
@@ -255,7 +255,7 @@ async function runCycle(){
 function loadData(){ try{const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
   if(d&&d.history)state.history=d.history; if(d&&d.disc)state.disc=d.disc; }catch(e){} loadGraveyard(); }
 
-// ==================== GitHub（IP主键天然不重复） ====================
+// ==================== GitHub ====================
 function formatNodeLine(ipPort,region,q){
   const tls=q.avgTls!=null?q.avgTls+'ms':'?ms';
   let speedStr='?Mbps'; if(q.avgSpeed!=null)speedStr=(q.avgSpeed*8/1000).toFixed(1)+'Mbps';
@@ -344,6 +344,6 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} IP主键模型)`);
+  log(`🚀 服务启动 (${VERSION} 屏蔽逻辑统一)`);
   await refreshUnits(); runCycle(); restartTimer(); restartGithubTimer();
 });

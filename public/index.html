@@ -175,7 +175,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 
   <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点 (IP)</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · IP 主键模型：同IP多域名自动聚合，只测一次 · 📖 手册查看完整说明</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 清除(自动/手动)即屏蔽，清空清除记录解除 · 📖 手册查看完整说明</footer>
 </div>
 
 <div id="tip"></div>
@@ -190,36 +190,37 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <li>单元 ID = <code>ip:port</code>。多个域名解析到同一 IP 会<b>合并为一个节点</b>，信息行「来源」列出所有域名。</li>
       <li>每个 IP 每轮<b>只测试一次</b>，不会出现“同IP一个在线一个离线”的矛盾。</li>
       <li>上传 GitHub 天然不重复，上传数 = 优质数。</li>
-      <li>手动删除/屏蔽/自动清理都<b>按 IP 全局生效</b>：删除某 IP 后，所有域名都不会再解析出它。</li>
-      <li>域名若解析不到任何可用 IP，保留一个占位行（显示“无有效IP”），便于排查。</li>
     </ul>
-    <h2>三、在线判定（三重验证）</h2>
+    <h2>三、屏蔽与清除（v18 统一语义）</h2>
+    <ul>
+      <li><b>清除 = 屏蔽</b>：无论自动清理还是手动删除，都会把该 <code>ip:port</code> 写入屏蔽名单并记入清除记录。</li>
+      <li>屏蔽的 IP <b>不会</b>被域名二次解析复活，<b>也不会</b>因重新写进 ip.txt 而显示。</li>
+      <li><b>解除屏蔽的唯一方式</b>：设置 → 🗑️ 清除记录 → 清空记录。</li>
+      <li>自动清理：离线超 <code>自动清理天数</code> 触发；手动删除：勾选删除。</li>
+    </ul>
+    <h2>四、在线判定（三重验证）</h2>
     <ul>
       <li><b>① 官方探针</b>：测 TCP/TLS 延迟并获取 数据中心/地区/出口IP。</li>
       <li><b>② 强制测速</b>：下载512KB，失败重试1次；零速/无速度=离线。</li>
       <li><b>③ 自定义探针</b>：返回403=SNI白名单/1034假反代，判离线。</li>
     </ul>
-    <h2>四、指标说明</h2>
+    <h2>五、指标说明</h2>
     <table><tr><th>列</th><th>含义</th></tr>
     <tr><td>TLS 平均 / 平均速度</td><td>优质窗口内成功样本的平均值（反映近期表现）</td></tr>
     <tr><td>TLS 最新 / TCP 最新</td><td>最近一次检测快照</td></tr>
     <tr><td>成功率</td><td>窗口内成功次数占比</td></tr>
-    <tr><td>状态条</td><td>🟩达标 🟥未达标 ⬜失败，悬浮看单次明细</td></tr>
+    <tr><td>状态条</td><td>🟩达标 未达标 ⬜失败，悬浮看单次明细</td></tr>
     <tr><td>来源</td><td>该 IP 被哪些域名解析到</td></tr>
     <tr><td>淘汰原因</td><td>离线节点红字说明</td></tr></table>
-    <h2>五、优质判定</h2>
+    <h2>六、优质判定</h2>
     <p>窗口内每次检测都达标（成功+TLS≤上限+速度≥下限）的比例 ≥ 达标率阈值（默认1）才算优质。</p>
-    <h2>六、生命周期</h2>
-    <ul>
-      <li><b>在线即永久保留</b>；离线超 <code>自动清理天数</code> 自动移除（记入清除记录-自动）。</li>
-      <li><b>手动删除</b>：勾选删除，按IP全局屏蔽（记入清除记录-手动）；清空记录解除屏蔽。</li>
-    </ul>
     <h2>七、GitHub 同步</h2>
     <ul><li>格式 <code>ip:port#地区 | TLS平均 | 平均速度Mbps</code>；多文件 all + 地区；手动/变动/定时三种上传，日志闭环。</li></ul>
     <h2>八、常见问题</h2>
     <ul>
       <li><b>为什么同IP只有一行？</b>IP主键聚合，来源里看域名。</li>
-      <li><b>删除的IP会复活吗？</b>手动删除进屏蔽名单不会；自动清理不屏蔽，若DNS仍解析到会重新测试。</li>
+      <li><b>删除/清理的IP会复活吗？</b>不会（已屏蔽）。要恢复请清空清除记录。</li>
+      <li><b>把已清除IP写回ip.txt会显示吗？</b>不会，屏蔽优先；清空记录后才显示。</li>
     </ul>
   </div>
 </div>
@@ -267,7 +268,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
     <div id="mGrave" class="mbody hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span class="muted" style="font-size:.8rem">被移除的节点记录（手动/自动）。清空记录将同时解除IP屏蔽。</span>
+        <span class="muted" style="font-size:.8rem">被移除的节点记录（手动/自动，均已屏蔽）。清空记录 = 解除全部屏蔽。</span>
         <button class="btn" id="clearGrave" style="padding:6px 12px;font-size:.76rem">清空记录</button>
       </div>
       <div id="graveList" style="max-height:50vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;font:12px/1.8 ui-monospace,monospace;color:var(--muted)">加载中...</div>
@@ -344,7 +345,7 @@ function render(){
     el('cycleInfo').textContent='上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s'; el('cycleInfo').className='pill'; }
   var crit=[]; if(s.config.maxTlsMs>0)crit.push('TLS≤'+s.config.maxTlsMs); if(s.config.minSpeedKBps>0)crit.push('≥'+s.config.minSpeedKBps+'KB/s');
   var critStr=crit.length?crit.join(' · '):'仅要求成功'; var need=Math.round(s.config.qualityRate*100);
-  el('cfgInfo').textContent='优质 = 近'+s.config.qualityWindow+'次'+(need>=100?'全部达标':'≥'+need+'%达标')+'（'+critStr+'，取平均）'+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天自动清理':'');
+  el('cfgInfo').textContent='优质 = 近'+s.config.qualityWindow+'次'+(need>=100?'全部达标':'≥'+need+'%达标')+'（'+critStr+'，取平均）'+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天自动清理并屏蔽':'');
   el('barsHead').textContent='近 '+s.config.qualityWindow+' 次状态';
   el('cards').innerHTML=
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
@@ -417,9 +418,9 @@ function loadGraveyard(){ fetch('/api/graveyard').then(function(r){return r.json
       '<b style="color:var(--err)">'+esc(g.label)+'</b><span style="float:right">清除于 '+fmtDT(g.removedAt)+'</span><br>'+
       '<span>原因: '+esc(g.reason)+' · 最后在线: '+fmtDT(g.lastOnlineAt)+'</span></div>'; }).join('');
   }).catch(function(){ el('graveList').innerHTML='<div style="text-align:center;padding:24px">加载失败</div>'; }); }
-el('clearGrave').onclick=function(){ if(!confirm('确定清空所有清除记录？\n（将同时解除IP屏蔽）'))return;
+el('clearGrave').onclick=function(){ if(!confirm('确定清空所有清除记录？\n（将同时解除全部IP屏蔽）'))return;
   fetch('/api/graveyard/clear',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
-    if(r.ok){toast('✅ 记录已清空，屏蔽已解除');loadGraveyard();} }).catch(function(e){toast(e.message,true);}); };
+    if(r.ok){toast('✅ 记录已清空，屏蔽已解除');loadGraveyard();load();} }).catch(function(e){toast(e.message,true);}); };
 
 document.addEventListener('change',function(e){
   var cb=e.target.closest('[data-sel]');
@@ -429,9 +430,9 @@ document.addEventListener('change',function(e){
     document.querySelectorAll('[data-sel]').forEach(function(c){c.checked=SELECTED.has(c.getAttribute('data-sel'));});
     updateRemoveBtn(); } });
 el('btnRemove').onclick=function(){ if(!SELECTED.size)return;
-  if(!confirm('确定删除所选 '+SELECTED.size+' 个节点？\n将按IP全局屏蔽并记入清除记录（手动）。'))return;
+  if(!confirm('确定删除所选 '+SELECTED.size+' 个节点？\n将按IP全局屏蔽并记入清除记录（手动）。\n如需恢复请清空清除记录。'))return;
   fetch('/api/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[...SELECTED]})})
-    .then(function(r){return r.json();}).then(function(r){ if(r.ok){toast('✅ 已删除 '+r.count+' 个节点并记录');SELECTED.clear();updateRemoveBtn();load();}
+    .then(function(r){return r.json();}).then(function(r){ if(r.ok){toast('✅ 已删除 '+r.count+' 个节点并屏蔽');SELECTED.clear();updateRemoveBtn();load();}
       else toast(r.error||'删除失败',true); }).catch(function(e){toast(e.message,true);}); };
 
 document.addEventListener('click',function(e){
