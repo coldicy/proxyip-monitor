@@ -118,7 +118,6 @@ footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.74rem;lin
 .mfoot{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
 textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:14px;font:12px/1.7 ui-monospace,monospace;outline:none}
 .help h2{font-size:1.05rem;margin:18px 0 8px;color:var(--accent)}
-.help h3{font-size:.92rem;margin:12px 0 6px;color:var(--text)}
 .help p,.help li{font-size:.84rem;color:var(--muted);line-height:1.8}
 .help ul{padding-left:20px}
 .help code{background:rgba(90,209,240,.1);color:var(--accent);padding:1px 6px;border-radius:6px;font-size:.78rem}
@@ -135,7 +134,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · IP 主键 · 域名来源聚合 · 优质筛选 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · 来源-节点生命周期 · 优质筛选 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -160,7 +159,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <button class="btn primary" id="btnCopy">📋 复制筛选节点</button>
     </div>
     <div class="deckrow">
-      <input class="in" id="fSearch" type="text" placeholder="🔍 搜索 IP / 来源域名 / 数据中心 / 地区">
+      <input class="in" id="fSearch" type="text" placeholder="🔍 搜索 IP / 来源 / 数据中心 / 地区">
       <span class="flabel">TLS ≤</span><input class="in" id="fTls" type="number" placeholder="ms" style="width:80px">
       <span class="flabel">速度 ≥</span><input class="in" id="fSpeed" type="number" placeholder="KB/s" style="width:86px">
       <span class="flabel">成功率 ≥</span><input class="in" id="fRate" type="number" placeholder="%" style="width:70px">
@@ -175,7 +174,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 
   <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点 (IP)</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 清除(自动/手动)即屏蔽，清空清除记录解除 · 📖 手册查看完整说明</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 来源只增不删 · 清除(自动/手动)=屏蔽 · 清空清除记录=解除屏蔽 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -183,44 +182,26 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、它是什么</h2>
-    <p>Proxy Monitor 是一个自托管的 Cloudflare ProxyIP / 反代节点长期监测与优选工具，采用 <b>IP 主键模型</b>：节点以 IP 命名，域名仅作为“发现来源”。</p>
-    <h2>二、IP 主键模型（核心）</h2>
+    <h2>一、来源与节点（v20 模型）</h2>
     <ul>
-      <li>单元 ID = <code>ip:port</code>。多个域名解析到同一 IP 会<b>合并为一个节点</b>，信息行「来源」列出所有域名。</li>
-      <li>每个 IP 每轮<b>只测试一次</b>，不会出现“同IP一个在线一个离线”的矛盾。</li>
-      <li>上传 GitHub 天然不重复，上传数 = 优质数。</li>
+      <li><b>来源</b> = ip.txt 每行：纯IP / 域名 / http(s)列表源；<b>节点</b> = <code>ip:port</code>（IP主键）。</li>
+      <li>来源只负责“发现并添加”节点；DNS轮换/列表变化<b>不会删除</b>已存在节点。</li>
+      <li>节点“来源”列展示所有现存发现源（多来源聚合，每轮只测一次）。</li>
     </ul>
-    <h2>三、屏蔽与清除（v18 统一语义）</h2>
+    <h2>二、生命周期</h2>
+    <table><tr><th>事件</th><th>结果</th></tr>
+    <tr><td>来源还在，只是不再指向该IP</td><td>节点保留；在线永久保留，离线超N天自动清理</td></tr>
+    <tr><td>来源行被删除</td><td>来源失效；节点所有来源都失效才移除（不屏蔽，加回可恢复）</td></tr>
+    <tr><td>节点被自动/手动清除</td><td>屏蔽+清除记录；并从所有来源移除</td></tr>
+    <tr><td>某来源最后一个节点被清除</td><td>该来源行自动从ip.txt删除（连带效果）</td></tr>
+    <tr><td>清空清除记录</td><td>解除全部屏蔽（唯一释放口）</td></tr></table>
+    <h2>三、在线判定（三重验证）</h2>
+    <ul><li>① 官方探针 ② 强制测速(512KB,重试1次) ③ 自定义探针(403=假反代)。</li></ul>
+    <h2>四、指标 / 优质 / GitHub</h2>
     <ul>
-      <li><b>清除 = 屏蔽</b>：无论自动清理还是手动删除，都会把该 <code>ip:port</code> 写入屏蔽名单并记入清除记录。</li>
-      <li>屏蔽的 IP <b>不会</b>被域名二次解析复活，<b>也不会</b>因重新写进 ip.txt 而显示。</li>
-      <li><b>解除屏蔽的唯一方式</b>：设置 → 🗑️ 清除记录 → 清空记录。</li>
-      <li>自动清理：离线超 <code>自动清理天数</code> 触发；手动删除：勾选删除。</li>
-    </ul>
-    <h2>四、在线判定（三重验证）</h2>
-    <ul>
-      <li><b>① 官方探针</b>：测 TCP/TLS 延迟并获取 数据中心/地区/出口IP。</li>
-      <li><b>② 强制测速</b>：下载512KB，失败重试1次；零速/无速度=离线。</li>
-      <li><b>③ 自定义探针</b>：返回403=SNI白名单/1034假反代，判离线。</li>
-    </ul>
-    <h2>五、指标说明</h2>
-    <table><tr><th>列</th><th>含义</th></tr>
-    <tr><td>TLS 平均 / 平均速度</td><td>优质窗口内成功样本的平均值（反映近期表现）</td></tr>
-    <tr><td>TLS 最新 / TCP 最新</td><td>最近一次检测快照</td></tr>
-    <tr><td>成功率</td><td>窗口内成功次数占比</td></tr>
-    <tr><td>状态条</td><td>🟩达标 未达标 ⬜失败，悬浮看单次明细</td></tr>
-    <tr><td>来源</td><td>该 IP 被哪些域名解析到</td></tr>
-    <tr><td>淘汰原因</td><td>离线节点红字说明</td></tr></table>
-    <h2>六、优质判定</h2>
-    <p>窗口内每次检测都达标（成功+TLS≤上限+速度≥下限）的比例 ≥ 达标率阈值（默认1）才算优质。</p>
-    <h2>七、GitHub 同步</h2>
-    <ul><li>格式 <code>ip:port#地区 | TLS平均 | 平均速度Mbps</code>；多文件 all + 地区；手动/变动/定时三种上传，日志闭环。</li></ul>
-    <h2>八、常见问题</h2>
-    <ul>
-      <li><b>为什么同IP只有一行？</b>IP主键聚合，来源里看域名。</li>
-      <li><b>删除/清理的IP会复活吗？</b>不会（已屏蔽）。要恢复请清空清除记录。</li>
-      <li><b>把已清除IP写回ip.txt会显示吗？</b>不会，屏蔽优先；清空记录后才显示。</li>
+      <li>TLS平均/平均速度=窗口内成功样本平均；优质=窗口内每次达标比例≥阈值。</li>
+      <li>GitHub：格式 <code>ip:port#地区 | TLS | 速度</code>；多文件 all+地区；手动/变动/定时上传，日志闭环。</li>
+      <li>远程列表只认 ip / ip:port 行，忽略域名与嵌套URL。</li>
     </ul>
   </div>
 </div>
@@ -248,7 +229,6 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
         <label>官方探针 URL<input id="cProbe" type="text"></label>
         <label>🌟 自定义终极探针 URL<input id="cCustomProbe" type="text"></label>
         <label>🗑️ 自动清理离线节点(天, 0=关闭)<input id="cAutoClean" type="number" step="0.5"></label>
-        <label>域名 DNS 查询间隔(秒)<input id="cDnsTtl" type="number"></label>
         <label>优质 TLS 上限(ms,0=不限)<input id="cMaxTls" type="number"></label>
         <label>优质速度下限(KB/s,0=不限)<input id="cMinSpeed" type="number"></label>
         <label>优质判定窗口(次)<input id="cWindow" type="number"></label>
@@ -312,7 +292,7 @@ function getView(){
     if(TAB==='online')return i.latest&&i.latest.ok; if(TAB==='quality')return i.quality.quality;
     if(TAB==='offline')return !(i.latest&&i.latest.ok); return true; });
   var q=(el('fSearch').value||'').trim().toLowerCase();
-  if(q)items=items.filter(function(i){return [i.label,i.ip,i.host,(i.sources||[]).join(' '),i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;});});
+  if(q)items=items.filter(function(i){return [i.label,i.ip,(i.sources||[]).join(' '),i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;});});
   var fTls=parseFloat(el('fTls').value),fSp=parseFloat(el('fSpeed').value),fRate=parseFloat(el('fRate').value),fColo=el('fColo').value,fLoc=el('fLoc').value;
   if(!isNaN(fTls))items=items.filter(function(i){return i.quality.avgTls!=null&&i.quality.avgTls<=fTls;});
   if(!isNaN(fSp))items=items.filter(function(i){return i.quality.avgSpeed!=null&&i.quality.avgSpeed>=fSp;});
@@ -351,7 +331,7 @@ function render(){
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
     '<div class="card ok"><div class="ic g">🟢</div><div><b>'+s.summary.online+'</b><span>当前在线</span></div></div>'+
     '<div class="card q"><div class="ic s">⭐</div><div><b>'+s.summary.quality+'</b><span>优质节点</span></div></div>'+
-    '<div class="card off"><div class="ic r">🔻</div><div><b>'+s.summary.offline+'</b><span>离线 / 解析失败</span></div></div>';
+    '<div class="card off"><div class="ic r">🔻</div><div><b>'+s.summary.offline+'</b><span>离线 / 来源无效</span></div></div>';
   var cnt={all:s.items.length,online:s.summary.online,quality:s.summary.quality,offline:s.summary.offline};
   el('tabs').innerHTML=[['all','全部'],['online','在线'],['quality','优质'],['offline','离线']].map(function(t){
     return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+' '+cnt[t[0]]+'</span>'; }).join('');
@@ -367,7 +347,7 @@ function render(){
     var avgMbps=(i.quality.avgSpeed!=null)?(i.quality.avgSpeed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var kv='';
-    if(i.ip&&i.sources&&i.sources.length)kv+='<span class="kv" title="解析到该IP的来源域名"><em>来源</em><b>'+esc(i.sources.join(', '))+'</b></span>';
+    if(i.ip&&i.sources&&i.sources.length)kv+='<span class="kv" title="发现该IP的来源"><em>来源</em><b>'+esc(i.sources.join(', '))+'</b></span>';
     if(i.colo)kv+='<span class="kv" title="Cloudflare 接入机房（colo）"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)kv+='<span class="kv" title="节点出口地区（loc）"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp&&i.exitIp!==i.ip)kv+='<span class="kv" title="代理出口 IP（CF 看到的来源 IP）"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
@@ -437,7 +417,7 @@ el('btnRemove').onclick=function(){ if(!SELECTED.size)return;
 
 document.addEventListener('click',function(e){
   var ci=e.target.closest('[data-ci]');
-  if(ci){var it=LAST_VIEW[+ci.getAttribute('data-ci')];if(it){copyText(lineOf(it)).then(function(){toast('✅ 已复制 '+lineOf(it).split('#')[0]);});}return;}
+  if(ci){var it=LAST_VIEW[+ci.getAttribute('data-ci')];if(it&&it.ip){copyText(lineOf(it)).then(function(){toast('✅ 已复制 '+lineOf(it).split('#')[0]);});}return;}
   var m=e.target.closest('[data-mtab]');
   if(m){ document.querySelectorAll('.mtab').forEach(function(x){x.classList.toggle('on',x===m);});
     var tab=m.getAttribute('data-mtab');
@@ -445,13 +425,15 @@ document.addEventListener('click',function(e){
     if(tab==='grave')loadGraveyard(); return; }
   var t=e.target.closest('[data-tab]'); if(t){TAB=t.getAttribute('data-tab');render();} });
 el('btnCopy').onclick=function(){ if(!LAST_VIEW.length){toast('当前没有可复制的节点',true);return;}
-  copyText(LAST_VIEW.map(lineOf).join('\n')).then(function(){toast('✅ 已复制 '+LAST_VIEW.length+' 个节点（统一格式）');}); };
+  var lines=LAST_VIEW.filter(function(i){return i.ip;}).map(lineOf);
+  if(!lines.length){toast('当前视图没有可复制的IP节点',true);return;}
+  copyText(lines.join('\n')).then(function(){toast('✅ 已复制 '+lines.length+' 个节点（统一格式）');}); };
 el('btnSettings').onclick=openModal;
 el('mClose').onclick=function(){el('modal').classList.add('hidden');};
 el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
 el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
-    dnsTtlSec:+el('cDnsTtl').value,autoCleanDays:+el('cAutoClean').value,
+    autoCleanDays:+el('cAutoClean').value,
     probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
     maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
     github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked,uploadIntervalMin:+el('cGhInterval').value}};
@@ -472,7 +454,7 @@ function openModal(){ el('modal').classList.remove('hidden');
   Promise.all([fetch('/api/config').then(function(r){return r.json();}),fetch('/api/ipfile').then(function(r){return r.json();})]).then(function(arr){
     var c=arr[0],ipf=arr[1];
     el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;el('cConcurrency').value=c.concurrency;
-    el('cDnsTtl').value=c.dnsTtlSec;el('cAutoClean').value=c.autoCleanDays||0;
+    el('cAutoClean').value=c.autoCleanDays||0;
     el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
     el('cMaxTls').value=c.maxTlsMs;el('cMinSpeed').value=c.minSpeedKBps;el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
     el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;
