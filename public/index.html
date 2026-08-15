@@ -58,8 +58,13 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .row:hover{border-color:var(--line2);transform:translateY(-1px)}
 .row.quality{border-color:rgba(61,220,151,.4);box-shadow:inset 3px 0 0 var(--ok)}
 .row.offline{opacity:.7}
+/* 🌟 优雅圆形选择器：默认隐藏，悬浮/已选/批量态显示 */
 .sel{display:flex;align-items:center;justify-content:center}
-.sel input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.sel input{appearance:none;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);background:transparent;cursor:pointer;opacity:0;transition:.15s;margin:0;flex:none}
+.sel input:hover{border-color:var(--accent)}
+.sel input:checked{opacity:1;background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--panel2)}
+.row:hover .sel input,.list.selecting .sel input{opacity:1}
+.listhead .sel input{opacity:.85}
 .main{display:flex;align-items:center;gap:12px;min-width:0}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
@@ -160,9 +165,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>状态条：🟩达标 🟥未达标 ⬜失败 · 悬浮查看单次明细 · 勾选节点可批量手动删除<br>
+  <footer>状态条：🟩达标 未达标 ⬜失败 · 悬浮查看单次明细 · 悬浮行显示圆形选择器，勾选后可批量删除<br>
   数据中心 = CF 接入机房(colo) · 地区 = 出口地区(loc) · 优质 = 窗口内每次均达标 · TLS/速度为窗口内平均值</footer>
 </div>
 
@@ -273,7 +278,8 @@ function lineOf(i){ var ipPort=(i.ip||i.host)+':'+i.port; var region=i.loc||i.co
   if(i.quality.avgSpeed!=null)speedStr=(i.quality.avgSpeed*8/1000).toFixed(1)+'Mbps';
   return ipPort+'#'+region+' | '+tls+' | '+speedStr; }
 function updateRemoveBtn(){ var b=el('btnRemove');
-  if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none'; }
+  if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
+  el('list').classList.toggle('selecting',SELECTED.size>0); }
 
 function render(){
   try{
@@ -303,10 +309,11 @@ function render(){
   el('fLoc').innerHTML='<option value="">全部</option>'+Object.keys(locs).sort().map(function(c){return '<option'+(c===cl?' selected':'')+'>'+c+'</option>';}).join('');
   LAST_VIEW=getView();
   el('filterCount').textContent=LAST_VIEW.length+' / '+s.items.length+' 个';
-  if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';return;}
+  if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';updateRemoveBtn();return;}
   el('list').innerHTML=LAST_VIEW.map(function(i,idx){
     var on=i.latest&&i.latest.ok;
-    var mbps=(i.latest&&i.latest.speed!=null)?(i.latest.speed*8/1000).toFixed(1):null;
+    /* 🌟 修正：平均速度取 avgSpeed，Mbps 同步平均 */
+    var avgMbps=(i.quality.avgSpeed!=null)?(i.quality.avgSpeed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var kv='';
     if(i.isDomain&&i.ip)kv+='<span class="kv" title="域名解析到的真实测试 IP"><em>解析</em><b>'+esc(i.host)+' → '+esc(i.ip)+'</b></span>';
@@ -323,10 +330,11 @@ function render(){
       '<div class="num">'+(i.quality.avgTls!=null?i.quality.avgTls+'<i>ms</i>':'--')+'</div>'+
       '<div class="num colhide">'+(on&&i.latest.tls!=null?i.latest.tls+'<i>ms</i>':'--')+'</div>'+
       '<div class="num colhide">'+(on&&i.latest.tcp!=null?i.latest.tcp+'<i>ms</i>':'--')+'</div>'+
-      '<div class="num">'+(i.latest&&i.latest.speed!=null?i.latest.speed+'<i>KB/s</i>':'--')+'<small>'+(mbps?mbps+' Mbps':'')+'</small></div>'+
+      '<div class="num">'+(i.quality.avgSpeed!=null?i.quality.avgSpeed+'<i>KB/s</i>':'--')+'<small>'+(avgMbps?avgMbps+' Mbps':'')+'</small></div>'+
       '<div class="rate '+rateCls+'">'+ratePct+'%</div>'+
       '<div class="statcell"><button class="iconbtn" data-ci="'+idx+'" title="复制该节点">⧉</button>'+badge+'</div>'+
     '</div>'; }).join('');
+  updateRemoveBtn();
   }catch(e){ var c=el('cycleInfo'); c.textContent='渲染错误: '+e.message; c.className='pill busy'; }
 }
 
@@ -360,7 +368,6 @@ el('clearGrave').onclick=function(){ if(!confirm('确定清空所有清除记录
   fetch('/api/graveyard/clear',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
     if(r.ok){toast('✅ 记录已清空，屏蔽已解除');loadGraveyard();} }).catch(function(e){toast(e.message,true);}); };
 
-/* 选择与删除 */
 document.addEventListener('change',function(e){
   var cb=e.target.closest('[data-sel]');
   if(cb){ var id=cb.getAttribute('data-sel'); if(cb.checked)SELECTED.add(id); else SELECTED.delete(id); updateRemoveBtn(); return; }

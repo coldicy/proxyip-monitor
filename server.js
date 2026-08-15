@@ -1,8 +1,7 @@
 /**
- * Proxy Monitor v13
- * 新增：手动删除节点(勾选批量) + 屏蔽名单(防域名IP复活) + 清除记录区分自动/手动
- * 新增：TLS/速度改为优质窗口内平均值
- * 继承：v12 测速强制验证 / 生命周期管理 / 智能保留 / 多文件上传 / 定时上传
+ * Proxy Monitor v14
+ * 修复：ip.txt 行解析重写(parseLine/lineId)，修复裸IPv6行拆分成NaN的隐患
+ * 继承：v13 手动删除/屏蔽名单/清除记录(自动+手动) / 窗口平均值 / 测速强制验证 / 多文件上传 / 定时上传
  */
 const http = require('http');
 const fs = require('fs');
@@ -73,18 +72,20 @@ function restartGithubTimer(){ if(githubTimer)clearInterval(githubTimer);
   if(mins>0&&CONFIG.github.token&&CONFIG.github.repo){ githubTimer=setInterval(()=>{ log('⏰ 定时触发 GitHub 上传');
     uploadGithub().catch(e=>{state.github.lastError=e.message;log('⚠️ 定时上传失败: '+e.message);}); },mins*60*1000); } }
 
-// ==================== 工具 ====================
-function splitProbe(u){try{const x=new URL(u);return{host:x.hostname,path:x.pathname+x.search};}catch(e){return{host:'www.cloudflare.com',path:'/cdn-cgi/trace'};}}
-function lineToId(raw){ let host=raw,port=443;
-  if(raw.startsWith('[')){const m=raw.match(/^\[([^\]]+)\](?::(\d+))?$/);if(!m)return null;host=m[1];if(m[2])port=+m[2];}
-  else if(raw.split(':').length===2&&/^\d+$/.test(raw.split(':')[1])){host=raw.split(':')[0];port=+raw.split(':')[1];}
-  else if(raw.includes(':')){host=raw;}
-  return host+':'+port; }
+// ==================== 🌟 行解析 (修复IPv6/NaN隐患) ====================
+function parseLine(raw){
+  let host=raw,port=443;
+  if(raw.startsWith('[')){ const m=raw.match(/^\[([^\]]+)\](?::(\d+))?$/); if(!m)return null; host=m[1]; if(m[2])port=+m[2]; }
+  else if(raw.includes(':')&&raw.split(':').length===2&&/^\d+$/.test(raw.split(':')[1])){ const p=raw.split(':'); host=p[0]; port=+p[1]; }
+  else if(raw.includes(':')){ host=raw; } // 裸 IPv6，保持完整
+  return {host,port};
+}
+function lineId(raw){ const r=parseLine(raw); return r?r.host+':'+r.port:null; }
 function parseIpFile(){ let text='';try{text=fs.readFileSync(CONFIG.ipFile,'utf8');}catch(e){return[];}
   const out=[];const seen=new Set();
   for(const raw of text.split(/\r?\n/)){ const line=raw.split('#')[0].trim(); if(!line)continue;
-    const id=lineToId(line); if(!id||seen.has(id))continue; seen.add(id);
-    const [host,port]=id.split(':'); out.push({host,port:+port,label:line}); }
+    const r=parseLine(line); if(!r)continue; const id=r.host+':'+r.port; if(seen.has(id))continue; seen.add(id);
+    out.push({host:r.host,port:r.port,label:line}); }
   return out; }
 function runCurl(c,ms){return new Promise(r=>exec(c,{timeout:ms,maxBuffer:1024*1024},(e,o)=>r(e?null:o)));}
 function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{return JSON.parse(l[l.length-1]);}catch(e){return null;}}
@@ -119,7 +120,7 @@ async function refreshUnits(){
         if(!isOnline&&isExpired){ delete entry.ips[ip]; delete state.history[id]; } });
       const aliveIps=Object.keys(entry.ips);
       if(!aliveIps.length){ map.set('dom:'+key,{id:'dom:'+key,ip:null,port:t.port,host:t.host,label:t.label,isDomain:true}); }
-      else{ aliveIps.forEach(ip=>{ if(state.blocked[key+'@'+ip])return; // 屏蔽名单，防复活
+      else{ aliveIps.forEach(ip=>{ if(state.blocked[key+'@'+ip])return;
         const id='dom:'+key+'@'+ip; map.set(id,{id,ip,port:t.port,host:t.host,label:t.label,isDomain:true}); }); }
     }
   }
@@ -155,8 +156,9 @@ async function testTarget(u){
   catch(e){ point.ok=false; point.failReason='自定义探针配置错误'; } }
   return point;
 }
+function splitProbe(u){try{const x=new URL(u);return{host:x.hostname,path:x.pathname+x.search};}catch(e){return{host:'www.cloudflare.com',path:'/cdn-cgi/trace'};}}
 
-// ==================== 🌟 质量判定 (窗口内平均) ====================
+// ==================== 质量判定 (窗口内平均) ====================
 function tlsOk(p){ return CONFIG.maxTlsMs<=0||(p.tls!=null&&p.tls<=CONFIG.maxTlsMs); }
 function speedOk(p){ return CONFIG.minSpeedKBps<=0||(p.speed!=null&&p.speed>=CONFIG.minSpeedKBps); }
 function computeQuality(points){
@@ -170,7 +172,7 @@ function computeQuality(points){
   return{quality:goodRate>=CONFIG.qualityRate,rate,goodRate,avgTls,avgSpeed};
 }
 
-// ==================== 自动清理 (Graveyard, mode=auto) ====================
+// ==================== 自动清理 (mode=auto) ====================
 async function cleanGraveyard(){
   if(CONFIG.autoCleanDays<=0)return;
   const threshold=Date.now()-CONFIG.autoCleanDays*24*3600*1000;
@@ -184,14 +186,14 @@ async function cleanGraveyard(){
   if(toRemove.size>0){
     try{ const text=fs.readFileSync(CONFIG.ipFile,'utf8');
       const newLines=text.split(/\r?\n/).filter(line=>{ const raw=line.split('#')[0].trim(); if(!raw)return true;
-        const id=lineToId(raw); return !(id&&toRemove.has(id)); });
+        const id=lineId(raw); return !(id&&toRemove.has(id)); });
       fs.writeFileSync(CONFIG.ipFile,newLines.join('\n')); }catch(e){ log('⚠️ 写入 ip.txt 失败: '+e.message); }
     log(`🗑️ 自动清理了 ${toRemove.size} 个长期离线节点`);
     if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
     persistGraveyard(); await refreshUnits(); }
 }
 
-// ==================== 🌟 手动删除 (mode=manual) ====================
+// ==================== 手动删除 (mode=manual) ====================
 async function removeUnits(ids){
   let removed=0; const ipLines=new Set(); let ipChanged=false;
   for(const id of ids){ const u=state.units.find(x=>x.id===id); if(!u)continue;
@@ -206,7 +208,7 @@ async function removeUnits(ids){
     state.graveyard.list.push(entry); removed++; }
   if(ipChanged){ try{ const text=fs.readFileSync(CONFIG.ipFile,'utf8');
     const newLines=text.split(/\r?\n/).filter(line=>{ const raw=line.split('#')[0].trim(); if(!raw)return true;
-      const id=lineToId(raw); return !(id&&ipLines.has(id)); });
+      const id=lineId(raw); return !(id&&ipLines.has(id)); });
     fs.writeFileSync(CONFIG.ipFile,newLines.join('\n')); }catch(e){ log('⚠️ 写入 ip.txt 失败: '+e.message); } }
   if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
   persistGraveyard(); await refreshUnits();
@@ -319,7 +321,7 @@ const server=http.createServer(async(req,res)=>{
 try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
-  console.log(`🚀 Proxy Monitor v13 on http://0.0.0.0:${CONFIG.port}`);
-  log('🚀 服务启动 (v13 手动删除+平均值版)');
+  console.log(`🚀 Proxy Monitor v14 on http://0.0.0.0:${CONFIG.port}`);
+  log('🚀 服务启动 (v14 平均值修正+优雅选择版)');
   await refreshUnits(); runCycle(); restartTimer(); restartGithubTimer();
 });
