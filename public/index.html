@@ -117,7 +117,6 @@ footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.74rem;lin
 .grid2 input{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font-size:.86rem;outline:none}
 .mfoot{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
 textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:14px;font:12px/1.7 ui-monospace,monospace;outline:none}
-/* 手册排版 */
 .help h2{font-size:1.05rem;margin:18px 0 8px;color:var(--accent)}
 .help h3{font-size:.92rem;margin:12px 0 6px;color:var(--text)}
 .help p,.help li{font-size:.84rem;color:var(--muted);line-height:1.8}
@@ -136,7 +135,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · 域名全 IPv4 展开 · 优质筛选 · GitHub 同步 · 生命周期管理</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · IP 主键 · 域名来源聚合 · 优质筛选 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -161,7 +160,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <button class="btn primary" id="btnCopy">📋 复制筛选节点</button>
     </div>
     <div class="deckrow">
-      <input class="in" id="fSearch" type="text" placeholder="🔍 搜索 名称 / IP / 数据中心 / 地区">
+      <input class="in" id="fSearch" type="text" placeholder="🔍 搜索 IP / 来源域名 / 数据中心 / 地区">
       <span class="flabel">TLS ≤</span><input class="in" id="fTls" type="number" placeholder="ms" style="width:80px">
       <span class="flabel">速度 ≥</span><input class="in" id="fSpeed" type="number" placeholder="KB/s" style="width:86px">
       <span class="flabel">成功率 ≥</span><input class="in" id="fRate" type="number" placeholder="%" style="width:70px">
@@ -174,72 +173,53 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点 (IP)</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 悬浮行显示圆形选择器可批量删除 · 📖 手册查看完整说明</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · IP 主键模型：同IP多域名自动聚合，只测一次 · 📖 手册查看完整说明</footer>
 </div>
 
 <div id="tip"></div>
 
-<!-- 📖 使用手册 -->
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
     <h2>一、它是什么</h2>
-    <p>Proxy Monitor 是一个自托管的 Cloudflare ProxyIP / 反代节点长期监测与优选工具。它周期性测试你提供的 IP/域名，筛选出真正可用的节点，并可自动同步到 GitHub。</p>
-    <h2>二、快速开始</h2>
+    <p>Proxy Monitor 是一个自托管的 Cloudflare ProxyIP / 反代节点长期监测与优选工具，采用 <b>IP 主键模型</b>：节点以 IP 命名，域名仅作为“发现来源”。</p>
+    <h2>二、IP 主键模型（核心）</h2>
     <ul>
-      <li>在 <code>设置 → 节点列表</code> 每行写一个节点：<code>1.2.3.4:443</code> 或 <code>cdn.example.com:8443</code>（不写端口默认 443）。</li>
-      <li>纯 IP 直接测试；域名会自动解析出<b>全部 IPv4</b> 逐个测试。</li>
-      <li>建议配置 <code>自定义终极探针</code>（你自己的 CF 域名 + <code>/generate_204</code>），用于识别“假反代”。</li>
+      <li>单元 ID = <code>ip:port</code>。多个域名解析到同一 IP 会<b>合并为一个节点</b>，信息行「来源」列出所有域名。</li>
+      <li>每个 IP 每轮<b>只测试一次</b>，不会出现“同IP一个在线一个离线”的矛盾。</li>
+      <li>上传 GitHub 天然不重复，上传数 = 优质数。</li>
+      <li>手动删除/屏蔽/自动清理都<b>按 IP 全局生效</b>：删除某 IP 后，所有域名都不会再解析出它。</li>
+      <li>域名若解析不到任何可用 IP，保留一个占位行（显示“无有效IP”），便于排查。</li>
     </ul>
     <h2>三、在线判定（三重验证）</h2>
     <ul>
-      <li><b>① 官方探针</b>：<code>www.cloudflare.com/cdn-cgi/trace</code>，测 TCP/TLS 延迟并获取 数据中心/地区/出口IP。</li>
-      <li><b>② 强制测速</b>：下载 512KB，失败重试 1 次；零速/无速度 = 离线（防“握手快但断流”的假节点）。</li>
-      <li><b>③ 自定义探针</b>：返回 403 = SNI 白名单/1034 假反代，判离线。</li>
+      <li><b>① 官方探针</b>：测 TCP/TLS 延迟并获取 数据中心/地区/出口IP。</li>
+      <li><b>② 强制测速</b>：下载512KB，失败重试1次；零速/无速度=离线。</li>
+      <li><b>③ 自定义探针</b>：返回403=SNI白名单/1034假反代，判离线。</li>
     </ul>
     <h2>四、指标说明</h2>
     <table><tr><th>列</th><th>含义</th></tr>
-    <tr><td>TLS 平均</td><td>优质窗口内成功样本的 TLS 延迟平均值（反映近期表现）</td></tr>
-    <tr><td>TLS 最新 / TCP 最新</td><td>最近一次检测的快照值</td></tr>
-    <tr><td>平均速度</td><td>窗口内成功样本的下载速度平均（KB/s，小字为 Mbps）</td></tr>
+    <tr><td>TLS 平均 / 平均速度</td><td>优质窗口内成功样本的平均值（反映近期表现）</td></tr>
+    <tr><td>TLS 最新 / TCP 最新</td><td>最近一次检测快照</td></tr>
     <tr><td>成功率</td><td>窗口内成功次数占比</td></tr>
     <tr><td>状态条</td><td>🟩达标 🟥未达标 ⬜失败，悬浮看单次明细</td></tr>
-    <tr><td>数据中心/地区/出口</td><td>CF 接入机房 colo / 出口地区 loc / 代理出口 IP</td></tr>
-    <tr><td>淘汰原因</td><td>离线节点红字说明为何被判离线</td></tr></table>
+    <tr><td>来源</td><td>该 IP 被哪些域名解析到</td></tr>
+    <tr><td>淘汰原因</td><td>离线节点红字说明</td></tr></table>
     <h2>五、优质判定</h2>
-    <p>取“优质窗口”内数据：每次检测都达标（成功 + TLS≤上限 + 速度≥下限）的比例 ≥ 达标率阈值（默认 1 = 全部达标）才算优质。TLS/速度取窗口内平均值。</p>
-    <h2>六、生命周期管理</h2>
+    <p>窗口内每次检测都达标（成功+TLS≤上限+速度≥下限）的比例 ≥ 达标率阈值（默认1）才算优质。</p>
+    <h2>六、生命周期</h2>
     <ul>
-      <li><b>在线即永久保留</b>：域名解析出的 IP 只要还在线，永不清理。</li>
-      <li><b>自动清理</b>：纯IP/域名IP 离线超 <code>自动清理天数</code> 自动移除，记入清除记录（自动）。</li>
-      <li><b>手动删除</b>：勾选节点 → 删除所选；纯IP从 ip.txt 移除，域名IP进屏蔽名单（防 DNS 复活），记入清除记录（手动）。</li>
-      <li><b>清除记录</b>：设置 → 🗑️ 清除记录 查看；清空记录会同时解除域名IP屏蔽。</li>
+      <li><b>在线即永久保留</b>；离线超 <code>自动清理天数</code> 自动移除（记入清除记录-自动）。</li>
+      <li><b>手动删除</b>：勾选删除，按IP全局屏蔽（记入清除记录-手动）；清空记录解除屏蔽。</li>
     </ul>
     <h2>七、GitHub 同步</h2>
+    <ul><li>格式 <code>ip:port#地区 | TLS平均 | 平均速度Mbps</code>；多文件 all + 地区；手动/变动/定时三种上传，日志闭环。</li></ul>
+    <h2>八、常见问题</h2>
     <ul>
-      <li>格式统一：<code>ip:port#地区 | TLS平均 | 平均速度Mbps</code>。</li>
-      <li>多文件：<code>前缀_all.txt</code> + 每个地区 <code>前缀_hk.txt</code> 等。</li>
-      <li>触发：手动上传 / 列表变化自动上传 / 定时上传（分钟）。</li>
-    </ul>
-    <h2>八、配置项一览</h2>
-    <table><tr><th>配置</th><th>说明</th></tr>
-    <tr><td>监测间隔</td><td>每轮检测间隔秒数</td></tr>
-    <tr><td>单次超时</td><td>单个 curl 超时秒数</td></tr>
-    <tr><td>并发数</td><td>同时检测的节点数</td></tr>
-    <tr><td>官方探针</td><td>测延迟/元数据的 CF 地址</td></tr>
-    <tr><td>自定义探针</td><td>识别假反代的你自己的域名</td></tr>
-    <tr><td>DNS 查询间隔</td><td>域名多久重新解析一次</td></tr>
-    <tr><td>自动清理天数</td><td>离线超 N 天清理（0=关闭），统一管纯IP+域名IP</td></tr>
-    <tr><td>优质 TLS 上限 / 速度下限</td><td>达标阈值</td></tr>
-    <tr><td>优质窗口 / 达标率阈值</td><td>取最近 N 次；达标比例要求</td></tr>
-    <tr><td>GitHub 系列</td><td>Token/仓库/前缀/分支/自动/定时</td></tr></table>
-    <h2>九、常见问题</h2>
-    <ul>
-      <li><b>为什么节点显示离线？</b>看红字“淘汰原因”：官方探针不通 / 测速失败 / 403 假反代。</li>
-      <li><b>域名节点为什么变多行？</b>域名解析出多个 IPv4，每个独立成行。</li>
-      <li><b>手动删除的域名IP会复活吗？</b>不会，已进屏蔽名单；清空清除记录才会解除。</li>
+      <li><b>为什么同IP只有一行？</b>IP主键聚合，来源里看域名。</li>
+      <li><b>删除的IP会复活吗？</b>手动删除进屏蔽名单不会；自动清理不屏蔽，若DNS仍解析到会重新测试。</li>
     </ul>
   </div>
 </div>
@@ -287,7 +267,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
     <div id="mGrave" class="mbody hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span class="muted" style="font-size:.8rem">被移除的节点记录（手动/自动）。清空记录将同时解除域名IP屏蔽。</span>
+        <span class="muted" style="font-size:.8rem">被移除的节点记录（手动/自动）。清空记录将同时解除IP屏蔽。</span>
         <button class="btn" id="clearGrave" style="padding:6px 12px;font-size:.76rem">清空记录</button>
       </div>
       <div id="graveList" style="max-height:50vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;font:12px/1.8 ui-monospace,monospace;color:var(--muted)">加载中...</div>
@@ -331,7 +311,7 @@ function getView(){
     if(TAB==='online')return i.latest&&i.latest.ok; if(TAB==='quality')return i.quality.quality;
     if(TAB==='offline')return !(i.latest&&i.latest.ok); return true; });
   var q=(el('fSearch').value||'').trim().toLowerCase();
-  if(q)items=items.filter(function(i){return [i.label,i.ip,i.host,i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;});});
+  if(q)items=items.filter(function(i){return [i.label,i.ip,i.host,(i.sources||[]).join(' '),i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;});});
   var fTls=parseFloat(el('fTls').value),fSp=parseFloat(el('fSpeed').value),fRate=parseFloat(el('fRate').value),fColo=el('fColo').value,fLoc=el('fLoc').value;
   if(!isNaN(fTls))items=items.filter(function(i){return i.quality.avgTls!=null&&i.quality.avgTls<=fTls;});
   if(!isNaN(fSp))items=items.filter(function(i){return i.quality.avgSpeed!=null&&i.quality.avgSpeed>=fSp;});
@@ -367,7 +347,7 @@ function render(){
   el('cfgInfo').textContent='优质 = 近'+s.config.qualityWindow+'次'+(need>=100?'全部达标':'≥'+need+'%达标')+'（'+critStr+'，取平均）'+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天自动清理':'');
   el('barsHead').textContent='近 '+s.config.qualityWindow+' 次状态';
   el('cards').innerHTML=
-    '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数</span></div></div>'+
+    '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
     '<div class="card ok"><div class="ic g">🟢</div><div><b>'+s.summary.online+'</b><span>当前在线</span></div></div>'+
     '<div class="card q"><div class="ic s">⭐</div><div><b>'+s.summary.quality+'</b><span>优质节点</span></div></div>'+
     '<div class="card off"><div class="ic r">🔻</div><div><b>'+s.summary.offline+'</b><span>离线 / 解析失败</span></div></div>';
@@ -386,7 +366,7 @@ function render(){
     var avgMbps=(i.quality.avgSpeed!=null)?(i.quality.avgSpeed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var kv='';
-    if(i.isDomain&&i.ip)kv+='<span class="kv" title="域名解析到的真实测试 IP"><em>解析</em><b>'+esc(i.host)+' → '+esc(i.ip)+'</b></span>';
+    if(i.ip&&i.sources&&i.sources.length)kv+='<span class="kv" title="解析到该IP的来源域名"><em>来源</em><b>'+esc(i.sources.join(', '))+'</b></span>';
     if(i.colo)kv+='<span class="kv" title="Cloudflare 接入机房（colo）"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)kv+='<span class="kv" title="节点出口地区（loc）"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp&&i.exitIp!==i.ip)kv+='<span class="kv" title="代理出口 IP（CF 看到的来源 IP）"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
@@ -437,7 +417,7 @@ function loadGraveyard(){ fetch('/api/graveyard').then(function(r){return r.json
       '<b style="color:var(--err)">'+esc(g.label)+'</b><span style="float:right">清除于 '+fmtDT(g.removedAt)+'</span><br>'+
       '<span>原因: '+esc(g.reason)+' · 最后在线: '+fmtDT(g.lastOnlineAt)+'</span></div>'; }).join('');
   }).catch(function(){ el('graveList').innerHTML='<div style="text-align:center;padding:24px">加载失败</div>'; }); }
-el('clearGrave').onclick=function(){ if(!confirm('确定清空所有清除记录？\n（将同时解除域名IP屏蔽）'))return;
+el('clearGrave').onclick=function(){ if(!confirm('确定清空所有清除记录？\n（将同时解除IP屏蔽）'))return;
   fetch('/api/graveyard/clear',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
     if(r.ok){toast('✅ 记录已清空，屏蔽已解除');loadGraveyard();} }).catch(function(e){toast(e.message,true);}); };
 
@@ -449,7 +429,7 @@ document.addEventListener('change',function(e){
     document.querySelectorAll('[data-sel]').forEach(function(c){c.checked=SELECTED.has(c.getAttribute('data-sel'));});
     updateRemoveBtn(); } });
 el('btnRemove').onclick=function(){ if(!SELECTED.size)return;
-  if(!confirm('确定删除所选 '+SELECTED.size+' 个节点？\n· 纯IP：从 ip.txt 移除\n· 域名解析IP：加入屏蔽名单\n均记入清除记录（手动）。'))return;
+  if(!confirm('确定删除所选 '+SELECTED.size+' 个节点？\n将按IP全局屏蔽并记入清除记录（手动）。'))return;
   fetch('/api/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[...SELECTED]})})
     .then(function(r){return r.json();}).then(function(r){ if(r.ok){toast('✅ 已删除 '+r.count+' 个节点并记录');SELECTED.clear();updateRemoveBtn();load();}
       else toast(r.error||'删除失败',true); }).catch(function(e){toast(e.message,true);}); };

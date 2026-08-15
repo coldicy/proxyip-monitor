@@ -1,9 +1,8 @@
 /**
- * Proxy Monitor v16
- * 修复：GitHub 变更检测改用“节点行指纹”（旧版带时间戳比对导致每轮都上传）
- * 修复：每个地区文件 commit 显示自身节点数；文件头新增 # nodes: N 注释
- * 修复：日志闭环（手动失败记录 / 跳过记录）
- * 继承：v15 生命周期统一 / 手册 / 三重验证 / 手动删除+屏蔽 / 多文件+定时上传
+ * Proxy Monitor v17 (IP 主键模型)
+ * 重构：单元 ID = ip:port；多域名同IP合并为一个节点(sources记录来源)，每轮只测一次
+ * 重构：屏蔽/删除/清理按IP生效；旧 域名@IP 历史自动迁移合并
+ * 继承：v16 日志闭环/每文件计数/指纹去重 / 三重验证 / 手册 / 生命周期
  */
 const http = require('http');
 const fs = require('fs');
@@ -11,7 +10,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v16';
+const VERSION = 'v17';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -110,11 +109,26 @@ function rewriteIpFileRemoving(idSet){ try{ const text=fs.readFileSync(CONFIG.ip
     const id=lineId(raw); return !(id&&idSet.has(id)); });
   fs.writeFileSync(CONFIG.ipFile,newLines.join('\n')); return true; }catch(e){ log('⚠️ 写入 ip.txt 失败: '+e.message); return false; } }
 
-// ==================== 粘性单元构建 ====================
+/* 历史迁移：把旧的 域名@IP / 多个域名@IP 历史合并到新 ip:port 键 */
+function migrateHistory(ip,port){
+  const id=ip+':'+port;
+  if(state.history[id]&&state.history[id].length)return;
+  let merged=[]; const legacy=[];
+  for(const k of Object.keys(state.history)){
+    if(k===id)continue;
+    if(k.endsWith('@'+ip)){ const head=k.slice(0,k.lastIndexOf('@')); const p=head.split(':').pop();
+      if(+p===port){ merged=merged.concat(state.history[k]); legacy.push(k); } } }
+  if(merged.length){ merged.sort((a,b)=>a.t-b.t); state.history[id]=merged.slice(-600); legacy.forEach(k=>delete state.history[k]); }
+}
+
+// ==================== 🌟 IP主键单元构建 ====================
 async function refreshUnits(){
   const now=Date.now(); const targets=parseIpFile(); const map=new Map(); const seenKeys=new Set();
   for(const t of targets){
-    if(net.isIPv4(t.host)){ map.set(t.host+':'+t.port,{id:t.host+':'+t.port,ip:t.host,port:t.port,host:t.host,label:t.label,isDomain:false}); }
+    if(net.isIPv4(t.host)){
+      const id=t.host+':'+t.port;
+      if(!map.has(id))map.set(id,{id,ip:t.host,port:t.port,sources:[],isDomain:false,label:id});
+    }
     else if(net.isIPv6(t.host)){ }
     else{
       const key=t.host+':'+t.port; seenKeys.add(key);
@@ -123,10 +137,14 @@ async function refreshUnits(){
       if(need){ let ips=[]; try{ips=await Promise.race([dnsPromises.resolve4(t.host),new Promise((_,rj)=>setTimeout(()=>rj(new Error('t')),4000))]);}catch(e){ips=[];}
         if(!entry){entry=state.disc[key]={queriedAt:now,ips:{}};} entry.queriedAt=now;
         (ips||[]).filter(ip=>net.isIPv4(ip)).forEach(ip=>{entry.ips[ip]=now;}); }
-      const aliveIps=Object.keys(entry.ips);
-      if(!aliveIps.length){ map.set('dom:'+key,{id:'dom:'+key,ip:null,port:t.port,host:t.host,label:t.label,isDomain:true}); }
-      else{ aliveIps.forEach(ip=>{ if(state.blocked[key+'@'+ip])return;
-        const id='dom:'+key+'@'+ip; map.set(id,{id,ip,port:t.port,host:t.host,label:t.label,isDomain:true}); }); }
+      let added=0;
+      for(const ip of Object.keys(entry.ips)){
+        const pid=ip+':'+t.port;
+        if(state.blocked[pid])continue;               // 被屏蔽的IP不再加入
+        if(!map.has(pid)){ migrateHistory(ip,t.port); map.set(pid,{id:pid,ip,port:t.port,sources:[],isDomain:false,label:pid}); }
+        const u=map.get(pid); if(!u.sources.includes(t.host))u.sources.push(t.host);
+        added++; }
+      if(!added){ map.set('dom:'+key,{id:'dom:'+key,ip:null,port:t.port,host:t.host,sources:[t.host],isDomain:true,label:t.label}); }
     }
   }
   Object.keys(state.disc).forEach(k=>{ if(!seenKeys.has(k))delete state.disc[k]; });
@@ -136,7 +154,7 @@ async function refreshUnits(){
 // ==================== 三重验证 ====================
 async function testTarget(u){
   const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null,failReason:null};
-  if(!u.ip){ point.failReason='无有效IP'; return point; }
+  if(!u.ip){ point.failReason='无有效IP（域名未解析到可用IP或被屏蔽）'; return point; }
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
   const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${probe.host}:${u.port}${probe.path}'`;
   const raw=await runCurl(latCmd,ms+1500); const lat=parseCurlJson(raw);
@@ -162,7 +180,7 @@ async function testTarget(u){
   return point;
 }
 
-// ==================== 质量判定（窗口平均） ====================
+// ==================== 质量判定 ====================
 function tlsOk(p){ return CONFIG.maxTlsMs<=0||(p.tls!=null&&p.tls<=CONFIG.maxTlsMs); }
 function speedOk(p){ return CONFIG.minSpeedKBps<=0||(p.speed!=null&&p.speed>=CONFIG.minSpeedKBps); }
 function computeQuality(points){
@@ -175,40 +193,37 @@ function computeQuality(points){
     avgTls:avg(oks.map(p=>p.tls).filter(v=>v!=null)), avgSpeed:avg(oks.map(p=>p.speed).filter(v=>v!=null))};
 }
 
-// ==================== 统一生命周期清理 ====================
+// ==================== 生命周期清理（按IP） ====================
 async function cleanGraveyard(){
   if(CONFIG.autoCleanDays<=0)return;
   const threshold=Date.now()-CONFIG.autoCleanDays*24*3600*1000;
-  const toRemove=new Set();
-  for(const t of parseIpFile()){ if(net.isIPv4(t.host)){ const id=t.host+':'+t.port;
-    const since=offlineSince(id);
-    if(since<threshold){ toRemove.add(id); pushGrave(t.label,id,since,'auto',`连续 ${CONFIG.autoCleanDays} 天离线（自动清理）`); delete state.history[id]; } } }
-  if(toRemove.size){ rewriteIpFileRemoving(toRemove); log(`🗑️ 自动清理 ${toRemove.size} 个长期离线纯IP`); }
-  let domRemoved=0;
-  for(const key of Object.keys(state.disc)){ const entry=state.disc[key];
-    for(const ip of Object.keys(entry.ips)){ const id='dom:'+key+'@'+ip;
-      const since=offlineSince(id);
-      if(since<threshold){ delete entry.ips[ip]; delete state.history[id];
-        pushGrave(key+' → '+ip,id,since,'auto',`域名IP离线超 ${CONFIG.autoCleanDays} 天（自动清理）`); domRemoved++; } } }
-  if(domRemoved)log(`🗑️ 自动清理 ${domRemoved} 个长期离线域名IP`);
-  if(toRemove.size||domRemoved){ if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
-    persistGraveyard(); await refreshUnits(); }
+  const toRemove=new Set(); let n=0;
+  for(const u of state.units){ if(!u.ip)continue;
+    const since=offlineSince(u.id);
+    if(since<threshold){ toRemove.add(u.ip+':'+u.port);
+      for(const key of Object.keys(state.disc))delete state.disc[key].ips[u.ip];
+      delete state.history[u.id];
+      pushGrave(u.id,u.id,since,'auto',`离线超 ${CONFIG.autoCleanDays} 天（自动清理）`); n++; } }
+  if(n){ rewriteIpFileRemoving(toRemove);
+    if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
+    persistGraveyard(); await refreshUnits();
+    log(`🗑️ 自动清理 ${n} 个长期离线节点`); }
 }
 
-// ==================== 手动删除 ====================
+// ==================== 手动删除（按IP全局生效） ====================
 async function removeUnits(ids){
-  let removed=0; const ipLines=new Set(); let ipChanged=false;
+  let removed=0; const lineIds=new Set(); let changed=false;
   for(const id of ids){ const u=state.units.find(x=>x.id===id); if(!u)continue;
     const since=offlineSince(id);
-    if(!u.isDomain){ ipLines.add(u.host+':'+u.port); ipChanged=true; delete state.history[id]; }
-    else if(u.ip){ const key=u.host+':'+u.port; if(state.disc[key])delete state.disc[key].ips[u.ip];
-      state.blocked[key+'@'+u.ip]=Date.now(); delete state.history[id]; }
-    else { ipLines.add(u.host+':'+u.port); ipChanged=true; delete state.disc[u.host+':'+u.port];
-      Object.keys(state.history).forEach(h=>{ if(h.startsWith('dom:'+u.host+':'+u.port+'@'))delete state.history[h]; }); }
-    pushGrave(u.label,id,since,'manual','手动删除'); removed++; }
-  if(ipChanged)rewriteIpFileRemoving(ipLines);
-  if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
-  persistGraveyard(); await refreshUnits();
+    if(u.ip){ lineIds.add(u.ip+':'+u.port);
+      state.blocked[u.ip+':'+u.port]=Date.now();
+      for(const key of Object.keys(state.disc))delete state.disc[key].ips[u.ip];
+      delete state.history[id]; }
+    else { lineIds.add(u.host+':'+u.port); delete state.disc[u.host+':'+u.port]; }
+    changed=true; pushGrave(u.label,id,since,'manual','手动删除'); removed++; }
+  if(changed){ rewriteIpFileRemoving(lineIds);
+    if(state.graveyard.list.length>1000)state.graveyard.list=state.graveyard.list.slice(-1000);
+    persistGraveyard(); await refreshUnits(); }
   log(`🗑️ 手动删除 ${removed} 个节点`); return removed;
 }
 
@@ -240,13 +255,11 @@ async function runCycle(){
 function loadData(){ try{const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
   if(d&&d.history)state.history=d.history; if(d&&d.disc)state.disc=d.disc; }catch(e){} loadGraveyard(); }
 
-// ==================== 🌟 GitHub（指纹去重 + 每文件计数） ====================
+// ==================== GitHub（IP主键天然不重复） ====================
 function formatNodeLine(ipPort,region,q){
   const tls=q.avgTls!=null?q.avgTls+'ms':'?ms';
   let speedStr='?Mbps'; if(q.avgSpeed!=null)speedStr=(q.avgSpeed*8/1000).toFixed(1)+'Mbps';
   return `${ipPort}#${region} | ${tls} | ${speedStr}`; }
-
-/* 生成上传数据：bodies(每文件节点行) + count(总优质数) + fingerprint(去时间戳指纹，用于变更检测) */
 function buildUploadData(){
   const seen=new Map();
   state.units.filter(u=>u.ip).forEach(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
@@ -262,7 +275,6 @@ function buildUploadData(){
   const fingerprint=bodies['all.txt'].join('\n');
   return {bodies,count:nodes.length,fingerprint};
 }
-/* 渲染单个文件：头部含更新时间与【本文件节点数】注释 */
 function renderFile(lines){
   return `# ProxyIP quality list (auto uploaded by proxy-monitor ${VERSION})\n# updated: ${new Date().toISOString()}\n# nodes: ${lines.length}\n`+
     lines.join('\n')+(lines.length?'\n':'');
@@ -277,13 +289,11 @@ async function uploadGithub(){
     const api=`https://api.github.com/repos/${g.repo}/contents/${apiPath}`;
     let sha; try{ const getRes=await fetch(`${api}?ref=${g.branch}`,{headers});
       if(getRes.ok)sha=(await getRes.json()).sha; else if(getRes.status!==404){log(`⚠️ 查询 ${fullPath} 失败: HTTP ${getRes.status}`);continue;} }catch(e){continue;}
-    // 🌟 commit 使用本文件自己的节点数
     const body={message:`chore: update ${filename} (${lines.length} nodes)`,content:Buffer.from(renderFile(lines),'utf8').toString('base64'),branch:g.branch}; if(sha)body.sha=sha;
     try{ const putRes=await fetch(api,{method:'PUT',headers,body:JSON.stringify(body)}); if(!putRes.ok)log(`⚠️ 上传 ${fullPath} 失败: HTTP ${putRes.status}`); }catch(e){} }
   state.github.lastUpload=Date.now(); state.github.lastError=null; state.lastUploadedContent=fingerprint;
   log(`📤 已上传 ${count} 个优质节点 (${Object.keys(bodies).length} 个文件)`); return{count,fileCount:Object.keys(bodies).length};
 }
-/* 自动上传：指纹比对，未变化则记录跳过 */
 async function autoUpload(){ const {fingerprint}=buildUploadData();
   if(fingerprint===state.lastUploadedContent){ log('⏭️ 优质列表未变化，跳过上传'); return; }
   await uploadGithub(); }
@@ -291,7 +301,7 @@ async function autoUpload(){ const {fingerprint}=buildUploadData();
 // ==================== API ====================
 function buildState(){
   try{ const items=state.units.map(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
-    return{ id:u.id,label:u.label,host:u.host,port:u.port,isDomain:u.isDomain,ip:u.ip,
+    return{ id:u.id,label:u.label,host:u.host||null,port:u.port,isDomain:u.isDomain,ip:u.ip,sources:u.sources||[],
       colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
       latest,quality:computeQuality(hist), recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,tls:p.tls,speed:p.speed})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
@@ -334,6 +344,6 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 日志闭环+每文件计数版)`);
+  log(`🚀 服务启动 (${VERSION} IP主键模型)`);
   await refreshUnits(); runCycle(); restartTimer(); restartGithubTimer();
 });
