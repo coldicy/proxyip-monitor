@@ -1,7 +1,7 @@
 /**
- * Proxy Monitor v21 (三关加固版：防 SNI 劫持/野服务器穿透)
- * 加固：第一关查户口(trace特征) / 第二关查体重(512KB体积) / 第三关查暗号(204状态码)
- * 继承：v20 统一来源-节点生命周期 / 屏蔽统一 / 多文件上传 / 日志闭环
+ * Proxy Monitor v22
+ * 修复：数据不足(样本<窗口)不算优质 / 纯IP来源标识 / (出口IP与来源显示在前端修)
+ * 继承：v21 三关加固 / v20 来源-节点生命周期 / 屏蔽统一 / 多文件上传
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +9,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v21';
+const VERSION = 'v22';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -126,7 +126,7 @@ async function refreshUnits(){
   const present=new Set(); const domJobs=[],urlJobs=[];
   for(const raw of lines){ const line=raw.split('#')[0].trim(); if(!line)continue;
     const key=sourceKeyForLine(line); if(!key||present.has(key))continue; present.add(key);
-    if(key.startsWith('pure:')){ const id=key.slice(5); ensureEntry(key,'pure',null); state.disc[key].ids[id]=now; }
+    if(key.startsWith('pure:')){ const id=key.slice(5); ensureEntry(key,'pure','纯IP配置'); state.disc[key].ids[id]=now; }
     else if(key.startsWith('dom:')){ const hp=key.slice(4); const li=hp.lastIndexOf(':'); const host=hp.slice(0,li); const port=+hp.slice(li+1);
       ensureEntry(key,'dom',host); domJobs.push({key,host,port}); }
     else if(key.startsWith('url:')){ const url=key.slice(4); ensureEntry(key,'url',url); urlJobs.push({key,url}); } }
@@ -148,87 +148,56 @@ async function refreshUnits(){
   state.units=[...map.values()];
 }
 
-// ==================== 🌟 核心测试逻辑 (v21 三关加固) ====================
+// ==================== 三关加固测试 ====================
 async function testTarget(u){
   const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null,failReason:null};
   if(!u.ip){ point.failReason='来源暂无有效IP（未解析/列表为空）'; return point; }
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
-  
-  // 1. 官方探针 (查户口：必须是 CF trace 格式)
   const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${probe.host}:${u.port}${probe.path}'`;
   const raw=await runCurl(latCmd,ms+1500); const lat=parseCurlJson(raw);
   if(lat && lat.http === 200){
     const traceText = raw.trim().split('\n').slice(0, -1).join('\n');
     const info = parseTrace(traceText);
-    // 🌟 v21 加固：防止野服务器返回 200 HTML 劫持页面
-    if (!info.colo && !info.fl) {
-      point.failReason = '官方探针返回非 CF 内容 (疑似 SNI 劫持/假反代)';
-      return point;
-    }
-    point.ok=true; 
-    point.tcp=Math.round(lat.tcp*1000); 
-    point.tls=Math.round(lat.tls*1000);
-    point.colo=info.colo||null; 
-    point.loc=info.loc||null; 
-    point.exitIp=info.ip||null; 
-  } else { 
-    point.failReason=`官方探针不通 (HTTP ${lat?lat.http:'000'})`; 
-    return point; 
-  }
-
-  // 2. 官方测速 (查体重：必须接近 512KB)
-  // 🌟 v21 加固：增加 size_download，防止几KB的劫持HTML被算作测速成功
+    if (!info.colo && !info.fl) { point.failReason = '官方探针返回非 CF 内容 (疑似 SNI 劫持/假反代)'; return point; }
+    point.ok=true; point.tcp=Math.round(lat.tcp*1000); point.tls=Math.round(lat.tls*1000);
+    point.colo=info.colo||null; point.loc=info.loc||null; point.exitIp=info.ip||null; }
+  else { point.failReason=`官方探针不通 (HTTP ${lat?lat.http:'000'})`; return point; }
   const spCmd=`curl -4 -k -s --noproxy '*' -o /dev/null --retry 0 -w '\\n{"speed":%{speed_download},"size":%{size_download},"http":%{http_code}}' --resolve "speed.cloudflare.com:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec+3} 'https://speed.cloudflare.com:${u.port}/__down?bytes=524288'`;
   let sp=parseCurlJson(await runCurl(spCmd,ms+4000));
-  if(!(sp && sp.http===200 && sp.speed>0 && sp.size >= 500000)) {
-    sp = parseCurlJson(await runCurl(spCmd,ms+4000)); // 重试一次
-  }
-  if(sp && sp.http===200 && sp.speed>0 && sp.size >= 500000){ 
-    point.speed=Math.round(sp.speed/1024); 
-  } else { 
-    point.ok=false;
+  if(!(sp && sp.http===200 && sp.speed>0 && sp.size >= 500000)) sp=parseCurlJson(await runCurl(spCmd,ms+4000));
+  if(sp && sp.http===200 && sp.speed>0 && sp.size >= 500000){ point.speed=Math.round(sp.speed/1024); }
+  else { point.ok=false;
     if(sp && String(sp.http)==='403') point.failReason='SNI白名单/WAF拦截 (测速返回 403)';
     else if(!sp || String(sp.http)==='000') point.failReason='测速连接失败 (HTTP 000，疑似断流/超时)';
     else if(sp && sp.size < 500000) point.failReason=`测速返回体积异常 (${sp.size} bytes，预期 ~512KB，疑似劫持)`;
     else point.failReason=`测速失败 (HTTP ${sp?sp.http:'?'}，疑似限速/大文件不通)`;
-    return point; 
-  }
-
-  // 3. 终极验证：自定义探针 (查暗号：状态码必须严格匹配)
-  if(point.ok && CONFIG.customProbeUrl){ 
-    try{ 
-      const cu=new URL(CONFIG.customProbeUrl);
-      const customCmd=`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${cu.hostname}:${u.port}${cu.pathname}'`;
-      const customRes=parseCurlJson(await runCurl(customCmd,ms+1500));
-      const code=customRes?String(customRes.http):'000';
-      // 🌟 v21 加固：generate_204 必须返回 204，其他返回 200。拦截返回 200 的假反代
-      const expectCode = cu.pathname.includes('generate_204') ? '204' : '200';
-      if (code !== expectCode) {
-        point.ok = false; 
-        point.failReason = `自定义探针返回非预期状态 (HTTP ${code}，预期 ${expectCode}，疑似假反代)`; 
-      }
-    } catch(e){ 
-      point.ok=false; 
-      point.failReason='自定义探针配置错误'; 
-    } 
-  }
+    return point; }
+  if(point.ok && CONFIG.customProbeUrl){ try{ const cu=new URL(CONFIG.customProbeUrl);
+    const customCmd=`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${cu.hostname}:${u.port}${cu.pathname}'`;
+    const customRes=parseCurlJson(await runCurl(customCmd,ms+1500));
+    const code=customRes?String(customRes.http):'000';
+    const expectCode = cu.pathname.includes('generate_204') ? '204' : '200';
+    if (code !== expectCode) { point.ok=false; point.failReason=`自定义探针返回非预期状态 (HTTP ${code}，预期 ${expectCode}，疑似假反代)`; } }
+  catch(e){ point.ok=false; point.failReason='自定义探针配置错误'; } }
   return point;
 }
 
-// ==================== 质量判定 ====================
+// ==================== 🌟 质量判定 (v22: 样本充足才算优质) ====================
 function tlsOk(p){ return CONFIG.maxTlsMs<=0||(p.tls!=null&&p.tls<=CONFIG.maxTlsMs); }
 function speedOk(p){ return CONFIG.minSpeedKBps<=0||(p.speed!=null&&p.speed>=CONFIG.minSpeedKBps); }
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
-  if(!recent.length)return{quality:false,rate:0,goodRate:0,avgTls:null,avgSpeed:null};
+  if(!recent.length)return{quality:false,rate:0,goodRate:0,avgTls:null,avgSpeed:null,samples:0};
   const oks=recent.filter(p=>p.ok); const rate=oks.length/recent.length;
   const good=recent.filter(p=>p.ok&&tlsOk(p)&&speedOk(p)).length; const goodRate=good/recent.length;
   const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
-  return{quality:goodRate>=CONFIG.qualityRate,rate,goodRate,
-    avgTls:avg(oks.map(p=>p.tls).filter(v=>v!=null)), avgSpeed:avg(oks.map(p=>p.speed).filter(v=>v!=null))};
+  const enough=recent.length>=CONFIG.qualityWindow;   // 🌟 v22: 数据不足不算优质
+  return{quality:enough&&goodRate>=CONFIG.qualityRate,rate,goodRate,
+    avgTls:avg(oks.map(p=>p.tls).filter(v=>v!=null)), avgSpeed:avg(oks.map(p=>p.speed).filter(v=>v!=null)),
+    samples:recent.length};
 }
 
-// ==================== 清除节点(屏蔽+graveyard+来源变空删行) ====================
+// ==================== 清除节点 ====================
 function cleanNode(id,mode,reason){
   state.blocked[id]=Date.now();
   pushGrave(id,id,offlineSince(id),mode,reason);
@@ -243,7 +212,6 @@ function rewriteIpFileRemovingKeys(keySet){ if(!keySet||!keySet.size)return;
     const newLines=text.split(/\r?\n/).filter(line=>{ const raw=line.split('#')[0].trim(); if(!raw)return true;
       const key=sourceKeyForLine(raw); return !(key&&keySet.has(key)); });
     fs.writeFileSync(CONFIG.ipFile,newLines.join('\n')); }catch(e){ log('⚠️ 写入 ip.txt 失败: '+e.message); } }
-
 async function cleanGraveyard(){
   if(CONFIG.autoCleanDays<=0)return;
   const threshold=Date.now()-CONFIG.autoCleanDays*24*3600*1000;
@@ -382,6 +350,6 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 三关加固版)`);
+  log(`🚀 服务启动 (${VERSION} 样本充足判定+来源完整标识)`);
   await refreshUnits(); runCycle(); restartTimer(); restartGithubTimer();
 });
