@@ -1,7 +1,7 @@
 /**
- * Proxy Monitor v27 (检测鲁棒性版)
- * 修复：官方探针失败自动重试1次 / 放宽超时 / 捕获curl退出码精确failReason
- * 继承：v25 配置-节点解耦+节点注册表 / 三关加固 / 屏蔽统一 / 多文件上传
+ * Proxy Monitor v29 (全链路精准诊断版)
+ * 优化：测速与自定义探针引入 curl 退出码捕获，提供精准淘汰原因(超时/拒连/TLS错/劫持等)
+ * 继承：v28 两级并发+中断安全 / v27 鲁棒测试 / v25 解耦+注册表 / 屏蔽统一
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +9,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v27';
+const VERSION = 'v29';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -19,7 +19,8 @@ const CONFIG = {
   probeUrl: process.env.PROBE_URL || 'https://www.cloudflare.com/cdn-cgi/trace',
   customProbeUrl: process.env.CUSTOM_PROBE_URL || 'https://proxyip-check.coldicy.cc.cd/generate_204',
   timeoutSec: parseInt(process.env.TIMEOUT_SEC || '5', 10),
-  concurrency: parseInt(process.env.CONCURRENCY || '10', 10),
+  concurrency: parseInt(process.env.CONCURRENCY || '30', 10),
+  speedConcurrency: parseInt(process.env.SPEED_CONCURRENCY || '6', 10),
   autoCleanDays: parseFloat(process.env.AUTO_CLEAN_DAYS || '7'),
   maxTlsMs: parseFloat(process.env.MAX_TLS_MS || '0'),
   minSpeedKBps: parseFloat(process.env.MIN_SPEED_KBPS || '0'),
@@ -35,7 +36,7 @@ CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 CONFIG.graveyardFile = path.join(CONFIG.dataDir, 'graveyard.json');
 
 const state = { units: [], nodes: {}, history: {}, blocked: {}, graveyard: { list: [] },
-  lastCycle: null, checking: false, progress: { tested: 0, total: 0 }, logs: [],
+  lastCycle: null, checking: false, abort: false, progress: { tested: 0, total: 0 }, logs: [],
   github: { lastUpload: null, lastError: null }, lastUploadedContent: '' };
 let cycleTimer = null, githubTimer = null;
 
@@ -46,6 +47,7 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
   if(o.intervalSec!=null)CONFIG.intervalSec=Math.max(5,Math.round(num(o.intervalSec,CONFIG.intervalSec)));
   if(o.timeoutSec!=null)CONFIG.timeoutSec=Math.max(1,Math.round(num(o.timeoutSec,CONFIG.timeoutSec)));
   if(o.concurrency!=null)CONFIG.concurrency=Math.max(1,Math.round(num(o.concurrency,CONFIG.concurrency)));
+  if(o.speedConcurrency!=null)CONFIG.speedConcurrency=Math.max(1,Math.round(num(o.speedConcurrency,CONFIG.speedConcurrency)));
   if(o.autoCleanDays!=null)CONFIG.autoCleanDays=Math.max(0,num(o.autoCleanDays,0));
   if(o.probeUrl)CONFIG.probeUrl=String(o.probeUrl);
   if(o.customProbeUrl!=null)CONFIG.customProbeUrl=String(o.customProbeUrl);
@@ -60,7 +62,7 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
     if(g.uploadIntervalMin!=null)CONFIG.github.uploadIntervalMin=Math.max(0,Math.round(num(g.uploadIntervalMin,0))); }
   restartGithubTimer(); }
 function publicConfig(){ return { intervalSec:CONFIG.intervalSec, timeoutSec:CONFIG.timeoutSec, concurrency:CONFIG.concurrency,
-  autoCleanDays:CONFIG.autoCleanDays, probeUrl:CONFIG.probeUrl, customProbeUrl:CONFIG.customProbeUrl,
+  speedConcurrency:CONFIG.speedConcurrency, autoCleanDays:CONFIG.autoCleanDays, probeUrl:CONFIG.probeUrl, customProbeUrl:CONFIG.customProbeUrl,
   maxTlsMs:CONFIG.maxTlsMs, minSpeedKBps:CONFIG.minSpeedKBps, qualityWindow:CONFIG.qualityWindow, qualityRate:CONFIG.qualityRate, github:{...CONFIG.github} }; }
 function persistConfig(){ try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.configFile,JSON.stringify(publicConfig(),null,2));}catch(e){} }
 function restartTimer(){ if(cycleTimer)clearInterval(cycleTimer); cycleTimer=setInterval(runCycle,CONFIG.intervalSec*1000); }
@@ -84,13 +86,16 @@ function sourceKeyForLine(line){ if(isUrl(line))return 'url:'+line;
   return 'dom:'+r.host+':'+r.port; }
 function splitId(id){ const i=id.lastIndexOf(':'); return [id.slice(0,i), +id.slice(i+1)]; }
 function runCurl(c,ms){return new Promise(r=>exec(c,{timeout:ms,maxBuffer:4*1024*1024},(e,o)=>r(e?null:o)));}
-/* 🌟 v27: 返回退出码，便于精确诊断 */
 function runCurl2(c,ms){return new Promise(r=>exec(c,{timeout:ms,maxBuffer:4*1024*1024},(e,o)=>r({out:e?null:o,code:e?(e.killed?-1:e.code):0})));}
 function curlFailText(code){ if(code===28)return '超时'; if(code===7)return '连接被拒'; if(code===35||code===60||code===61)return 'TLS错误';
   if(code===-1)return '进程超时/被杀'; if(code===6)return 'DNS解析失败'; return 'curl错误 '+code; }
 function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{return JSON.parse(l[l.length-1]);}catch(e){return null;}}
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
+function makeSemaphore(n){ let active=0; const q=[];
+  return function run(fn){ return new Promise((res,rej)=>{ const tryRun=()=>{ if(active<n){active++;res();} else q.push(tryRun); }; tryRun(); })
+    .then(()=>fn()).then(v=>{release();return v;},e=>{release();throw e;});
+    function release(){ active--; const nxt=q.shift(); if(nxt)nxt(); } }; }
 function ensureIpFile(){ try{ fs.mkdirSync(path.dirname(CONFIG.ipFile),{recursive:true});
   let st=null; try{st=fs.statSync(CONFIG.ipFile);}catch(e){}
   if(st&&st.isDirectory()){ try{fs.rmdirSync(CONFIG.ipFile);}catch(e){return false;} }
@@ -106,7 +111,10 @@ function offlineSince(id){ const hist=state.history[id]||[];
   if(hist.length>0)return hist[0].t;
   return Date.now(); }
 function pushGrave(label,id,lastOnline,mode,reason){ state.graveyard.list.push({id,label,removedAt:Date.now(),lastOnlineAt:lastOnline,mode,reason}); }
-function saveData(){ try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.dataFile,JSON.stringify({history:state.history,nodes:state.nodes}));}catch(e){} }
+function saveData(){ try{ fs.mkdirSync(CONFIG.dataDir,{recursive:true});
+  const tmp=CONFIG.dataFile+'.tmp';
+  fs.writeFileSync(tmp, JSON.stringify({history:state.history,nodes:state.nodes}));
+  fs.renameSync(tmp, CONFIG.dataFile); }catch(e){} }
 async function mapLimit(items,limit,fn){ const res=new Array(items.length); let i=0;
   const workers=Array.from({length:Math.min(limit,items.length||1)},async()=>{ while(i<items.length){ const idx=i++; res[idx]=await fn(items[idx]); } });
   await Promise.all(workers); return res; }
@@ -159,42 +167,113 @@ async function discover(){
   return added;
 }
 
-// ==================== 🌟 三关加固测试 (v27 鲁棒性) ====================
-async function testTarget(u){
+// ==================== 🌟 三段探针(全链路精准诊断) ====================
+async function probeLatency(u){
   const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null,failReason:null};
   if(!u.ip){ point.failReason='无有效IP'; return point; }
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
-  // 🌟 v27: 放宽超时 connect3s / max timeoutSec+2
   const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${probe.host}:${u.port}${probe.path}'`;
-  // 🌟 v27: 官方探针失败自动重试1次
   let lat=null,lastCode=0,lastOut=null;
   for(let a=0;a<2;a++){ const r=await runCurl2(latCmd,ms+2500); lastCode=r.code; lastOut=r.out; lat=parseCurlJson(r.out);
     if(lat&&lat.http&&String(lat.http)!=='000')break; }
   if(lat && lat.http === 200){
-    const traceText = lastOut.trim().split('\n').slice(0, -1).join('\n');
-    const info = parseTrace(traceText);
-    if (!info.colo && !info.fl) { point.failReason = '官方探针返回非 CF 内容 (疑似 SNI 劫持/假反代)'; return point; }
+    const info=parseTrace(lastOut.trim().split('\n').slice(0,-1).join('\n'));
+    if(!info.colo && !info.fl){ point.failReason='官方探针返回非 CF 内容 (疑似 SNI 劫持/假反代)'; return point; }
     point.ok=true; point.tcp=Math.round(lat.tcp*1000); point.tls=Math.round(lat.tls*1000);
     point.colo=info.colo||null; point.loc=info.loc||null; point.exitIp=info.ip||null; }
-  else { point.failReason=`官方探针不通 (${curlFailText(lastCode)})`; return point; }
-  const spCmd=`curl -4 -k -s --noproxy '*' -o /dev/null --retry 0 -w '\\n{"speed":%{speed_download},"size":%{size_download},"http":%{http_code}}' --resolve "speed.cloudflare.com:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+3} 'https://speed.cloudflare.com:${u.port}/__down?bytes=524288'`;
-  let sp=parseCurlJson(await runCurl(spCmd,ms+4000));
-  if(!(sp && sp.http===200 && sp.speed>0 && sp.size >= 500000)) sp=parseCurlJson(await runCurl(spCmd,ms+4000));
-  if(sp && sp.http===200 && sp.speed>0 && sp.size >= 500000){ point.speed=Math.round(sp.speed/1024); }
-  else { point.ok=false;
-    if(sp && String(sp.http)==='403') point.failReason='SNI白名单/WAF拦截 (测速返回 403)';
-    else if(!sp || String(sp.http)==='000') point.failReason='测速连接失败 (疑似断流/超时)';
-    else if(sp && sp.size < 500000) point.failReason=`测速返回体积异常 (${sp.size} bytes，预期 ~512KB，疑似劫持)`;
-    else point.failReason=`测速失败 (HTTP ${sp?sp.http:'?'}，疑似限速/大文件不通)`;
-    return point; }
-  if(point.ok && CONFIG.customProbeUrl){ try{ const cu=new URL(CONFIG.customProbeUrl);
-    const customCmd=`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${cu.hostname}:${u.port}${cu.pathname}'`;
-    const customRes=parseCurlJson(await runCurl(customCmd,ms+2000));
-    const code=customRes?String(customRes.http):'000';
-    const expectCode = cu.pathname.includes('generate_204') ? '204' : '200';
-    if (code !== expectCode) { point.ok=false; point.failReason=`自定义探针返回非预期状态 (HTTP ${code}，预期 ${expectCode}，疑似假反代)`; } }
-  catch(e){ point.ok=false; point.failReason='自定义探针配置错误'; } }
+  else { point.failReason=`官方探针不通 (${curlFailText(lastCode)})`; }
   return point;
+}
+
+/* 🌟 v29: 自定义探针精准诊断 */
+async function probeCustom(u){
+  try{ 
+    const cu=new URL(CONFIG.customProbeUrl);
+    const cmd=`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${cu.hostname}:${u.port}${cu.pathname}'`;
+    const r = await runCurl2(cmd, CONFIG.timeoutSec*1000+2500);
+    const res = parseCurlJson(r.out);
+    const code = res ? String(res.http) : '000';
+    const expect = cu.pathname.includes('generate_204') ? '204' : '200';
+    
+    if(code === '000' && r.code !== 0){
+      return {ok:false, failReason:`自定义探针连接失败 (${curlFailText(r.code)})`};
+    }
+    if(code !== expect){
+      let extra = '';
+      if(code === '403') extra = ' (疑似假反代/SNI拦截)';
+      else if(code.startsWith('5')) extra = ' (服务端错误)';
+      else if(code === '000') extra = ' (无响应)';
+      return {ok:false, failReason:`自定义探针返回非预期状态 (HTTP ${code}，预期 ${expect}${extra})`};
+    }
+    return {ok:true}; 
+  } catch(e){
+    return {ok:false, failReason:'自定义探针配置错误: '+e.message};
+  }
+}
+
+/* 🌟 v29: 测速精准诊断 */
+async function probeSpeed(u){
+  const ms=CONFIG.timeoutSec*1000;
+  const spCmd=`curl -4 -k -s --noproxy '*' -o /dev/null --retry 0 -w '\\n{"speed":%{speed_download},"size":%{size_download},"http":%{http_code}}' --resolve "speed.cloudflare.com:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+3} 'https://speed.cloudflare.com:${u.port}/__down?bytes=524288'`;
+  
+  let lastCode = 0, sp = null;
+  for(let a=0; a<2; a++){
+    const r = await runCurl2(spCmd, ms+4500);
+    lastCode = r.code;
+    sp = parseCurlJson(r.out);
+    if(sp && sp.http===200 && sp.speed>0 && sp.size>=500000) {
+      return {ok:true, speed:Math.round(sp.speed/1024)};
+    }
+  }
+  
+  if(sp && String(sp.http)==='403') return {ok:false, failReason:'测速被拦截 (HTTP 403，SNI白名单/WAF)'};
+  if(sp && sp.size>0 && sp.size<500000) return {ok:false, failReason:`测速体积异常 (${sp.size}B，预期~512KB，疑似劫持/断流)`};
+  if(sp && sp.http && String(sp.http)!=='000') return {ok:false, failReason:`测速失败 (HTTP ${sp.http})`};
+  
+  return {ok:false, failReason:`测速连接失败 (${curlFailText(lastCode)})`};
+}
+
+function pushHistory(id,point){ if(!state.history[id])state.history[id]=[];
+  state.history[id].push(point);
+  if(state.history[id].length>600)state.history[id]=state.history[id].slice(-600); }
+
+// ==================== 可中断流水线 runCycle ====================
+async function runCycle(){
+  if(state.checking)return; state.checking=true; state.abort=false;
+  try{ const added=await discover(); if(added)log('🆕 发现 '+added+' 个新节点');
+    state.units=Object.values(state.nodes);
+    const total=state.units.length;
+    state.progress={tested:0,total};
+    log('🔄 开始检测 '+total+' 个节点（流水线并发 '+CONFIG.concurrency+' / 测速并发 '+CONFIG.speedConcurrency+'）');
+    const speedSem=makeSemaphore(CONFIG.speedConcurrency);
+    const queue=[...state.units];
+    const workers=Array.from({length:Math.min(CONFIG.concurrency,Math.max(queue.length,1))},async()=>{
+      while(queue.length){
+        if(state.abort)return;
+        const u=queue.shift();
+        try{
+          const point=await probeLatency(u);
+          if(point.ok && !state.abort && CONFIG.customProbeUrl){
+            const c=await probeCustom(u); if(!c.ok){point.ok=false;point.failReason=c.failReason;} }
+          if(point.ok && !state.abort){
+            const s=await speedSem(()=>probeSpeed(u));
+            if(s.ok)point.speed=s.speed; else {point.ok=false;point.failReason=s.failReason;} }
+          if(!(state.abort && point.ok && point.speed==null)){
+            pushHistory(u.id,point); state.progress.tested++;
+            log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' tls='+point.tls+'ms'+(point.speed!=null?' speed='+point.speed+'KB/s':'')):(' 失败: '+point.failReason)));
+          }
+        }catch(e){ log('⚠️ '+u.id+' 检测异常: '+e.message); state.progress.tested++; }
+      } });
+    await Promise.all(workers);
+    if(state.abort)log('⏹ 检测已中断，完成 '+state.progress.tested+'/'+total+'，已完成部分已入库');
+    state.lastCycle=Date.now();
+    const online=state.units.filter(u=>{const h=state.history[u.id];return h&&h.length&&h[h.length-1].ok;}).length;
+    const quality=state.units.filter(u=>computeQuality(state.history[u.id]).quality).length;
+    log('🏁 检测完成：在线 '+online+' / 优质 '+quality+' / 总数 '+total);
+    await cleanGraveyard();
+    saveData();
+    if(CONFIG.github.auto)autoUpload().catch(e=>{state.github.lastError=e.message;log('⚠️ 自动上传失败: '+e.message);});
+  }finally{ state.checking=false; state.abort=false; }
 }
 
 // ==================== 质量判定 ====================
@@ -229,34 +308,6 @@ async function removeUnits(ids){
     pushGrave(id,id,offlineSince(id),'manual','手动删除'); delete state.history[id]; removed++; }
   if(removed){ capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 手动删除 ${removed} 个节点（已屏蔽）`); }
   return removed;
-}
-
-async function runCycle(){
-  if(state.checking)return; state.checking=true;
-  try{ const added=await discover();
-    if(added)log('🆕 发现 '+added+' 个新节点');
-    state.units=Object.values(state.nodes);
-    state.progress={tested:0,total:state.units.length};
-    log('🔄 开始检测 '+state.units.length+' 个节点（并发 '+CONFIG.concurrency+'）');
-    const queue=[...state.units];
-    const workers=Array.from({length:Math.min(CONFIG.concurrency,Math.max(queue.length,1))},async()=>{
-      while(queue.length){ const u=queue.shift();
-        try{ const point=await testTarget(u);
-          if(!state.history[u.id])state.history[u.id]=[];
-          state.history[u.id].push(point);
-          if(state.history[u.id].length>600)state.history[u.id]=state.history[u.id].slice(-600);
-          state.progress.tested++;
-          log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' tls='+point.tls+'ms'+(point.speed!=null?' speed='+point.speed+'KB/s':'')):(' 失败: '+point.failReason)));
-        }catch(e){ log('⚠️ '+u.id+' 检测异常: '+e.message); state.progress.tested++; } } });
-    await Promise.all(workers);
-    state.lastCycle=Date.now();
-    const online=state.units.filter(u=>{const h=state.history[u.id];return h&&h.length&&h[h.length-1].ok;}).length;
-    const quality=state.units.filter(u=>computeQuality(state.history[u.id]).quality).length;
-    log('🏁 检测完成：在线 '+online+' / 优质 '+quality+' / 总数 '+state.units.length);
-    await cleanGraveyard();
-    saveData();
-    if(CONFIG.github.auto)autoUpload().catch(e=>{state.github.lastError=e.message;log('⚠️ 自动上传失败: '+e.message);});
-  }finally{ state.checking=false; }
 }
 
 // ==================== GitHub ====================
@@ -312,11 +363,11 @@ function buildState(){
         latest,quality:computeQuality(hist), recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,tls:p.tls,speed:p.speed})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
-      config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbeUrl:CONFIG.customProbeUrl},
+      config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbeUrl:CONFIG.customProbeUrl,concurrency:CONFIG.concurrency,speedConcurrency:CONFIG.speedConcurrency},
       github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:state.github.lastUpload,lastError:state.github.lastError,uploadIntervalMin:CONFIG.github.uploadIntervalMin},
       summary:{total:items.length,online,quality,offline:items.length-online},items };
   }catch(e){ return{version:VERSION,checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
-    config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:1,autoCleanDays:7,customProbeUrl:''},
+    config:{maxTlsMs:0,minSpeedKBps:0,qualityWindow:10,qualityRate:1,autoCleanDays:7,customProbeUrl:'',concurrency:30,speedConcurrency:6},
     github:{configured:false,auto:false,lastUpload:null,lastError:e.message,uploadIntervalMin:0},
     summary:{total:0,online:0,quality:0,offline:0},items:[]}; }
 }
@@ -327,6 +378,7 @@ const server=http.createServer(async(req,res)=>{
     if(p==='/'||p==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(fs.readFileSync(path.join(__dirname,'public','index.html')));}
     if(p==='/api/state')return json(buildState());
     if(p==='/api/logs')return json({logs:state.logs});
+    if(p==='/api/abort'&&req.method==='POST'){ if(state.checking){state.abort=true;log('⏹ 收到中断请求');} return json({ok:true}); }
     if(p==='/api/graveyard'&&req.method==='GET')return json({graveyard:state.graveyard.list});
     if(p==='/api/graveyard/clear'&&req.method==='POST'){state.graveyard.list=[];state.blocked={};persistGraveyard();return json({ok:true});}
     if(p==='/api/remove'&&req.method==='POST'){const{ids}=JSON.parse(await readBody(req)||'{}');
@@ -350,6 +402,6 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 检测鲁棒性版)`);
+  log(`🚀 服务启动 (${VERSION} 全链路精准诊断)`);
   await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });

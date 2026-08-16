@@ -24,7 +24,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04222f;border:none}
 .btn.warm{background:linear-gradient(135deg,var(--warn),#ff9a5b);color:#3a2105;border:none}
 .btn.danger{background:linear-gradient(135deg,var(--err),#ff8f6b);color:#3a0510;border:none}
-.btn:disabled{opacity:.6;cursor:wait}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .pill{padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:.76rem;color:var(--muted)}
 .pill.busy{color:var(--warn);border-color:rgba(255,196,107,.4)}
 .pwrap{display:flex;align-items:center;gap:12px;margin:0 0 16px}
@@ -80,7 +80,6 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
-/* 🌟 v26: 来源直接显示具体值（省略号+悬浮全文） */
 .srcval{color:#c9f3ff;font-size:.74rem;font-weight:700;max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
 .bars{display:inline-flex;align-items:flex-end;gap:3px;height:20px}
 .bars i{width:6px;height:16px;border-radius:2px;cursor:pointer;transition:.15s}
@@ -145,6 +144,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <button class="btn" id="btnHelp">📖 手册</button>
       <button class="btn" id="btnLogs">📜 日志</button>
       <button class="btn" id="btnSettings">⚙️ 设置</button>
+      <button class="btn danger" id="btnAbort" disabled>⏹ 中断</button>
       <button class="btn primary" id="btnCheck">⚡ 立即检测</button>
       <button class="btn warm" id="btnUpload">📤 上传优质节点</button>
     </div>
@@ -180,7 +180,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 
   <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点 (IP)</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 配置只负责发现 / 节点只负责监测 · 来源=首次引入(直接显示具体值) · 📖 手册</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 两级并发(延迟高/测速低) · 支持安全中断 · 来源=首次引入 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -188,21 +188,22 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、配置与节点解耦（v25+）</h2>
+    <h2>一、并发与速度（v28）</h2>
     <ul>
-      <li><b>配置(ip.txt)</b>只负责“发现”：每轮重新解析域名/拉取远程列表，只增节点。</li>
-      <li><b>节点</b>持久化在注册表，一旦被发现持续监测，直到自动/手动清理。</li>
-      <li>删除配置行不会删节点；清理节点不会删配置行。</li>
-      <li>清理(自动/手动)会屏蔽该IP，防止被配置再次发现；清空清除记录=解除屏蔽。</li>
+      <li><b>流水线并发</b>：延迟/trace/自定义探针高并发（默认30），提升吞吐。</li>
+      <li><b>测速并发</b>：测速用信号量限流（默认6），避免带宽互抢，保证测速准确。</li>
     </ul>
-    <h2>二、来源展示（v26 单层）</h2>
-    <ul><li>来源=首次引入的单一来源，直接显示具体值：配置文件IP / 具体域名 / 具体远程链接；同行显示首次引入时间；过长省略号、悬浮看全文。</li></ul>
-    <h2>三、优质判定</h2>
-    <ul><li>必须<b>样本数 ≥ 优质窗口</b>且达标比例≥阈值才算优质；成功率列只显示百分比。</li></ul>
-    <h2>四、在线判定（三关加固）</h2>
-    <ul><li>① 查户口(trace特征) ② 查体重(512KB体积) ③ 查暗号(204状态码)，防 SNI 劫持/野服务器。</li></ul>
-    <h2>五、GitHub</h2>
-    <ul><li>格式 <code>ip:port#地区 | TLS | 速度</code>；多文件 all+地区；手动/变动/定时上传，日志闭环。</li></ul>
+    <h2>二、中断与数据安全（v28）</h2>
+    <ul>
+      <li><b>主动中断</b>：⏹ 按钮停止领取新节点；已完成节点入库，未完成丢弃，无半截数据。</li>
+      <li><b>被动中断</b>：节点完整跑完才入库；落盘 temp+rename 原子化，容器被杀不损坏数据。</li>
+    </ul>
+    <h2>三、配置与节点解耦</h2>
+    <ul><li>配置只负责发现；节点持久化持续监测；清理才删并屏蔽；清空清除记录=解除屏蔽。</li></ul>
+    <h2>四、优质判定</h2>
+    <ul><li>样本数 ≥ 优质窗口 且达标比例≥阈值才算优质；成功率列只显示百分比。</li></ul>
+    <h2>五、在线判定（三关加固）</h2>
+    <ul><li>① 查户口(trace) ② 查体重(512KB) ③ 查暗号(204)，防 SNI 劫持/野服务器。</li></ul>
   </div>
 </div>
 
@@ -225,7 +226,8 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <div class="grid2">
         <label>监测间隔(秒)<input id="cInterval" type="number"></label>
         <label>单次超时(秒)<input id="cTimeout" type="number"></label>
-        <label>并发数<input id="cConcurrency" type="number"></label>
+        <label>🌟 流水线并发<input id="cConcurrency" type="number"></label>
+        <label>🌟 测速并发<input id="cSpeedConcurrency" type="number"></label>
         <label>官方探针 URL<input id="cProbe" type="text"></label>
         <label>🌟 自定义终极探针 URL<input id="cCustomProbe" type="text"></label>
         <label>🗑️ 自动清理离线节点(天, 0=关闭)<input id="cAutoClean" type="number" step="0.5"></label>
@@ -287,6 +289,7 @@ function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]
     else if(p.tls>H*0.8){cls='w';tip=fmtT(p.t)+' · ⚠️ '+p.tls+'ms（接近上限）'+(p.speed!=null?' · '+p.speed+'KB/s':'');}
     else{cls='g';tip=fmtT(p.t)+' · 🟩 达标 '+p.tls+'ms'+(p.speed!=null?' · '+p.speed+'KB/s':'');}
     return '<i class="'+cls+'" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
+function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function getView(){
   var items=STATE.items.filter(function(i){
     if(TAB==='online')return i.latest&&i.latest.ok; if(TAB==='quality')return i.quality.quality;
@@ -307,8 +310,6 @@ function getView(){
     if(s==='rate')return b.quality.rate-a.quality.rate;
     return (a.quality.avgTls!=null?a.quality.avgTls:99999)-(b.quality.avgTls!=null?b.quality.avgTls:99999); });
   return items; }
-/* 🌟 v26: 来源直接显示具体值 */
-function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
   var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms'; var speedStr='?Mbps';
   if(i.quality.avgSpeed!=null)speedStr=(i.quality.avgSpeed*8/1000).toFixed(1)+'Mbps';
@@ -322,6 +323,7 @@ function render(){
   if(!STATE||!STATE.items)return;
   var s=STATE; var win=s.config.qualityWindow||10;
   el('ver').textContent=s.version||''; el('helpVer').textContent=s.version||'';
+  el('btnAbort').disabled=!s.checking;
   if(s.checking){ var pct=s.progress.total?Math.round(s.progress.tested/s.progress.total*100):0;
     el('pwrap').classList.remove('hidden'); el('pbar').style.width=pct+'%'; el('ptext').innerText=s.progress.tested+'/'+s.progress.total;
     el('btnCheck').disabled=true; el('btnCheck').innerText='⏳ '+s.progress.tested+'/'+s.progress.total;
@@ -330,7 +332,7 @@ function render(){
     el('cycleInfo').textContent='上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s'; el('cycleInfo').className='pill'; }
   var crit=[]; if(s.config.maxTlsMs>0)crit.push('TLS≤'+s.config.maxTlsMs); if(s.config.minSpeedKBps>0)crit.push('≥'+s.config.minSpeedKBps+'KB/s');
   var critStr=crit.length?crit.join(' · '):'仅要求成功'; var need=Math.round(s.config.qualityRate*100);
-  el('cfgInfo').textContent='优质 = 样本≥'+win+' 且 '+need+'%达标（'+critStr+'，取平均）'+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天自动清理并屏蔽':'');
+  el('cfgInfo').textContent='优质 = 样本≥'+win+' 且 '+need+'%达标（'+critStr+'，取平均）· 并发 '+s.config.concurrency+'/测速'+s.config.speedConcurrency+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天清理':'');
   el('barsHead').textContent='近 '+win+' 次状态';
   el('cards').innerHTML=
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
@@ -351,7 +353,6 @@ function render(){
     var on=i.latest&&i.latest.ok;
     var avgMbps=(i.quality.avgSpeed!=null)?(i.quality.avgSpeed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
-    /* 🌟 v26: 来源单层直接显示具体值 + 首次引入时间 */
     var sv=srcText(i);
     var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
       '<span class="kv"><em>首次引入</em><b class="time">'+fmtDT(i.firstSeen)+'</b></span></div>';
@@ -398,6 +399,7 @@ el('logPanel').addEventListener('click',function(e){if(e.target.id==='logPanel')
 el('btnHelp').onclick=function(){el('helpPanel').classList.remove('hidden');};
 el('helpClose').onclick=function(){el('helpPanel').classList.add('hidden');};
 el('helpPanel').addEventListener('click',function(e){if(e.target.id==='helpPanel')el('helpPanel').classList.add('hidden');});
+el('btnAbort').onclick=function(){ fetch('/api/abort',{method:'POST'}).then(function(){toast('⏹ 已发送中断请求');}); };
 
 function loadGraveyard(){ fetch('/api/graveyard').then(function(r){return r.json();}).then(function(d){ var list=el('graveList');
   if(!d.graveyard||!d.graveyard.length){list.innerHTML='<div style="text-align:center;padding:24px">暂无清除记录，节点池非常健康！</div>';return;}
@@ -441,7 +443,8 @@ el('btnSettings').onclick=openModal;
 el('mClose').onclick=function(){el('modal').classList.add('hidden');};
 el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
 el('saveCfg').onclick=function(){
-  var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
+  var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,
+    concurrency:+el('cConcurrency').value,speedConcurrency:+el('cSpeedConcurrency').value,
     autoCleanDays:+el('cAutoClean').value,
     probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
     maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
@@ -462,7 +465,8 @@ el('btnUpload').onclick=function(){ if(!STATE||!STATE.github.configured){toast('
 function openModal(){ el('modal').classList.remove('hidden');
   Promise.all([fetch('/api/config').then(function(r){return r.json();}),fetch('/api/ipfile').then(function(r){return r.json();})]).then(function(arr){
     var c=arr[0],ipf=arr[1];
-    el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;el('cConcurrency').value=c.concurrency;
+    el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;
+    el('cConcurrency').value=c.concurrency;el('cSpeedConcurrency').value=c.speedConcurrency;
     el('cAutoClean').value=c.autoCleanDays||0;
     el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
     el('cMaxTls').value=c.maxTlsMs;el('cMinSpeed').value=c.minSpeedKBps;el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
