@@ -1,7 +1,7 @@
 /**
- * Proxy Monitor v23
- * 来源展示重构：按类型分类(配置文件IP/域名解析/远程链接)，纯IP来源可靠显示
- * 继承：v22 样本充足判定 / v21 三关加固 / v20 来源-节点生命周期
+ * Proxy Monitor v25 (配置-节点解耦 + 节点注册表)
+ * 配置只负责发现(每轮重新解析/拉取,只增); 节点注册表持久化,清理才删; 屏蔽防复活
+ * firstSource 单值(首次引入)+firstSeen; 移除 v20 联动删除
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +9,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v23';
+const VERSION = 'v25';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -34,7 +34,7 @@ CONFIG.dataFile = path.join(CONFIG.dataDir, 'history.json');
 CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 CONFIG.graveyardFile = path.join(CONFIG.dataDir, 'graveyard.json');
 
-const state = { units: [], history: {}, disc: {}, blocked: {}, graveyard: { list: [] },
+const state = { units: [], nodes: {}, history: {}, blocked: {}, graveyard: { list: [] },
   lastCycle: null, checking: false, progress: { tested: 0, total: 0 }, logs: [],
   github: { lastUpload: null, lastError: null }, lastUploadedContent: '' };
 let cycleTimer = null, githubTimer = null;
@@ -102,13 +102,7 @@ function offlineSince(id){ const hist=state.history[id]||[];
   if(hist.length>0)return hist[0].t;
   return Date.now(); }
 function pushGrave(label,id,lastOnline,mode,reason){ state.graveyard.list.push({id,label,removedAt:Date.now(),lastOnlineAt:lastOnline,mode,reason}); }
-function migrateHistory(ip,port){ const id=ip+':'+port;
-  if(state.history[id]&&state.history[id].length)return;
-  let merged=[]; const legacy=[];
-  for(const k of Object.keys(state.history)){ if(k===id)continue;
-    if(k.endsWith('@'+ip)){ const head=k.slice(0,k.lastIndexOf('@')); const p=head.split(':').pop();
-      if(+p===port){ merged=merged.concat(state.history[k]); legacy.push(k); } } }
-  if(merged.length){ merged.sort((a,b)=>a.t-b.t); state.history[id]=merged.slice(-600); legacy.forEach(k=>delete state.history[k]); } }
+function saveData(){ try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.dataFile,JSON.stringify({history:state.history,nodes:state.nodes}));}catch(e){} }
 async function mapLimit(items,limit,fn){ const res=new Array(items.length); let i=0;
   const workers=Array.from({length:Math.min(limit,items.length||1)},async()=>{ while(i<items.length){ const idx=i++; res[idx]=await fn(items[idx]); } });
   await Promise.all(workers); return res; }
@@ -117,49 +111,54 @@ async function fetchList(url){ const safe=url.replace(/'/g,"'\\''");
   const out=await runCurl(`curl -4 -k -s --noproxy '*' --compressed -m 20 '${safe}'`,25000);
   if(out&&out.trim()){ if(out.length>2*1024*1024)return out.slice(0,2*1024*1024); return out; }
   return ''; }
-function ensureEntry(key,kind,name){ if(!state.disc[key])state.disc[key]={kind,name,ids:{}}; }
 
-// ==================== 🌟 来源发现 + 节点并集 (按类型分类来源) ====================
-async function refreshUnits(){
+// ==================== 🌟 节点注册表迁移(旧disc/history→nodes) ====================
+function migrateNodes(disc){
+  const nodes={};
+  for(const key of Object.keys(disc||{})){ const e=disc[key];
+    const kind=e.kind||(key.startsWith('pure:')?'pure':key.startsWith('url:')?'url':'dom');
+    for(const id of Object.keys(e.ids||{})){ const [ip,port]=splitId(id); if(!net.isIPv4(ip))continue;
+      if(!nodes[id])nodes[id]={id,ip,port,firstSource:{kind,name:e.name||id}}; } }
+  for(const id of Object.keys(state.history)){ const [ip,port]=splitId(id); if(!net.isIPv4(ip))continue;
+    const hist=state.history[id]; const firstSeen=hist&&hist.length?hist[0].t:Date.now();
+    if(!nodes[id])nodes[id]={id,ip,port,firstSource:{kind:'pure',name:id}};
+    if(!nodes[id].firstSeen)nodes[id].firstSeen=firstSeen; }
+  for(const id of Object.keys(nodes)){ if(!nodes[id].firstSeen)nodes[id].firstSeen=Date.now(); }
+  return nodes;
+}
+function loadData(){ try{const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
+  if(d&&d.history)state.history=d.history;
+  if(d&&d.nodes&&Object.keys(d.nodes).length){ state.nodes=d.nodes; }
+  else { state.nodes=migrateNodes(d&&d.disc?d.disc:{}); }
+ }catch(e){ state.nodes=migrateNodes({}); } loadGraveyard(); }
+
+// ==================== 🌟 发现(只增) + 单元=注册表 ====================
+async function discover(){
   const now=Date.now();
   let lines=[]; try{lines=fs.readFileSync(CONFIG.ipFile,'utf8').split(/\r?\n/);}catch(e){}
-  const present=new Set(); const domJobs=[],urlJobs=[];
+  const present=new Set(); const domJobs=[],urlJobs=[]; const adds=[];
   for(const raw of lines){ const line=raw.split('#')[0].trim(); if(!line)continue;
     const key=sourceKeyForLine(line); if(!key||present.has(key))continue; present.add(key);
-    if(key.startsWith('pure:')){ const id=key.slice(5); ensureEntry(key,'pure','配置文件IP'); state.disc[key].ids[id]=now; }
-    else if(key.startsWith('dom:')){ const hp=key.slice(4); const li=hp.lastIndexOf(':'); const host=hp.slice(0,li); const port=+hp.slice(li+1);
-      ensureEntry(key,'dom',host); domJobs.push({key,host,port}); }
-    else if(key.startsWith('url:')){ const url=key.slice(4); ensureEntry(key,'url',url); urlJobs.push({key,url}); } }
+    if(key.startsWith('pure:')){ const id=key.slice(5); adds.push({id,kind:'pure',name:id}); }
+    else if(key.startsWith('dom:')){ const hp=key.slice(4); const li=hp.lastIndexOf(':');
+      domJobs.push({host:hp.slice(0,li),port:+hp.slice(li+1),kind:'dom',name:hp.slice(0,li)}); }
+    else { urlJobs.push({url:key.slice(4),kind:'url',name:key.slice(4)}); } }
   await mapLimit(domJobs,20,async j=>{ let ips=[]; try{ips=await Promise.race([dnsPromises.resolve4(j.host),timeoutPromise(4000)]);}catch(e){}
-    (ips||[]).filter(ip=>net.isIPv4(ip)).forEach(ip=>{ state.disc[j.key].ids[ip+':'+j.port]=now; }); });
+    (ips||[]).filter(ip=>net.isIPv4(ip)).forEach(ip=>adds.push({id:ip+':'+j.port,kind:j.kind,name:j.name})); });
   await mapLimit(urlJobs,8,async j=>{ const content=await fetchList(j.url);
     for(const rl of content.split(/\r?\n/)){ const l=rl.split('#')[0].trim(); if(!l||isUrl(l))continue;
-      const r=parseLine(l); if(!r||!net.isIPv4(r.host))continue;
-      state.disc[j.key].ids[r.host+':'+r.port]=now; } });
-  Object.keys(state.disc).forEach(k=>{ if(!present.has(k))delete state.disc[k]; });
-  const map=new Map();
-  for(const key of Object.keys(state.disc)){ const e=state.disc[key];
-    // 🌟 v23: kind 可靠（创建时写入），旧缓存按 key 前缀兜底推断
-    const kind = e.kind || (key.startsWith('pure:')?'pure':key.startsWith('url:')?'url':'dom');
-    for(const id of Object.keys(e.ids)){ if(state.blocked[id])continue;
-      const [ip,port]=splitId(id);
-      if(!map.has(id)){ migrateHistory(ip,port); map.set(id,{id,ip,port,sk:{pure:[],dom:[],url:[]},label:id}); }
-      const node=map.get(id);
-      if(kind==='pure'){ if(!node.sk.pure.length)node.sk.pure.push('配置文件IP'); }
-      else if(kind==='dom'){ if(e.name&&!node.sk.dom.includes(e.name))node.sk.dom.push(e.name); }
-      else { if(e.name&&!node.sk.url.includes(e.name))node.sk.url.push(e.name); } }
-    if((kind==='dom'||kind==='url')&&Object.keys(e.ids).filter(id=>!state.blocked[id]).length===0){
-      const pid='src:'+key;
-      if(!map.has(pid))map.set(pid,{id:pid,ip:null,port:0,
-        sk:{pure:[],dom:(kind==='dom'&&e.name)?[e.name]:[],url:(kind==='url'&&e.name)?[e.name]:[]},
-        label:e.name,placeholder:true}); } }
-  state.units=[...map.values()];
+      const r=parseLine(l); if(!r||!net.isIPv4(r.host))continue; adds.push({id:r.host+':'+r.port,kind:j.kind,name:j.name}); } });
+  let added=0;
+  for(const a of adds){ if(state.blocked[a.id])continue; if(state.nodes[a.id])continue;
+    const [ip,port]=splitId(a.id);
+    state.nodes[a.id]={id:a.id,ip,port,firstSeen:now,firstSource:{kind:a.kind,name:a.name}}; added++; }
+  return added;
 }
 
 // ==================== 三关加固测试 ====================
 async function testTarget(u){
   const point={t:Date.now(),ok:false,tcp:null,tls:null,speed:null,colo:null,loc:null,exitIp:null,failReason:null};
-  if(!u.ip){ point.failReason='来源暂无有效IP（未解析/列表为空）'; return point; }
+  if(!u.ip){ point.failReason='无有效IP'; return point; }
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
   const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 2 --max-time ${CONFIG.timeoutSec} 'https://${probe.host}:${u.port}${probe.path}'`;
   const raw=await runCurl(latCmd,ms+1500); const lat=parseCurlJson(raw);
@@ -190,7 +189,7 @@ async function testTarget(u){
   return point;
 }
 
-// ==================== 质量判定 (样本充足才算优质) ====================
+// ==================== 质量判定(样本充足) ====================
 function tlsOk(p){ return CONFIG.maxTlsMs<=0||(p.tls!=null&&p.tls<=CONFIG.maxTlsMs); }
 function speedOk(p){ return CONFIG.minSpeedKBps<=0||(p.speed!=null&&p.speed>=CONFIG.minSpeedKBps); }
 function computeQuality(points){
@@ -205,43 +204,30 @@ function computeQuality(points){
     samples:recent.length};
 }
 
-// ==================== 清除节点 ====================
-function cleanNode(id,mode,reason){
-  state.blocked[id]=Date.now();
-  pushGrave(id,id,offlineSince(id),mode,reason);
-  delete state.history[id];
-  const removeKeys=[];
-  for(const key of Object.keys(state.disc)){ const e=state.disc[key];
-    if(e.ids[id]!=null){ delete e.ids[id]; if(Object.keys(e.ids).length===0)removeKeys.push(key); } }
-  return removeKeys;
-}
-function rewriteIpFileRemovingKeys(keySet){ if(!keySet||!keySet.size)return;
-  try{ const text=fs.readFileSync(CONFIG.ipFile,'utf8');
-    const newLines=text.split(/\r?\n/).filter(line=>{ const raw=line.split('#')[0].trim(); if(!raw)return true;
-      const key=sourceKeyForLine(raw); return !(key&&keySet.has(key)); });
-    fs.writeFileSync(CONFIG.ipFile,newLines.join('\n')); }catch(e){ log('⚠️ 写入 ip.txt 失败: '+e.message); } }
+// ==================== 清理(只删节点+屏蔽,不碰配置) ====================
 async function cleanGraveyard(){
   if(CONFIG.autoCleanDays<=0)return;
   const threshold=Date.now()-CONFIG.autoCleanDays*24*3600*1000;
-  const removeKeys=new Set(); let n=0;
-  for(const u of state.units){ if(!u.ip)continue;
-    if(offlineSince(u.id)<threshold){ cleanNode(u.id,'auto',`离线超 ${CONFIG.autoCleanDays} 天（自动清理）`).forEach(k=>removeKeys.add(k)); n++; } }
-  if(n){ rewriteIpFileRemovingKeys(removeKeys); capGraveyard(); persistGraveyard(); await refreshUnits();
-    log(`🗑️ 自动清理 ${n} 个长期离线节点（已屏蔽，连带空来源已删行）`); }
+  let n=0;
+  for(const id of Object.keys(state.nodes)){
+    if(offlineSince(id)<threshold){ delete state.nodes[id]; state.blocked[id]=Date.now();
+      pushGrave(id,id,offlineSince(id),'auto',`离线超 ${CONFIG.autoCleanDays} 天（自动清理）`); delete state.history[id]; n++; } }
+  if(n){ capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 自动清理 ${n} 个长期离线节点（已屏蔽）`); }
 }
 async function removeUnits(ids){
-  let removed=0; const removeKeys=new Set();
-  for(const id of ids){
-    if(id.startsWith('src:')){ const key=id.slice(4); removeKeys.add(key); delete state.disc[key]; removed++; continue; }
-    const u=state.units.find(x=>x.id===id); if(!u||!u.ip)continue;
-    cleanNode(id,'manual','手动删除').forEach(k=>removeKeys.add(k)); removed++; }
-  if(removed){ rewriteIpFileRemovingKeys(removeKeys); capGraveyard(); persistGraveyard(); await refreshUnits(); }
-  log(`🗑️ 手动删除 ${removed} 个节点（已屏蔽）`); return removed;
+  let removed=0;
+  for(const id of ids){ const u=state.nodes[id]; if(!u)continue;
+    delete state.nodes[id]; state.blocked[id]=Date.now();
+    pushGrave(id,id,offlineSince(id),'manual','手动删除'); delete state.history[id]; removed++; }
+  if(removed){ capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 手动删除 ${removed} 个节点（已屏蔽）`); }
+  return removed;
 }
 
 async function runCycle(){
   if(state.checking)return; state.checking=true;
-  try{ await refreshUnits();
+  try{ const added=await discover();
+    if(added)log('🆕 发现 '+added+' 个新节点');
+    state.units=Object.values(state.nodes);
     state.progress={tested:0,total:state.units.length};
     log('🔄 开始检测 '+state.units.length+' 个节点（并发 '+CONFIG.concurrency+'）');
     const queue=[...state.units];
@@ -260,13 +246,10 @@ async function runCycle(){
     const quality=state.units.filter(u=>computeQuality(state.history[u.id]).quality).length;
     log('🏁 检测完成：在线 '+online+' / 优质 '+quality+' / 总数 '+state.units.length);
     await cleanGraveyard();
-    try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.dataFile,JSON.stringify({history:state.history,disc:state.disc}));}catch(e){}
+    saveData();
     if(CONFIG.github.auto)autoUpload().catch(e=>{state.github.lastError=e.message;log('⚠️ 自动上传失败: '+e.message);});
   }finally{ state.checking=false; }
 }
-function loadData(){ try{const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
-  if(d&&d.history)state.history=d.history;
-  if(d&&d.disc){ const ok=Object.values(d.disc).every(v=>v&&v.ids); if(ok)state.disc=d.disc; else state.disc={}; } }catch(e){} loadGraveyard(); }
 
 // ==================== GitHub ====================
 function formatNodeLine(ipPort,region,q){
@@ -313,12 +296,12 @@ async function autoUpload(){ const {fingerprint}=buildUploadData();
 
 // ==================== API ====================
 function buildState(){
-  try{ const items=state.units.map(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
-    const lt=u.placeholder?{ok:false,t:null,failReason:'来源暂无有效IP（未解析/列表为空）'}:latest;
-    return{ id:u.id,label:u.label||u.id,host:u.host||null,port:u.port,isDomain:!!u.placeholder,ip:u.ip,
-      sk:u.sk||{pure:[],dom:[],url:[]},
-      colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
-      latest:lt,quality:computeQuality(hist), recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,tls:p.tls,speed:p.speed})) }; });
+  try{ state.units=Object.values(state.nodes);
+    const items=state.units.map(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
+      return{ id:u.id,label:u.id,ip:u.ip,port:u.port,
+        srcKind:(u.firstSource&&u.firstSource.kind)||'pure', srcName:(u.firstSource&&u.firstSource.name)||u.id, firstSeen:u.firstSeen||null,
+        colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
+        latest,quality:computeQuality(hist), recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,tls:p.tls,speed:p.speed})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
       config:{maxTlsMs:CONFIG.maxTlsMs,minSpeedKBps:CONFIG.minSpeedKBps,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbeUrl:CONFIG.customProbeUrl},
@@ -342,13 +325,13 @@ const server=http.createServer(async(req,res)=>{
       if(!Array.isArray(ids)||!ids.length)return json({ok:false,error:'无有效节点ID'},400);
       return json({ok:true,count:await removeUnits(ids)});}
     if(p==='/api/config'&&req.method==='GET')return json(publicConfig());
-    if(p==='/api/config'&&req.method==='POST'){setConfig(JSON.parse(await readBody(req)||'{}'));persistConfig();restartTimer();log('🛠️ 配置已更新');return json({ok:true,config:publicConfig()});}
+    if(p==='/api/config'&&req.method==='POST'){setConfig(JSON.parse(await readBody(req)||'{}'));persistConfig();restartTimer();log('🛠️ 配置已更新');runCycle();return json({ok:true,config:publicConfig()});}
     if(p==='/api/ipfile'&&req.method==='GET'){let c='';try{c=fs.readFileSync(CONFIG.ipFile,'utf8');}catch(e){}return json({content:c});}
     if(p==='/api/ipfile'&&req.method==='POST'){const{content}=JSON.parse(await readBody(req)||'{}');
       if(!ensureIpFile())return json({ok:false,error:'ip.txt 路径被占用为目录'},500);
-      fs.writeFileSync(CONFIG.ipFile,String(content??''));await refreshUnits();return json({ok:true,count:state.units.length});}
+      fs.writeFileSync(CONFIG.ipFile,String(content??''));runCycle();return json({ok:true,count:Object.keys(state.nodes).length});}
     if(p==='/api/check'&&req.method==='POST'){log('🖱️ 手动触发检测');runCycle();return json({ok:true});}
-    if(p==='/api/reload'&&req.method==='POST'){await refreshUnits();return json({ok:true,count:state.units.length});}
+    if(p==='/api/reload'&&req.method==='POST'){await discover();state.units=Object.values(state.nodes);return json({ok:true,count:state.units.length});}
     if(p==='/api/upload'&&req.method==='POST'){try{return json({ok:true,...(await uploadGithub())});}
       catch(e){state.github.lastError=e.message;log('⚠️ 手动上传失败: '+e.message);return json({ok:false,error:e.message},500);}}
     return json({error:'not found'},404);
@@ -359,6 +342,6 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 来源三枚举分类)`);
-  await refreshUnits(); runCycle(); restartTimer(); restartGithubTimer();
+  log(`🚀 服务启动 (${VERSION} 配置-节点解耦+节点注册表)`);
+  await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
