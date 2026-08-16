@@ -7,11 +7,11 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
---cols:36px minmax(0,2.2fr) minmax(120px,1fr) 84px 84px 72px 100px 66px 118px}
+--cols:36px minmax(0,2.1fr) minmax(110px,1fr) 74px 62px 62px 62px 64px 112px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
-.shell{max-width:1400px;margin:0 auto;padding:26px 22px 60px}
+.shell{max-width:1440px;margin:0 auto;padding:26px 22px 60px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .brand{display:flex;align-items:center;gap:14px}
 .logo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:linear-gradient(135deg,rgba(90,209,240,.22),rgba(45,212,191,.16));border:1px solid rgba(90,209,240,.35)}
@@ -50,7 +50,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .in:focus{border-color:rgba(90,209,240,.5)}
 #fSearch{width:200px}
 .flabel{color:var(--muted);font-size:.76rem;font-weight:700}
-.listhead,.row{display:grid;grid-template-columns:var(--cols);gap:14px;align-items:center}
+.listhead,.row{display:grid;grid-template-columns:var(--cols);gap:12px;align-items:center}
 .listhead{padding:0 18px 10px;color:var(--muted);font-size:.7rem;font-weight:800;letter-spacing:.08em}
 .listhead .r,.num{text-align:right}
 .list{display:flex;flex-direction:column;gap:10px}
@@ -70,8 +70,11 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .dot.off{background:var(--err)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(61,220,151,.5)}50%{box-shadow:0 0 0 6px rgba(61,220,151,0)}}
 .who{min-width:0;flex:1}
-.who>b{display:block;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.subline{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.who>b{display:inline;font-size:.9rem}
+.capsule{display:inline-block;margin-left:8px;padding:1px 9px;border-radius:999px;font-size:.64rem;font-weight:800;vertical-align:1px}
+.capsule.cf{background:rgba(255,165,0,.15);color:#ffc46b;border:1px solid rgba(255,165,0,.35)}
+.capsule.proxy{background:rgba(61,220,151,.14);color:#b8f5da;border:1px solid rgba(61,220,151,.3)}
+.subline{display:flex;flex-direction:column;gap:4px;margin-top:5px}
 .sline{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .llabel{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em;flex:none}
 .kv{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;min-width:0}
@@ -87,7 +90,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .bars i.g{background:var(--ok)}.bars i.w{background:var(--warn)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.16)}
 .num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums}
 .num i{font-style:normal;color:var(--muted);font-size:.68rem;margin-left:2px}
-.num small{display:block;color:var(--muted);font-weight:400;font-size:.66rem}
+.num.small{font-size:.8rem;color:#cfe3f5}
 .rate{font-weight:800;font-size:.86rem;text-align:right;font-variant-numeric:tabular-nums}
 .rate.g{color:var(--ok)}.rate.w{color:var(--warn)}.rate.r{color:var(--err)}
 .statcell{display:flex;align-items:center;justify-content:flex-end;gap:10px}
@@ -137,7 +140,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>延迟 / 带宽长期监测 · 配置-节点解耦 · 优质筛选 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>延迟导向监测 · 四段延迟拆解 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -159,15 +162,14 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <span class="grow"></span>
       <button class="btn danger" id="btnRemove" style="display:none">🗑️ 删除所选 (0)</button>
       <span class="flabel">排序</span>
-      <select class="in" id="sortBy"><option value="tls">TLS 升序</option><option value="speed">速度降序</option><option value="rate">成功率降序</option></select>
+      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="tls">TLS升序</option><option value="rate">成功率降序</option></select>
       <button class="btn primary" id="btnCopy">📋 复制筛选节点</button>
     </div>
     <div class="deckrow">
       <input class="in" id="fSearch" type="text" placeholder="🔍 搜索 IP / 来源 / 数据中心 / 地区">
-      <span class="flabel">来源</span>
-      <select class="in" id="fSrcKind"><option value="">全部</option><option value="pure">配置文件IP</option><option value="dom">域名解析</option><option value="url">远程链接</option></select>
-      <span class="flabel">TLS ≤</span><input class="in" id="fTls" type="number" placeholder="ms" style="width:80px">
-      <span class="flabel">速度 ≥</span><input class="in" id="fSpeed" type="number" placeholder="KB/s" style="width:86px">
+      <span class="flabel">身份</span>
+      <select class="in" id="fKind"><option value="">全部</option><option value="cf">CloudflareIP</option><option value="proxy">ProxyIP</option></select>
+      <span class="flabel">总延迟 ≤</span><input class="in" id="fTotal" type="number" placeholder="ms" style="width:80px">
       <span class="flabel">成功率 ≥</span><input class="in" id="fRate" type="number" placeholder="%" style="width:70px">
       <span class="flabel">数据中心</span><select class="in" id="fColo"><option value="">全部</option></select>
       <span class="flabel">地区</span><select class="in" id="fLoc"><option value="">全部</option></select>
@@ -178,9 +180,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消当前筛选结果"></span><span>节点 (IP)</span><span id="barsHead">近 10 次状态</span><span class="r">TLS 平均</span><span class="r colhide">TLS 最新</span><span class="r colhide">TCP 最新</span><span class="r">平均速度</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 10 次状态</span><span class="r">总延迟</span><span class="r">TCP</span><span class="r">TLS</span><span class="r">源站</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 两级并发(延迟高/测速低) · 支持安全中断 · 来源=首次引入 · 📖 手册</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 官方探针测四段延迟 · 自定义探针做闸门 · CloudflareIP/ProxyIP 只标识不拦截 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -188,22 +190,28 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、并发与速度（v28）</h2>
+    <h2>一、探针分工（v30）</h2>
     <ul>
-      <li><b>流水线并发</b>：延迟/trace/自定义探针高并发（默认30），提升吞吐。</li>
-      <li><b>测速并发</b>：测速用信号量限流（默认6），避免带宽互抢，保证测速准确。</li>
+      <li><b>官方探针</b> <code>/cdn-cgi/trace</code>：测四段延迟（TCP/TLS/源站/总）+ 元数据（colo/loc/exitIp）。</li>
+      <li><b>自定义探针</b> <code>你的域名/generate_204</code>：真伪闸门，204 通过 / 403 淘汰，不用于延迟。</li>
+      <li>已移除 512KB 测速（距离偏差大、并发易超时）。</li>
     </ul>
-    <h2>二、中断与数据安全（v28）</h2>
-    <ul>
-      <li><b>主动中断</b>：⏹ 按钮停止领取新节点；已完成节点入库，未完成丢弃，无半截数据。</li>
-      <li><b>被动中断</b>：节点完整跑完才入库；落盘 temp+rename 原子化，容器被杀不损坏数据。</li>
-    </ul>
-    <h2>三、配置与节点解耦</h2>
-    <ul><li>配置只负责发现；节点持久化持续监测；清理才删并屏蔽；清空清除记录=解除屏蔽。</li></ul>
+    <h2>二、身份识别</h2>
+    <ul><li>拉取 CF 官方 IP 段做本地 CIDR 匹配，节点打 <b>CloudflareIP</b> / <b>ProxyIP</b> 胶囊，只标识不拦截，两者都参与监测与优质筛选。</li></ul>
+    <h2>三、四段延迟</h2>
+    <table><tr><th>段</th><th>含义</th></tr>
+    <tr><td>TCP</td><td>你→节点 的物理链路</td></tr>
+    <tr><td>TLS</td><td>TLS 握手开销（节点性能/干扰）</td></tr>
+    <tr><td>源站</td><td>节点→CF/源站 这一段</td></tr>
+    <tr><td>总延迟</td><td>首字节时间，优质门槛依据</td></tr></table>
     <h2>四、优质判定</h2>
-    <ul><li>样本数 ≥ 优质窗口 且达标比例≥阈值才算优质；成功率列只显示百分比。</li></ul>
-    <h2>五、在线判定（三关加固）</h2>
-    <ul><li>① 查户口(trace) ② 查体重(512KB) ③ 查暗号(204)，防 SNI 劫持/野服务器。</li></ul>
+    <ul><li>样本数 ≥ 优质窗口 且 成功率 ≥ 阈值 且 平均总延迟 ≤ maxTotalMs。</li></ul>
+    <h2>五、配置-节点解耦 / 清除 / 中断</h2>
+    <ul>
+      <li>配置只负责发现（纯IP/域名/远程列表）；节点持久化持续监测。</li>
+      <li>清理(自动/手动)才删节点并屏蔽；清空清除记录=解除屏蔽。</li>
+      <li>⏹ 中断：停止领新节点，已完成入库、未完成丢弃；落盘原子化。</li>
+    </ul>
   </div>
 </div>
 
@@ -226,13 +234,11 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <div class="grid2">
         <label>监测间隔(秒)<input id="cInterval" type="number"></label>
         <label>单次超时(秒)<input id="cTimeout" type="number"></label>
-        <label>🌟 流水线并发<input id="cConcurrency" type="number"></label>
-        <label>🌟 测速并发<input id="cSpeedConcurrency" type="number"></label>
+        <label> 并发数<input id="cConcurrency" type="number"></label>
+        <label>🌟 优质总延迟上限(ms,0=不限)<input id="cMaxTotal" type="number"></label>
         <label>官方探针 URL<input id="cProbe" type="text"></label>
-        <label>🌟 自定义终极探针 URL<input id="cCustomProbe" type="text"></label>
+        <label>🌟 自定义闸门探针 URL<input id="cCustomProbe" type="text"></label>
         <label>🗑️ 自动清理离线节点(天, 0=关闭)<input id="cAutoClean" type="number" step="0.5"></label>
-        <label>优质 TLS 上限(ms,0=不限)<input id="cMaxTls" type="number"></label>
-        <label>优质速度下限(KB/s,0=不限)<input id="cMinSpeed" type="number"></label>
         <label>优质判定窗口(次)<input id="cWindow" type="number"></label>
         <label>达标率阈值(0-1, 1=每次都必须达标)<input id="cRate" type="number" step="0.05"></label>
         <label>GitHub Token<input id="cGhToken" type="password" placeholder="ghp_xxxx"></label>
@@ -279,17 +285,18 @@ function load(){ return fetch('/api/state').then(function(r){return r.json();}).
   .catch(function(e){var c=el('cycleInfo');c.textContent='加载失败: '+e.message;}); }
 
 function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.config[k]:d; }
-function pointGood(p){ var H=cfgNum('maxTlsMs',0),S=cfgNum('minSpeedKBps',0);
-  if(!p.ok)return false; if(H>0&&(p.tls==null||p.tls>H))return false; if(S>0&&(p.speed==null||p.speed<S))return false; return true; }
+function pointGood(p){ var M=cfgNum('maxTotalMs',0);
+  if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
 function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
-  if(!rec.length)return '<span style="color:var(--muted)">--</span>'; var H=cfgNum('maxTlsMs',0)||800;
+  if(!rec.length)return '<span style="color:var(--muted)">--</span>';
   return '<span class="bars">'+rec.map(function(p){ var cls,tip;
     if(!p.ok){cls='f';tip=fmtT(p.t)+' · ❌ 失败';}
-    else if(!pointGood(p)){cls='r';tip=fmtT(p.t)+' · 🟥 未达标 '+p.tls+'ms'+(p.speed!=null?' / '+p.speed+'KB/s':'');}
-    else if(p.tls>H*0.8){cls='w';tip=fmtT(p.t)+' · ⚠️ '+p.tls+'ms（接近上限）'+(p.speed!=null?' · '+p.speed+'KB/s':'');}
-    else{cls='g';tip=fmtT(p.t)+' · 🟩 达标 '+p.tls+'ms'+(p.speed!=null?' · '+p.speed+'KB/s':'');}
+    else if(!pointGood(p)){cls='r';tip=fmtT(p.t)+' · 🟥 总延迟超标 '+p.total+'ms';}
+    else{cls='g';tip=fmtT(p.t)+' · 🟩 总 '+p.total+'ms (tcp '+p.tcp+' / tls '+p.tls+' / 源 '+p.src+')';}
     return '<i class="'+cls+'" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
 function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
+function kindCapsule(k){ if(k==='cf')return '<span class="capsule cf">CloudflareIP</span>';
+  if(k==='proxy')return '<span class="capsule proxy">ProxyIP</span>'; return ''; }
 function getView(){
   var items=STATE.items.filter(function(i){
     if(TAB==='online')return i.latest&&i.latest.ok; if(TAB==='quality')return i.quality.quality;
@@ -297,23 +304,21 @@ function getView(){
   var q=(el('fSearch').value||'').trim().toLowerCase();
   if(q)items=items.filter(function(i){
     return [i.label,i.srcName,srcText(i),i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;}); });
-  var fSrc=el('fSrcKind').value;
-  if(fSrc)items=items.filter(function(i){return i.srcKind===fSrc;});
-  var fTls=parseFloat(el('fTls').value),fSp=parseFloat(el('fSpeed').value),fRate=parseFloat(el('fRate').value),fColo=el('fColo').value,fLoc=el('fLoc').value;
-  if(!isNaN(fTls))items=items.filter(function(i){return i.quality.avgTls!=null&&i.quality.avgTls<=fTls;});
-  if(!isNaN(fSp))items=items.filter(function(i){return i.quality.avgSpeed!=null&&i.quality.avgSpeed>=fSp;});
+  var fKind=el('fKind').value; if(fKind)items=items.filter(function(i){return i.ipKind===fKind;});
+  var fTotal=parseFloat(el('fTotal').value),fRate=parseFloat(el('fRate').value),fColo=el('fColo').value,fLoc=el('fLoc').value;
+  if(!isNaN(fTotal))items=items.filter(function(i){return i.quality.avgTotal!=null&&i.quality.avgTotal<=fTotal;});
   if(!isNaN(fRate))items=items.filter(function(i){return i.quality.rate*100>=fRate;});
   if(fColo)items=items.filter(function(i){return (i.colo||'')===fColo;});
   if(fLoc)items=items.filter(function(i){return (i.loc||'')===fLoc;});
   var s=el('sortBy').value;
-  items.sort(function(a,b){ if(s==='speed')return (b.quality.avgSpeed!=null?b.quality.avgSpeed:-1)-(a.quality.avgSpeed!=null?a.quality.avgSpeed:-1);
+  items.sort(function(a,b){ if(s==='tls')return (a.quality.avgTls!=null?a.quality.avgTls:99999)-(b.quality.avgTls!=null?b.quality.avgTls:99999);
     if(s==='rate')return b.quality.rate-a.quality.rate;
-    return (a.quality.avgTls!=null?a.quality.avgTls:99999)-(b.quality.avgTls!=null?b.quality.avgTls:99999); });
+    return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
   return items; }
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
-  var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms'; var speedStr='?Mbps';
-  if(i.quality.avgSpeed!=null)speedStr=(i.quality.avgSpeed*8/1000).toFixed(1)+'Mbps';
-  return ipPort+'#'+region+' | '+tls+' | '+speedStr; }
+  var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
+  var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms';
+  return ipPort+'#'+region+' | '+total+' | '+tls; }
 function updateRemoveBtn(){ var b=el('btnRemove');
   if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
   el('list').classList.toggle('selecting',SELECTED.size>0); }
@@ -330,10 +335,8 @@ function render(){
     el('cycleInfo').textContent='⏳ 检测中 '+s.progress.tested+'/'+s.progress.total+'（'+pct+'%）'; el('cycleInfo').className='pill busy';
   }else{ el('pwrap').classList.add('hidden'); el('btnCheck').disabled=false; el('btnCheck').innerText='⚡ 立即检测';
     el('cycleInfo').textContent='上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s'; el('cycleInfo').className='pill'; }
-  var crit=[]; if(s.config.maxTlsMs>0)crit.push('TLS≤'+s.config.maxTlsMs); if(s.config.minSpeedKBps>0)crit.push('≥'+s.config.minSpeedKBps+'KB/s');
-  var critStr=crit.length?crit.join(' · '):'仅要求成功'; var need=Math.round(s.config.qualityRate*100);
-  el('cfgInfo').textContent='优质 = 样本≥'+win+' 且 '+need+'%达标（'+critStr+'，取平均）· 并发 '+s.config.concurrency+'/测速'+s.config.speedConcurrency+(s.config.autoCleanDays>0?' · 离线'+s.config.autoCleanDays+'天清理':'');
-  el('barsHead').textContent='近 '+win+' 次状态';
+  var need=Math.round(s.config.qualityRate*100);
+  el('cfgInfo').textContent='优质 = 样本≥'+win+' 且 '+need+'%达标'+(s.config.maxTotalMs>0?' 且 总延迟≤'+s.config.maxTotalMs+'ms':'')+' · 并发 '+s.config.concurrency;
   el('cards').innerHTML=
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
     '<div class="card ok"><div class="ic g">🟢</div><div><b>'+s.summary.online+'</b><span>当前在线</span></div></div>'+
@@ -351,7 +354,6 @@ function render(){
   if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';updateRemoveBtn();return;}
   el('list').innerHTML=LAST_VIEW.map(function(i,idx){
     var on=i.latest&&i.latest.ok;
-    var avgMbps=(i.quality.avgSpeed!=null)?(i.quality.avgSpeed*8/1000).toFixed(1):null;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var sv=srcText(i);
     var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
@@ -366,12 +368,12 @@ function render(){
     var ratePct=Math.round(i.quality.rate*100); var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
       '<span class="sel"><input type="checkbox" data-sel="'+esc(i.id)+'"'+(SELECTED.has(i.id)?' checked':'')+'></span>'+
-      '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b><div class="subline">'+lines+'</div></div></div>'+
+      '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
       '<div>'+barsHtml(i.recent)+'</div>'+
-      '<div class="num">'+(i.quality.avgTls!=null?i.quality.avgTls+'<i>ms</i>':'--')+'</div>'+
-      '<div class="num colhide">'+(on&&i.latest.tls!=null?i.latest.tls+'<i>ms</i>':'--')+'</div>'+
-      '<div class="num colhide">'+(on&&i.latest.tcp!=null?i.latest.tcp+'<i>ms</i>':'--')+'</div>'+
-      '<div class="num">'+(i.quality.avgSpeed!=null?i.quality.avgSpeed+'<i>KB/s</i>':'--')+'<small>'+(avgMbps?avgMbps+' Mbps':'')+'</small></div>'+
+      '<div class="num">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'<i>ms</i>':'--')+'</div>'+
+      '<div class="num small colhide">'+(on&&i.latest.tcp!=null?i.latest.tcp:'--')+'</div>'+
+      '<div class="num small colhide">'+(on&&i.latest.tls!=null?i.latest.tls:'--')+'</div>'+
+      '<div class="num small colhide">'+(on&&i.latest.src!=null?i.latest.src:'--')+'</div>'+
       '<div class="rate '+rateCls+'">'+ratePct+'%</div>'+
       '<div class="statcell"><button class="iconbtn" data-ci="'+idx+'" title="复制该节点">⧉</button>'+badge+'</div>'+
     '</div>'; }).join('');
@@ -443,19 +445,18 @@ el('btnSettings').onclick=openModal;
 el('mClose').onclick=function(){el('modal').classList.add('hidden');};
 el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
 el('saveCfg').onclick=function(){
-  var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,
-    concurrency:+el('cConcurrency').value,speedConcurrency:+el('cSpeedConcurrency').value,
-    autoCleanDays:+el('cAutoClean').value,
+  var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
+    maxTotalMs:+el('cMaxTotal').value,autoCleanDays:+el('cAutoClean').value,
     probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
-    maxTlsMs:+el('cMaxTls').value,minSpeedKBps:+el('cMinSpeed').value,qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
+    qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
     github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked,uploadIntervalMin:+el('cGhInterval').value}};
   fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
     if(r.ok)toast('✅ 配置已保存并生效，已触发检测');else toast(r.error||'保存失败',true); load(); }).catch(function(e){toast(e.message,true);}); };
 el('saveIps').onclick=function(){
   fetch('/api/ipfile',{method:'POST',body:JSON.stringify({content:el('ipText').value})}).then(function(r){return r.json();}).then(function(r){
     if(r.ok)toast('✅ 已保存 ip.txt 并触发检测');else toast(r.error||'保存失败',true); load(); }).catch(function(e){toast(e.message,true);}); };
-['fTls','fSpeed','fRate','fColo','fLoc','fSrcKind','sortBy','fSearch'].forEach(function(id){el(id).addEventListener('input',render);});
-el('fReset').onclick=function(){['fTls','fSpeed','fRate','fSearch'].forEach(function(id){el(id).value='';});el('fColo').value='';el('fLoc').value='';el('fSrcKind').value='';render();};
+['fTotal','fRate','fColo','fLoc','fKind','sortBy','fSearch'].forEach(function(id){el(id).addEventListener('input',render);});
+el('fReset').onclick=function(){['fTotal','fRate','fSearch'].forEach(function(id){el(id).value='';});el('fColo').value='';el('fLoc').value='';el('fKind').value='';render();};
 el('btnCheck').onclick=function(){fetch('/api/check',{method:'POST'});toast('⚡ 已触发检测');setTimeout(load,600);};
 el('btnUpload').onclick=function(){ if(!STATE||!STATE.github.configured){toast('未配置 GitHub（设置 → Token/仓库）',true);return;}
   var b=el('btnUpload');b.disabled=true;
@@ -465,11 +466,10 @@ el('btnUpload').onclick=function(){ if(!STATE||!STATE.github.configured){toast('
 function openModal(){ el('modal').classList.remove('hidden');
   Promise.all([fetch('/api/config').then(function(r){return r.json();}),fetch('/api/ipfile').then(function(r){return r.json();})]).then(function(arr){
     var c=arr[0],ipf=arr[1];
-    el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;
-    el('cConcurrency').value=c.concurrency;el('cSpeedConcurrency').value=c.speedConcurrency;
-    el('cAutoClean').value=c.autoCleanDays||0;
+    el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;el('cConcurrency').value=c.concurrency;
+    el('cMaxTotal').value=c.maxTotalMs;el('cAutoClean').value=c.autoCleanDays||0;
     el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
-    el('cMaxTls').value=c.maxTlsMs;el('cMinSpeed').value=c.minSpeedKBps;el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
+    el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
     el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;
     el('cGhAuto').checked=!!c.github.auto;el('cGhInterval').value=c.github.uploadIntervalMin||0;
     el('ipText').value=ipf.content||''; }).catch(function(e){toast('打开设置失败: '+e.message,true);}); }
