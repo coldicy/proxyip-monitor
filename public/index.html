@@ -7,7 +7,7 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
---cols:36px minmax(0,2.1fr) minmax(110px,1fr) 74px 62px 62px 62px 64px 112px}
+--cols:36px minmax(0, 2.5fr) minmax(120px, 1fr) 100px 80px 112px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
@@ -88,9 +88,8 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .bars i{width:6px;height:16px;border-radius:2px;cursor:pointer;transition:.15s}
 .bars i:hover{transform:scaleY(1.25)}
 .bars i.g{background:var(--ok)}.bars i.w{background:var(--warn)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.16)}
-.num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums}
+.num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums;text-align:right}
 .num i{font-style:normal;color:var(--muted);font-size:.68rem;margin-left:2px}
-.num.small{font-size:.8rem;color:#cfe3f5}
 .rate{font-weight:800;font-size:.86rem;text-align:right;font-variant-numeric:tabular-nums}
 .rate.g{color:var(--ok)}.rate.w{color:var(--warn)}.rate.r{color:var(--err)}
 .statcell{display:flex;align-items:center;justify-content:flex-end;gap:10px}
@@ -140,7 +139,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>延迟导向监测 · 四段延迟拆解 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>极简延迟监测 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -162,7 +161,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <span class="grow"></span>
       <button class="btn danger" id="btnRemove" style="display:none">🗑️ 删除所选 (0)</button>
       <span class="flabel">排序</span>
-      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="tls">TLS升序</option><option value="rate">成功率降序</option></select>
+      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="rate">成功率降序</option></select>
       <button class="btn primary" id="btnCopy">📋 复制筛选节点</button>
     </div>
     <div class="deckrow">
@@ -180,9 +179,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 10 次状态</span><span class="r">总延迟</span><span class="r">TCP</span><span class="r">TLS</span><span class="r">源站</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 10 次状态</span><span class="r">总延迟</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 官方探针测四段延迟 · 自定义探针做闸门 · CloudflareIP/ProxyIP 只标识不拦截 · 📖 手册</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 官方探针测总延迟(TTFB) · 自定义探针做闸门 · CloudflareIP/ProxyIP 识别 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -190,27 +189,19 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、探针分工（v30）</h2>
+    <h2>一、极简双探针（v31）</h2>
     <ul>
-      <li><b>官方探针</b> <code>/cdn-cgi/trace</code>：测四段延迟（TCP/TLS/源站/总）+ 元数据（colo/loc/exitIp）。</li>
-      <li><b>自定义探针</b> <code>你的域名/generate_204</code>：真伪闸门，204 通过 / 403 淘汰，不用于延迟。</li>
-      <li>已移除 512KB 测速（距离偏差大、并发易超时）。</li>
+      <li><b>官方探针</b> <code>/cdn-cgi/trace</code>：验证 CF 连通性 + 测量总 HTTP 延迟 (TTFB) + 获取元数据。</li>
+      <li><b>自定义探针</b> <code>你的域名/generate_204</code>：业务闸门，验证能否代理到你的 Zone。</li>
     </ul>
     <h2>二、身份识别</h2>
-    <ul><li>拉取 CF 官方 IP 段做本地 CIDR 匹配，节点打 <b>CloudflareIP</b> / <b>ProxyIP</b> 胶囊，只标识不拦截，两者都参与监测与优质筛选。</li></ul>
-    <h2>三、四段延迟</h2>
-    <table><tr><th>段</th><th>含义</th></tr>
-    <tr><td>TCP</td><td>你→节点 的物理链路</td></tr>
-    <tr><td>TLS</td><td>TLS 握手开销（节点性能/干扰）</td></tr>
-    <tr><td>源站</td><td>节点→CF/源站 这一段</td></tr>
-    <tr><td>总延迟</td><td>首字节时间，优质门槛依据</td></tr></table>
-    <h2>四、优质判定</h2>
+    <ul><li>拉取 CF 官方 IP 段做本地 CIDR 匹配，节点打 <b>CloudflareIP</b> / <b>ProxyIP</b> 胶囊，只标识不拦截。</li></ul>
+    <h2>三、优质判定</h2>
     <ul><li>样本数 ≥ 优质窗口 且 成功率 ≥ 阈值 且 平均总延迟 ≤ maxTotalMs。</li></ul>
-    <h2>五、配置-节点解耦 / 清除 / 中断</h2>
+    <h2>四、配置-节点解耦 / 清除 / 中断</h2>
     <ul>
-      <li>配置只负责发现（纯IP/域名/远程列表）；节点持久化持续监测。</li>
-      <li>清理(自动/手动)才删节点并屏蔽；清空清除记录=解除屏蔽。</li>
-      <li>⏹ 中断：停止领新节点，已完成入库、未完成丢弃；落盘原子化。</li>
+      <li>配置只负责发现；节点持久化持续监测；清理才删并屏蔽。</li>
+      <li>⏹ 中断：停止领新节点，已完成入库、未完成丢弃。</li>
     </ul>
   </div>
 </div>
@@ -292,7 +283,7 @@ function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]
   return '<span class="bars">'+rec.map(function(p){ var cls,tip;
     if(!p.ok){cls='f';tip=fmtT(p.t)+' · ❌ 失败';}
     else if(!pointGood(p)){cls='r';tip=fmtT(p.t)+' · 🟥 总延迟超标 '+p.total+'ms';}
-    else{cls='g';tip=fmtT(p.t)+' · 🟩 总 '+p.total+'ms (tcp '+p.tcp+' / tls '+p.tls+' / 源 '+p.src+')';}
+    else{cls='g';tip=fmtT(p.t)+' · 🟩 总延迟 '+p.total+'ms';}
     return '<i class="'+cls+'" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
 function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function kindCapsule(k){ if(k==='cf')return '<span class="capsule cf">CloudflareIP</span>';
@@ -311,14 +302,12 @@ function getView(){
   if(fColo)items=items.filter(function(i){return (i.colo||'')===fColo;});
   if(fLoc)items=items.filter(function(i){return (i.loc||'')===fLoc;});
   var s=el('sortBy').value;
-  items.sort(function(a,b){ if(s==='tls')return (a.quality.avgTls!=null?a.quality.avgTls:99999)-(b.quality.avgTls!=null?b.quality.avgTls:99999);
-    if(s==='rate')return b.quality.rate-a.quality.rate;
+  items.sort(function(a,b){ if(s==='rate')return b.quality.rate-a.quality.rate;
     return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
   return items; }
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
   var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
-  var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms';
-  return ipPort+'#'+region+' | '+total+' | '+tls; }
+  return ipPort+'#'+region+' | '+total; }
 function updateRemoveBtn(){ var b=el('btnRemove');
   if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
   el('list').classList.toggle('selecting',SELECTED.size>0); }
@@ -371,9 +360,6 @@ function render(){
       '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
       '<div>'+barsHtml(i.recent)+'</div>'+
       '<div class="num">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'<i>ms</i>':'--')+'</div>'+
-      '<div class="num small colhide">'+(on&&i.latest.tcp!=null?i.latest.tcp:'--')+'</div>'+
-      '<div class="num small colhide">'+(on&&i.latest.tls!=null?i.latest.tls:'--')+'</div>'+
-      '<div class="num small colhide">'+(on&&i.latest.src!=null?i.latest.src:'--')+'</div>'+
       '<div class="rate '+rateCls+'">'+ratePct+'%</div>'+
       '<div class="statcell"><button class="iconbtn" data-ci="'+idx+'" title="复制该节点">⧉</button>'+badge+'</div>'+
     '</div>'; }).join('');
