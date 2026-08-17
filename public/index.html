@@ -7,7 +7,7 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
---cols:36px minmax(0, 2.5fr) minmax(120px, 1fr) 100px 80px 112px}
+--cols:36px minmax(0,2.1fr) minmax(110px,1fr) 74px 62px 62px 62px 64px 112px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
@@ -88,8 +88,9 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .bars i{width:6px;height:16px;border-radius:2px;cursor:pointer;transition:.15s}
 .bars i:hover{transform:scaleY(1.25)}
 .bars i.g{background:var(--ok)}.bars i.w{background:var(--warn)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.16)}
-.num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums;text-align:right}
+.num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums}
 .num i{font-style:normal;color:var(--muted);font-size:.68rem;margin-left:2px}
+.num.small{font-size:.8rem;color:#cfe3f5}
 .rate{font-weight:800;font-size:.86rem;text-align:right;font-variant-numeric:tabular-nums}
 .rate.g{color:var(--ok)}.rate.w{color:var(--warn)}.rate.r{color:var(--err)}
 .statcell{display:flex;align-items:center;justify-content:flex-end;gap:10px}
@@ -105,7 +106,8 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .mode.auto{background:rgba(148,184,220,.12);color:var(--muted)}
 .empty{padding:50px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
 footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.74rem;line-height:1.9}
-#tip{position:fixed;z-index:80;pointer-events:none;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:8px 12px;font-size:.74rem;font-weight:600;opacity:0;transition:opacity .12s;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+/* 🌟 v31: 支持多行悬浮提示 */
+#tip{position:fixed;z-index:80;pointer-events:none;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:8px 12px;font-size:.74rem;font-weight:600;opacity:0;transition:opacity .12s;white-space:pre-line;max-width:360px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 #tip.show{opacity:1}
 .overlay{position:fixed;inset:0;background:rgba(2,6,11,.65);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .overlay.hidden{display:none}
@@ -139,7 +141,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>极简延迟监测 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>多源站延迟测量 · 官方握手筛选 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -161,7 +163,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <span class="grow"></span>
       <button class="btn danger" id="btnRemove" style="display:none">🗑️ 删除所选 (0)</button>
       <span class="flabel">排序</span>
-      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="rate">成功率降序</option></select>
+      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="tls">TLS升序</option><option value="rate">成功率降序</option></select>
       <button class="btn primary" id="btnCopy">📋 复制筛选节点</button>
     </div>
     <div class="deckrow">
@@ -179,9 +181,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 10 次状态</span><span class="r">总延迟</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 10 次状态</span><span class="r">总延迟</span><span class="r">TCP</span><span class="r">TLS</span><span class="r">源站</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 官方探针测总延迟(TTFB) · 自定义探针做闸门 · CloudflareIP/ProxyIP 识别 · 📖 手册</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 官方探针握手筛选 · 多自定义源站测真实延迟 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -189,19 +191,21 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、极简双探针（v31）</h2>
+    <h2>一、探针分工（v31 终极版）</h2>
     <ul>
-      <li><b>官方探针</b> <code>/cdn-cgi/trace</code>：验证 CF 连通性 + 测量总 HTTP 延迟 (TTFB) + 获取元数据。</li>
-      <li><b>自定义探针</b> <code>你的域名/generate_204</code>：业务闸门，验证能否代理到你的 Zone。</li>
+      <li><b>官方探针</b> <code>/cdn-cgi/trace</code>：仅做 TCP/TLS 握手测速 + 获取元数据 + 初步筛选（不通直接淘汰）。</li>
+      <li><b>自定义探针</b> (支持多个)：串行测试各个源站，<b>取所有成功探针的平均 TTFB 作为真实总延迟</b>，并作为真伪闸门。</li>
     </ul>
-    <h2>二、身份识别</h2>
-    <ul><li>拉取 CF 官方 IP 段做本地 CIDR 匹配，节点打 <b>CloudflareIP</b> / <b>ProxyIP</b> 胶囊，只标识不拦截。</li></ul>
-    <h2>三、优质判定</h2>
-    <ul><li>样本数 ≥ 优质窗口 且 成功率 ≥ 阈值 且 平均总延迟 ≤ maxTotalMs。</li></ul>
-    <h2>四、配置-节点解耦 / 清除 / 中断</h2>
+    <h2>二、四段延迟拆解</h2>
+    <table><tr><th>段</th><th>来源</th><th>含义</th></tr>
+    <tr><td>TCP</td><td>官方探针</td><td>你→节点 的物理链路</td></tr>
+    <tr><td>TLS</td><td>官方探针</td><td>TLS 握手开销</td></tr>
+    <tr><td>源站</td><td>自定义探针</td><td>节点→真实源站 这一跳</td></tr>
+    <tr><td>总延迟</td><td>自定义探针</td><td>成功探针的平均 TTFB，优质门槛依据</td></tr></table>
+    <h2>三、身份识别与解耦</h2>
     <ul>
+      <li>拉取 CF 官方 IP 段做本地 CIDR 匹配，打 <b>CloudflareIP</b> / <b>ProxyIP</b> 胶囊，只标识不拦截。</li>
       <li>配置只负责发现；节点持久化持续监测；清理才删并屏蔽。</li>
-      <li>⏹ 中断：停止领新节点，已完成入库、未完成丢弃。</li>
     </ul>
   </div>
 </div>
@@ -225,13 +229,21 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <div class="grid2">
         <label>监测间隔(秒)<input id="cInterval" type="number"></label>
         <label>单次超时(秒)<input id="cTimeout" type="number"></label>
-        <label> 并发数<input id="cConcurrency" type="number"></label>
+        <label>并发数<input id="cConcurrency" type="number"></label>
         <label>🌟 优质总延迟上限(ms,0=不限)<input id="cMaxTotal" type="number"></label>
-        <label>官方探针 URL<input id="cProbe" type="text"></label>
-        <label>🌟 自定义闸门探针 URL<input id="cCustomProbe" type="text"></label>
+        <label>官方探针 URL (仅握手筛选)<input id="cProbe" type="text"></label>
         <label>🗑️ 自动清理离线节点(天, 0=关闭)<input id="cAutoClean" type="number" step="0.5"></label>
         <label>优质判定窗口(次)<input id="cWindow" type="number"></label>
         <label>达标率阈值(0-1, 1=每次都必须达标)<input id="cRate" type="number" step="0.05"></label>
+      </div>
+      
+      <div style="margin-top:16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <label style="font-weight:800; color:var(--accent); font-size:.86rem;">🌟 自定义源站探针 (测延迟+闸门)</label>
+        <button class="btn primary" id="addProbeBtn" style="padding:6px 12px;font-size:.76rem">+ 添加探针</button>
+      </div>
+      <div id="probesList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+
+      <div class="grid2">
         <label>GitHub Token<input id="cGhToken" type="password" placeholder="ghp_xxxx"></label>
         <label>GitHub 仓库(owner/repo)<input id="cGhRepo" type="text"></label>
         <label>上传文件前缀(如 proxyip)<input id="cGhPath" type="text"></label>
@@ -259,7 +271,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <script>
 (function(){
 'use strict';
-var STATE=null,TAB='all',LAST_VIEW=[],SELECTED=new Set();
+var STATE=null,TAB='all',LAST_VIEW=[],SELECTED=new Set(),EDIT_PROBES=[];
 function el(id){return document.getElementById(id);}
 function esc(v){v=String(v==null?'':v);return v.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pad(n){return n<10?'0'+n:''+n;}
@@ -283,7 +295,16 @@ function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]
   return '<span class="bars">'+rec.map(function(p){ var cls,tip;
     if(!p.ok){cls='f';tip=fmtT(p.t)+' · ❌ 失败';}
     else if(!pointGood(p)){cls='r';tip=fmtT(p.t)+' · 🟥 总延迟超标 '+p.total+'ms';}
-    else{cls='g';tip=fmtT(p.t)+' · 🟩 总延迟 '+p.total+'ms';}
+    else{
+      cls='g';
+      tip=fmtT(p.t)+' · 🟩 总 '+p.total+'ms (TCP '+p.tcp+' / TLS '+p.tls+' / 源 '+p.src+')';
+      if(p.customResults && p.customResults.length){
+        tip += '\n─────────────\n';
+        tip += p.customResults.map(function(r){
+          return (r.ok?'✅':'❌')+' '+r.host+' ['+r.code+'] '+r.ttfb+'ms';
+        }).join('\n');
+      }
+    }
     return '<i class="'+cls+'" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
 function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function kindCapsule(k){ if(k==='cf')return '<span class="capsule cf">CloudflareIP</span>';
@@ -302,12 +323,14 @@ function getView(){
   if(fColo)items=items.filter(function(i){return (i.colo||'')===fColo;});
   if(fLoc)items=items.filter(function(i){return (i.loc||'')===fLoc;});
   var s=el('sortBy').value;
-  items.sort(function(a,b){ if(s==='rate')return b.quality.rate-a.quality.rate;
+  items.sort(function(a,b){ if(s==='tls')return (a.quality.avgTls!=null?a.quality.avgTls:99999)-(b.quality.avgTls!=null?b.quality.avgTls:99999);
+    if(s==='rate')return b.quality.rate-a.quality.rate;
     return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
   return items; }
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
   var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
-  return ipPort+'#'+region+' | '+total; }
+  var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms';
+  return ipPort+'#'+region+' | '+total+' | '+tls; }
 function updateRemoveBtn(){ var b=el('btnRemove');
   if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
   el('list').classList.toggle('selecting',SELECTED.size>0); }
@@ -360,6 +383,9 @@ function render(){
       '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
       '<div>'+barsHtml(i.recent)+'</div>'+
       '<div class="num">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'<i>ms</i>':'--')+'</div>'+
+      '<div class="num small colhide">'+(i.quality.avgTcp!=null?i.quality.avgTcp:'--')+'</div>'+
+      '<div class="num small colhide">'+(i.quality.avgTls!=null?i.quality.avgTls:'--')+'</div>'+
+      '<div class="num small colhide">'+(i.quality.avgSrc!=null?i.quality.avgSrc:'--')+'</div>'+
       '<div class="rate '+rateCls+'">'+ratePct+'%</div>'+
       '<div class="statcell"><button class="iconbtn" data-ci="'+idx+'" title="复制该节点">⧉</button>'+badge+'</div>'+
     '</div>'; }).join('');
@@ -371,7 +397,7 @@ var tipEl=el('tip');
 document.addEventListener('mouseover',function(e){ var b=e.target.closest?e.target.closest('[data-tip]'):null;
   if(b){ tipEl.innerText=b.getAttribute('data-tip'); tipEl.classList.add('show');
     var r=b.getBoundingClientRect();
-    tipEl.style.left=Math.max(8,Math.min(window.innerWidth-280,r.left-20))+'px'; tipEl.style.top=Math.max(8,r.top-38)+'px';
+    tipEl.style.left=Math.max(8,Math.min(window.innerWidth-380,r.left-20))+'px'; tipEl.style.top=Math.max(8,r.top-38)+'px';
   } else tipEl.classList.remove('show'); });
 window.addEventListener('scroll',function(){tipEl.classList.remove('show');},true);
 
@@ -430,10 +456,33 @@ el('btnCopy').onclick=function(){ if(!LAST_VIEW.length){toast('当前没有可�
 el('btnSettings').onclick=openModal;
 el('mClose').onclick=function(){el('modal').classList.add('hidden');};
 el('modal').addEventListener('click',function(e){if(e.target.id==='modal')el('modal').classList.add('hidden');});
+
+function renderProbesList(){
+  var list = el('probesList');
+  list.innerHTML = '';
+  EDIT_PROBES.forEach(function(p, idx){
+    var row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.innerHTML = '<input type="text" class="in probe-url" value="'+esc(p.url)+'" placeholder="https://..." style="flex:1">'+
+                    '<input type="text" class="in probe-expect" value="'+esc(p.expect)+'" placeholder="204" style="width:60px; text-align:center;">'+
+                    '<button class="btn danger del-probe" style="padding:6px 10px;font-size:.76rem">✕</button>';
+    row.querySelector('.probe-url').oninput = function(e){ EDIT_PROBES[idx].url = e.target.value; };
+    row.querySelector('.probe-expect').oninput = function(e){ EDIT_PROBES[idx].expect = e.target.value; };
+    row.querySelector('.del-probe').onclick = function(){ EDIT_PROBES.splice(idx, 1); renderProbesList(); };
+    list.appendChild(row);
+  });
+}
+
+el('addProbeBtn').onclick = function(){
+  EDIT_PROBES.push({url: '', expect: '204'});
+  renderProbesList();
+};
+
 el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
     maxTotalMs:+el('cMaxTotal').value,autoCleanDays:+el('cAutoClean').value,
-    probeUrl:el('cProbe').value,customProbeUrl:el('cCustomProbe').value,
+    probeUrl:el('cProbe').value, customProbes: EDIT_PROBES,
     qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
     github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked,uploadIntervalMin:+el('cGhInterval').value}};
   fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
@@ -454,7 +503,9 @@ function openModal(){ el('modal').classList.remove('hidden');
     var c=arr[0],ipf=arr[1];
     el('cInterval').value=c.intervalSec;el('cTimeout').value=c.timeoutSec;el('cConcurrency').value=c.concurrency;
     el('cMaxTotal').value=c.maxTotalMs;el('cAutoClean').value=c.autoCleanDays||0;
-    el('cProbe').value=c.probeUrl;el('cCustomProbe').value=c.customProbeUrl||'';
+    el('cProbe').value=c.probeUrl;
+    EDIT_PROBES = (c.customProbes && c.customProbes.length) ? JSON.parse(JSON.stringify(c.customProbes)) : [{url: '', expect: '204'}];
+    renderProbesList();
     el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
     el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;
     el('cGhAuto').checked=!!c.github.auto;el('cGhInterval').value=c.github.uploadIntervalMin||0;

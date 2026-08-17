@@ -1,8 +1,8 @@
 /**
- * Proxy Monitor v31 (极简延迟版)
- * 极简双探针：官方探针测总延迟(TTFB)+元数据；自定义探针做业务闸门
- * 移除 TCP/TLS/源站 拆解，聚焦核心体感指标；CF官方IP/ProxyIP 身份识别保留
- * 继承: 配置-节点解耦+注册表 / 首次引入来源 / 清除记录+屏蔽 / 中断安全 / 原子落盘
+ * Proxy Monitor v31 (多源站延迟测量 + 官方握手筛选)
+ * 官方探针: 仅做TCP/TLS握手测速 + 元数据获取 + 初步筛选(不通即淘汰)
+ * 自定义探针: 支持配置多个(URL+预期状态码), 串行测试, 取成功探针的平均TTFB作为真实总延迟
+ * 继承: CF官方IP CIDR分类 / 配置-节点解耦 / 清除记录 / 中断安全 / 原子落盘
  */
 const http = require('http');
 const fs = require('fs');
@@ -18,7 +18,7 @@ const CONFIG = {
   dataDir: process.env.DATA_DIR || '/app/data',
   intervalSec: parseInt(process.env.INTERVAL_SEC || '60', 10),
   probeUrl: process.env.PROBE_URL || 'https://www.cloudflare.com/cdn-cgi/trace',
-  customProbeUrl: process.env.CUSTOM_PROBE_URL || 'https://proxyip-check.coldicy.cc.cd/generate_204',
+  customProbes: [], // 🌟 多源站探针数组 [{url, expect}]
   timeoutSec: parseInt(process.env.TIMEOUT_SEC || '5', 10),
   concurrency: parseInt(process.env.CONCURRENCY || '50', 10),
   autoCleanDays: parseFloat(process.env.AUTO_CLEAN_DAYS || '7'),
@@ -50,9 +50,17 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
   if(o.autoCleanDays!=null)CONFIG.autoCleanDays=Math.max(0,num(o.autoCleanDays,0));
   if(o.maxTotalMs!=null)CONFIG.maxTotalMs=num(o.maxTotalMs,0);
   if(o.probeUrl)CONFIG.probeUrl=String(o.probeUrl);
-  if(o.customProbeUrl!=null)CONFIG.customProbeUrl=String(o.customProbeUrl);
   if(o.qualityWindow!=null)CONFIG.qualityWindow=Math.max(1,Math.round(num(o.qualityWindow,CONFIG.qualityWindow)));
   if(o.qualityRate!=null)CONFIG.qualityRate=Math.min(1,Math.max(0,num(o.qualityRate,CONFIG.qualityRate)));
+  
+  // 🌟 处理多自定义探针
+  if(o.customProbes && Array.isArray(o.customProbes)){
+    CONFIG.customProbes = o.customProbes.filter(p => p && p.url).map(p => ({url: String(p.url), expect: String(p.expect || '200')}));
+  } else if(o.customProbeUrl != null) {
+    // 兼容旧版单一 URL 配置
+    CONFIG.customProbes = [{url: String(o.customProbeUrl), expect: '204'}];
+  }
+
   if(o.github){const g=o.github;
     if(g.token!=null)CONFIG.github.token=String(g.token); if(g.repo!=null)CONFIG.github.repo=String(g.repo);
     if(g.path!=null)CONFIG.github.path=String(g.path)||'proxyip'; if(g.branch!=null)CONFIG.github.branch=String(g.branch)||'main';
@@ -60,7 +68,7 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
     if(g.uploadIntervalMin!=null)CONFIG.github.uploadIntervalMin=Math.max(0,Math.round(num(g.uploadIntervalMin,0))); }
   restartGithubTimer(); }
 function publicConfig(){ return { intervalSec:CONFIG.intervalSec, timeoutSec:CONFIG.timeoutSec, concurrency:CONFIG.concurrency,
-  autoCleanDays:CONFIG.autoCleanDays, maxTotalMs:CONFIG.maxTotalMs, probeUrl:CONFIG.probeUrl, customProbeUrl:CONFIG.customProbeUrl,
+  autoCleanDays:CONFIG.autoCleanDays, maxTotalMs:CONFIG.maxTotalMs, probeUrl:CONFIG.probeUrl, customProbes:CONFIG.customProbes,
   qualityWindow:CONFIG.qualityWindow, qualityRate:CONFIG.qualityRate, github:{...CONFIG.github} }; }
 function persistConfig(){ try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.configFile,JSON.stringify(publicConfig(),null,2));}catch(e){} }
 function restartTimer(){ if(cycleTimer)clearInterval(cycleTimer); cycleTimer=setInterval(runCycle,CONFIG.intervalSec*1000); }
@@ -118,7 +126,7 @@ async function fetchList(url){ const safe=url.replace(/'/g,"'\\''");
   if(out&&out.trim()){ if(out.length>2*1024*1024)return out.slice(0,2*1024*1024); return out; }
   return ''; }
 
-// ==================== CF官方IP CIDR 分类 ====================
+// ==================== 🌟 CF官方IP CIDR 分类 ====================
 const CF_SUPERNETS = [
   '103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','104.16.0.0/12','108.162.192.0/18',
   '131.0.72.0/22','141.101.64.0/18','162.158.0.0/15','172.64.0.0/13','173.245.48.0/20',
@@ -179,7 +187,7 @@ async function discover(){
     (ips||[]).filter(ip=>net.isIPv4(ip)).forEach(ip=>adds.push({id:ip+':'+j.port,kind:j.kind,name:j.name})); });
   await mapLimit(urlJobs,8,async j=>{ const content=await fetchList(j.url);
     for(const rl of content.split(/\r?\n/)){ const l=rl.split('#')[0].trim(); if(!l||isUrl(l))continue;
-      const r=parseLine(l); if(!r||!net.isIPv4(r.host))continue; adds.push({id:r.host+':'+r.port,kind:j.kind,name:r.name}); } });
+      const r=parseLine(l); if(!r||!net.isIPv4(r.host))continue; adds.push({id:r.host+':'+r.port,kind:j.kind,name:j.name}); } });
   let added=0;
   for(const a of adds){ if(state.blocked[a.id])continue; if(state.nodes[a.id])continue;
     const [ip,port]=splitId(a.id);
@@ -187,38 +195,56 @@ async function discover(){
   return added;
 }
 
-// ==================== 🌟 官方探针 (测总延迟 TTFB + 元数据) ====================
+// ==================== 🌟 官方探针(握手筛选+元数据) ====================
 async function probeLatency(u){
-  const point={t:Date.now(),ok:false,total:null,colo:null,loc:null,exitIp:null,failReason:null};
+  const point={t:Date.now(),ok:false,tcp:null,tls:null,ttfb:null,colo:null,loc:null,exitIp:null,failReason:null};
   if(!u.ip){ point.failReason='无有效IP'; return point; }
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
-  // 只取 time_starttransfer (TTFB)
-  const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${probe.host}:${u.port}${probe.path}'`;
+  const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${probe.host}:${u.port}${probe.path}'`;
   let lat=null,lastCode=0,lastOut=null;
   for(let a=0;a<2;a++){ const r=await runCurl2(latCmd,ms+2500); lastCode=r.code; lastOut=r.out; lat=parseCurlJson(r.out);
     if(lat&&lat.http&&String(lat.http)!=='000')break; }
   if(lat && lat.http === 200){
     const info=parseTrace(lastOut.trim().split('\n').slice(0,-1).join('\n'));
-    if(!info.colo && !info.fl){ point.failReason='官方探针返回非 CF 内容 (疑似 SNI 劫持/假反代)'; return point; }
+    if(!info.colo && !info.fl){ point.failReason='官方探针返回非 CF 内容 (不具备反代能力)'; return point; }
     point.ok=true;
-    point.total=Math.max(0, Math.round(lat.ttfb*1000));
+    point.tcp=Math.max(0,Math.round(lat.tcp*1000));
+    point.tls=Math.max(0,Math.round((lat.tls-lat.tcp)*1000));
+    point.ttfb=Math.max(0,Math.round(lat.ttfb*1000)); // 官方探针的TTFB仅作备用
     point.colo=info.colo||null; point.loc=info.loc||null; point.exitIp=info.ip||null; }
-  else { point.failReason=`官方探针不通 (${curlFailText(lastCode)})`; }
+  else { point.failReason=`不具备反代CF能力 (${curlFailText(lastCode)})`; }
   return point;
 }
 
-// ==================== 🌟 自定义探针 (业务闸门) ====================
-async function probeCustom(u){
-  try{ const cu=new URL(CONFIG.customProbeUrl);
-    const cmd=`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${cu.hostname}:${u.port}${cu.pathname}'`;
-    const r=await runCurl2(cmd,CONFIG.timeoutSec*1000+2500);
-    const res=parseCurlJson(r.out); const code=res?String(res.http):'000';
-    const expect=cu.pathname.includes('generate_204')?'204':'200';
-    if(code==='000'&&r.code!==0)return{ok:false,failReason:`自定义探针连接失败 (${curlFailText(r.code)})`};
-    if(code!==expect){ let extra=''; if(code==='403')extra=' (疑似假反代/SNI拦截)'; else if(code.startsWith('5'))extra=' (服务端错误)';
-      return{ok:false,failReason:`自定义探针返回非预期状态 (HTTP ${code}，预期 ${expect}${extra})`}; }
-    return{ok:true}; }
-  catch(e){return{ok:false,failReason:'自定义探针配置错误: '+e.message};}
+// ==================== 🌟 自定义探针(多源站测延迟+闸门) ====================
+async function probeCustoms(u){
+  const results = [];
+  const ms = CONFIG.timeoutSec * 1000;
+  for (const p of CONFIG.customProbes) {
+    try {
+      const cu = new URL(p.url);
+      const expectCode = String(p.expect || '200');
+      const cmd = `curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${cu.hostname}:${u.port}${cu.pathname}${cu.search}'`;
+      const r = await runCurl2(cmd, ms + 2500);
+      const res = parseCurlJson(r.out);
+      const code = res ? String(res.http) : '000';
+      const ttfb = res ? Math.max(0, Math.round(res.ttfb * 1000)) : null;
+      
+      let ok = false;
+      let failReason = null;
+      if (code === '000' && r.code !== 0) {
+        failReason = `连接失败(${curlFailText(r.code)})`;
+      } else if (code !== expectCode) {
+        failReason = `预期${expectCode}实际${code}`;
+      } else {
+        ok = true;
+      }
+      results.push({ url: p.url, host: cu.hostname, expect: expectCode, code, ttfb, ok, failReason });
+    } catch(e) {
+      results.push({ url: p.url, host: p.url, expect: p.expect, code: '000', ttfb: null, ok: false, failReason: '配置错误' });
+    }
+  }
+  return results;
 }
 
 function pushHistory(id,point){ if(!state.history[id])state.history[id]=[];
@@ -232,19 +258,36 @@ async function runCycle(){
     state.units=Object.values(state.nodes);
     const total=state.units.length;
     state.progress={tested:0,total};
-    log('🔄 开始检测 '+total+' 个节点（并发 '+CONFIG.concurrency+'）');
+    log('🔄 开始检测 '+total+' 个节点（并发 '+CONFIG.concurrency+'，多源站测延迟）');
     const queue=[...state.units];
     const workers=Array.from({length:Math.min(CONFIG.concurrency,Math.max(queue.length,1))},async()=>{
       while(queue.length){
         if(state.abort)return;
         const u=queue.shift();
         try{
-          const point=await probeLatency(u);
-          if(point.ok && !state.abort && CONFIG.customProbeUrl){
-            const c=await probeCustom(u); if(!c.ok){point.ok=false;point.failReason=c.failReason;} }
+          const latPoint = await probeLatency(u);
+          const point = { t: Date.now(), ok: false, tcp: latPoint.tcp, tls: latPoint.tls, src: null, total: null, colo: latPoint.colo, loc: latPoint.loc, exitIp: latPoint.exitIp, failReason: latPoint.failReason, customResults: [] };
+          
+          if (latPoint.ok) {
+            const customResults = await probeCustoms(u);
+            point.customResults = customResults;
+            const passed = customResults.filter(r => r.ok);
+            
+            if (passed.length === 0) {
+              point.ok = false;
+              point.failReason = '自定义源站均未达标: ' + customResults.map(r => `${r.host}(${r.failReason})`).join(', ');
+            } else {
+              point.ok = true;
+              // 🌟 核心逻辑：总延迟取所有成功探针的 TTFB 平均值
+              const avgTtfb = Math.round(passed.reduce((s, r) => s + r.ttfb, 0) / passed.length);
+              point.total = avgTtfb;
+              point.src = Math.max(0, avgTtfb - latPoint.tcp - latPoint.tls);
+            }
+          }
+          
           if(!(state.abort && point.ok)){
             pushHistory(u.id,point); state.progress.tested++;
-            log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' 总延迟='+point.total+'ms'):(' 失败: '+point.failReason)));
+            log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' 总='+point.total+'ms (TCP='+point.tcp+' TLS='+point.tls+')'):(' 失败: '+point.failReason)));
           }
         }catch(e){ log('⚠️ '+u.id+' 检测异常: '+e.message); state.progress.tested++; }
       } });
@@ -260,16 +303,19 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== 质量判定(总延迟门槛) ====================
+// ==================== 质量判定 ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
-  if(!recent.length)return{quality:false,rate:0,avgTotal:null,samples:0};
+  if(!recent.length)return{quality:false,rate:0,avgTotal:null,avgTcp:null,avgTls:null,avgSrc:null,samples:0};
   const oks=recent.filter(p=>p.ok); const rate=oks.length/recent.length;
   const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
+  const avgTcp=avg(oks.map(p=>p.tcp).filter(v=>v!=null));
+  const avgTls=avg(oks.map(p=>p.tls).filter(v=>v!=null));
+  const avgSrc=avg(oks.map(p=>p.src).filter(v=>v!=null));
   const avgTotal=avg(oks.map(p=>p.total).filter(v=>v!=null));
   const enough=recent.length>=CONFIG.qualityWindow;
   const latOk=CONFIG.maxTotalMs<=0||(avgTotal!=null&&avgTotal<=CONFIG.maxTotalMs);
-  return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgTotal,samples:recent.length};
+  return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgTotal,avgTcp,avgTls,avgSrc,samples:recent.length};
 }
 
 // ==================== 清理 ====================
@@ -294,7 +340,8 @@ async function removeUnits(ids){
 // ==================== GitHub ====================
 function formatNodeLine(ipPort,region,q){
   const total=q.avgTotal!=null?q.avgTotal+'ms':'?ms';
-  return `${ipPort}#${region} | ${total}`; }
+  const tls=q.avgTls!=null?q.avgTls+'ms':'?ms';
+  return `${ipPort}#${region} | ${total} | ${tls}`; }
 function buildUploadData(){
   const seen=new Map();
   state.units.filter(u=>u.ip).forEach(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
@@ -341,14 +388,14 @@ function buildState(){
         srcKind:(u.firstSource&&u.firstSource.kind)||'pure', srcName:(u.firstSource&&u.firstSource.name)||u.id, firstSeen:u.firstSeen||null,
         colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
         latest,quality:computeQuality(hist),
-        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total})) }; });
+        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,tls:p.tls,tcp:p.tcp,src:p.src,customResults:p.customResults})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
-      config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbeUrl:CONFIG.customProbeUrl,concurrency:CONFIG.concurrency},
+      config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbes:CONFIG.customProbes,concurrency:CONFIG.concurrency},
       github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:state.github.lastUpload,lastError:state.github.lastError,uploadIntervalMin:CONFIG.github.uploadIntervalMin},
       summary:{total:items.length,online,quality,offline:items.length-online},items };
   }catch(e){ return{version:VERSION,checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
-    config:{maxTotalMs:0,qualityWindow:10,qualityRate:1,autoCleanDays:7,customProbeUrl:'',concurrency:50},
+    config:{maxTotalMs:0,qualityWindow:10,qualityRate:1,autoCleanDays:7,customProbes:[],concurrency:50},
     github:{configured:false,auto:false,lastUpload:null,lastError:e.message,uploadIntervalMin:0},
     summary:{total:0,online:0,quality:0,offline:0},items:[]}; }
 }
@@ -383,7 +430,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 极简延迟版)`);
+  log(`🚀 服务启动 (${VERSION} 多源站延迟测量)`);
   await refreshCfCidrs(true);
   await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
