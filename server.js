@@ -1,8 +1,7 @@
 /**
- * Proxy Monitor v33 (惩罚均摊 + 多线折线)
- * 失败探针: total=P, 三段各P/3 (P=(timeoutSec+2)*1000); 全平均=官方+各自定义平均, 恒等
- * 在线=官方成功且≥1自定义成功; 列=全平均窗口均值(含惩罚); 折线=各探针total尖峰+全平均
- * 继承: 多源站 / CF CIDR 分类 / 配置-节点解耦 / 清除记录 / 中断安全 / 原子落盘
+ * Proxy Monitor v34 (自愈加载 + 启动日志)
+ * 修复: 全0问题 -> 迁移容错(ids/ips) / 发现逐行容错 / 启动打印数量 / buildState容错
+ * 继承: v33 惩罚均摊+多线折线 / 多源站 / CF CIDR / 解耦 / 清除记录 / 中断安全
  */
 const http = require('http');
 const fs = require('fs');
@@ -10,7 +9,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33';
+const VERSION = 'v34';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -35,7 +34,7 @@ CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 CONFIG.graveyardFile = path.join(CONFIG.dataDir, 'graveyard.json');
 
 const state = { units: [], nodes: {}, history: {}, blocked: {}, graveyard: { list: [] },
-  cfCidrs: [], cfCidrsAt: 0,
+  cfCidrs: [], cfCidrsAt: 0, ipLineCount: 0,
   lastCycle: null, checking: false, abort: false, progress: { tested: 0, total: 0 }, logs: [],
   github: { lastUpload: null, lastError: null }, lastUploadedContent: '' };
 let cycleTimer = null, githubTimer = null;
@@ -94,16 +93,13 @@ function curlFailText(code){ if(code===28)return '超时'; if(code===7)return '�
 function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{return JSON.parse(l[l.length-1]);}catch(e){return null;}}
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
-/* 真实四段 */
 function buildSegs(w){ if(!w)return null;
   const tcp=Math.max(0,Math.round((w.tcp||0)*1000));
   const tls=Math.max(0,Math.round(((w.tls||0)-(w.tcp||0))*1000));
   const total=Math.max(0,Math.round((w.ttfb||0)*1000));
   return {tcp,tls,total,src:Math.max(0,total-tcp-tls)}; }
-/* 🌟 惩罚四段: total=P, 三段P/3均摊(末段补足) */
 function penaltySegs(){ const P=(CONFIG.timeoutSec+2)*1000; const t=Math.round(P/3);
   return {tcp:t,tls:t,src:Math.max(0,P-2*t),total:P}; }
-/* 多段平均(恒等) */
 function avgSegs(list){ if(!list||!list.length)return null;
   const avg=f=>Math.round(list.reduce((s,x)=>s+f(x),0)/list.length);
   const tcp=avg(x=>x.tcp), tls=avg(x=>x.tls), total=avg(x=>x.total);
@@ -159,51 +155,57 @@ async function refreshCfCidrs(force){
 function classifyIp(ip){ if(!ip||!net.isIPv4(ip)||!state.cfCidrs.length)return 'unknown';
   return state.cfCidrs.some(c=>cidrMatch(ip,c))?'cf':'proxy'; }
 
-// ==================== 节点注册表迁移 ====================
+// ==================== 🌟 迁移容错(ids/ips 兼容) ====================
 function migrateNodes(disc){
   const nodes={};
-  for(const key of Object.keys(disc||{})){ const e=disc[key];
+  for(const key of Object.keys(disc||{})){ const e=disc[key]||{};
+    const idsObj=e.ids||e.ips||{};
     const kind=e.kind||(key.startsWith('pure:')?'pure':key.startsWith('url:')?'url':'dom');
-    for(const id of Object.keys(e.ids||{})){ const [ip,port]=splitId(id); if(!net.isIPv4(ip))continue;
-      if(!nodes[id])nodes[id]={id,ip,port,firstSource:{kind,name:e.name||id}}; } }
-  for(const id of Object.keys(state.history)){ const [ip,port]=splitId(id); if(!net.isIPv4(ip))continue;
+    for(const id of Object.keys(idsObj)){ try{ const [ip,port]=splitId(id); if(!net.isIPv4(ip))continue;
+      if(!nodes[id])nodes[id]={id,ip,port,firstSource:{kind,name:e.name||id}}; }catch(err){} } }
+  for(const id of Object.keys(state.history)){ try{ const [ip,port]=splitId(id); if(!net.isIPv4(ip))continue;
     const hist=state.history[id]; const firstSeen=hist&&hist.length?hist[0].t:Date.now();
     if(!nodes[id])nodes[id]={id,ip,port,firstSource:{kind:'pure',name:id}};
-    if(!nodes[id].firstSeen)nodes[id].firstSeen=firstSeen; }
+    if(!nodes[id].firstSeen)nodes[id].firstSeen=firstSeen; }catch(err){} }
   for(const id of Object.keys(nodes)){ if(!nodes[id].firstSeen)nodes[id].firstSeen=Date.now(); }
   return nodes;
 }
-function loadData(){ try{const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
-  if(d&&d.history)state.history=d.history;
-  if(d&&d.nodes&&Object.keys(d.nodes).length){ state.nodes=d.nodes; }
-  else { state.nodes=migrateNodes(d&&d.disc?d.disc:{}); }
- }catch(e){ state.nodes=migrateNodes({}); } loadGraveyard(); }
+function loadData(){
+  try{ const d=JSON.parse(fs.readFileSync(CONFIG.dataFile,'utf8'));
+    if(d&&d.history)state.history=d.history;
+    if(d&&d.nodes&&Object.keys(d.nodes).length){ state.nodes=d.nodes; }
+    else { state.nodes=migrateNodes(d&&d.disc?d.disc:{}); }
+  }catch(e){ state.nodes=migrateNodes({}); }
+  loadGraveyard();
+  log('💾 加载完成: 历史节点 '+Object.keys(state.history).length+' / 注册节点 '+Object.keys(state.nodes).length);
+}
 
-// ==================== 发现(只增) ====================
+// ==================== 🌟 发现(逐行容错+计数) ====================
 async function discover(){
   await refreshCfCidrs(false);
   const now=Date.now();
-  let lines=[]; try{lines=fs.readFileSync(CONFIG.ipFile,'utf8').split(/\r?\n/);}catch(e){}
-  const present=new Set(); const domJobs=[],urlJobs=[]; const adds=[];
-  for(const raw of lines){ const line=raw.split('#')[0].trim(); if(!line)continue;
-    const key=sourceKeyForLine(line); if(!key||present.has(key))continue; present.add(key);
+  let lines=[]; try{lines=fs.readFileSync(CONFIG.ipFile,'utf8').split(/\r?\n/);}catch(e){ log('⚠️ 读取ip.txt失败: '+e.message); }
+  const present=new Set(); const domJobs=[],urlJobs=[]; const adds=[]; let valid=0;
+  for(const raw of lines){ try{ const line=raw.split('#')[0].trim(); if(!line)continue;
+    const key=sourceKeyForLine(line); if(!key||present.has(key))continue; present.add(key); valid++;
     if(key.startsWith('pure:')){ const id=key.slice(5); adds.push({id,kind:'pure',name:id}); }
     else if(key.startsWith('dom:')){ const hp=key.slice(4); const li=hp.lastIndexOf(':');
       domJobs.push({host:hp.slice(0,li),port:+hp.slice(li+1),kind:'dom',name:hp.slice(0,li)}); }
-    else { urlJobs.push({url:key.slice(4),kind:'url',name:key.slice(4)}); } }
+    else { urlJobs.push({url:key.slice(4),kind:'url',name:key.slice(4)}); } }catch(err){} }
+  state.ipLineCount=valid;
   await mapLimit(domJobs,20,async j=>{ let ips=[]; try{ips=await Promise.race([dnsPromises.resolve4(j.host),timeoutPromise(4000)]);}catch(e){}
     (ips||[]).filter(ip=>net.isIPv4(ip)).forEach(ip=>adds.push({id:ip+':'+j.port,kind:j.kind,name:j.name})); });
   await mapLimit(urlJobs,8,async j=>{ const content=await fetchList(j.url);
     for(const rl of content.split(/\r?\n/)){ const l=rl.split('#')[0].trim(); if(!l||isUrl(l))continue;
       const r=parseLine(l); if(!r||!net.isIPv4(r.host))continue; adds.push({id:r.host+':'+r.port,kind:j.kind,name:j.name}); } });
   let added=0;
-  for(const a of adds){ if(state.blocked[a.id])continue; if(state.nodes[a.id])continue;
+  for(const a of adds){ try{ if(state.blocked[a.id])continue; if(state.nodes[a.id])continue;
     const [ip,port]=splitId(a.id);
-    state.nodes[a.id]={id:a.id,ip,port,firstSeen:now,firstSource:{kind:a.kind,name:a.name},kind:classifyIp(ip)}; added++; }
+    state.nodes[a.id]={id:a.id,ip,port,firstSeen:now,firstSource:{kind:a.kind,name:a.name},kind:classifyIp(ip)}; added++; }catch(err){} }
   return added;
 }
 
-// ==================== 官方探针(成功真实/失败惩罚) ====================
+// ==================== 官方探针 ====================
 async function probeLatency(u){
   const point={t:Date.now(),ok:false,off:penaltySegs(),colo:null,loc:null,exitIp:null,failReason:null};
   if(!u.ip){ point.failReason='无有效IP'; return point; }
@@ -221,7 +223,7 @@ async function probeLatency(u){
   return point;
 }
 
-// ==================== 自定义探针(成功真实/失败惩罚) ====================
+// ==================== 自定义探针 ====================
 async function probeCustoms(u){
   const results=[]; const ms=CONFIG.timeoutSec*1000;
   for(const p of CONFIG.customProbes){
@@ -245,7 +247,7 @@ function pushHistory(id,point){ if(!state.history[id])state.history[id]=[];
   state.history[id].push(point);
   if(state.history[id].length>600)state.history[id]=state.history[id].slice(-600); }
 
-// ==================== 可中断流水线 ====================
+// ==================== 流水线 ====================
 async function runCycle(){
   if(state.checking)return; state.checking=true; state.abort=false;
   try{ const added=await discover(); if(added)log('🆕 发现 '+added+' 个新节点');
@@ -287,7 +289,7 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== 质量判定(全平均含惩罚) ====================
+// ==================== 质量判定 ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
   if(!recent.length)return{quality:false,rate:0,avgAll:null,avgProbes:null,samples:0};
@@ -365,21 +367,25 @@ async function autoUpload(){ const {fingerprint}=buildUploadData();
   if(fingerprint===state.lastUploadedContent){ log('⏭️ 优质列表未变化，跳过上传'); return; }
   await uploadGithub(); }
 
-// ==================== API ====================
+// ==================== API(容错 buildState) ====================
 function buildState(){
   try{ state.units=Object.values(state.nodes);
-    const items=state.units.map(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
-      return{ id:u.id,label:u.id,ip:u.ip,port:u.port,ipKind:u.kind||classifyIp(u.ip),
+    const items=[];
+    for(const u of state.units){ try{
+      const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
+      items.push({ id:u.id,label:u.id,ip:u.ip,port:u.port,ipKind:u.kind||classifyIp(u.ip),
         srcKind:(u.firstSource&&u.firstSource.kind)||'pure', srcName:(u.firstSource&&u.firstSource.name)||u.id, firstSeen:u.firstSeen||null,
         colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
         latest,quality:computeQuality(hist),
-        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,off:p.off&&p.off.total,cus:(p.cus||[]).map(r=>r.segs?r.segs.total:null)})) }; });
+        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,off:p.off&&p.off.total,cus:(p.cus||[]).map(r=>r&&r.segs?r.segs.total:null)})) });
+    }catch(err){} }
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
+      ipLineCount:state.ipLineCount, nodeCount:state.units.length,
       config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbes:CONFIG.customProbes,concurrency:CONFIG.concurrency},
       github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:state.github.lastUpload,lastError:state.github.lastError,uploadIntervalMin:CONFIG.github.uploadIntervalMin},
       summary:{total:items.length,online,quality,offline:items.length-online},items };
-  }catch(e){ return{version:VERSION,checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
+  }catch(e){ return{version:VERSION,checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,ipLineCount:state.ipLineCount,nodeCount:0,
     config:{maxTotalMs:0,qualityWindow:10,qualityRate:1,autoCleanDays:7,customProbes:[],concurrency:50},
     github:{configured:false,auto:false,lastUpload:null,lastError:e.message,uploadIntervalMin:0},
     summary:{total:0,online:0,quality:0,offline:0},items:[]}; }
@@ -391,7 +397,7 @@ const server=http.createServer(async(req,res)=>{
     if(p==='/'||p==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(fs.readFileSync(path.join(__dirname,'public','index.html')));}
     if(p==='/api/state')return json(buildState());
     if(p==='/api/logs')return json({logs:state.logs});
-    if(p==='/api/abort'&&req.method==='POST'){ if(state.checking){state.abort=true;log('⏹ 收到中断请求');} return json({ok:true}); }
+    if(p=='/api/abort'&&req.method==='POST'){ if(state.checking){state.abort=true;log('⏹ 收到中断请求');} return json({ok:true}); }
     if(p==='/api/graveyard'&&req.method==='GET')return json({graveyard:state.graveyard.list});
     if(p==='/api/graveyard/clear'&&req.method==='POST'){state.graveyard.list=[];state.blocked={};persistGraveyard();return json({ok:true});}
     if(p==='/api/remove'&&req.method==='POST'){const{ids}=JSON.parse(await readBody(req)||'{}');
@@ -415,7 +421,10 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 惩罚均摊+多线折线)`);
+  log(`🚀 服务启动 (${VERSION} 自愈加载)`);
   await refreshCfCidrs(true);
-  await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
+  log(`📄 ip.txt 有效行: ${state.ipLineCount} · 启动时注册节点: ${Object.keys(state.nodes).length}`);
+  await discover();
+  log(`🧩 发现后节点: ${Object.keys(state.nodes).length}`);
+  state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });

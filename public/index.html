@@ -371,7 +371,12 @@ function render(){
   el('fLoc').innerHTML='<option value="">全部</option>'+Object.keys(locs).sort().map(function(c){return '<option'+(c===cl?' selected':'')+'>'+c+'</option>';}).join('');
   LAST_VIEW=getView();
   el('filterCount').textContent=LAST_VIEW.length+' / '+s.items.length+' 个';
-  if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';updateRemoveBtn();return;}
+  if(!LAST_VIEW.length){
+    var hint = (s.summary.total===0)
+      ? '未加载到任何节点！请检查：① 设置→节点列表 ip.txt 是否有内容；② 📜日志 中 “ip.txt 有效行 / 发现后节点” 数量。'
+      : '没有符合筛选条件的节点，等待检测或放宽筛选...';
+    el('list').innerHTML='<div class="empty">'+hint+'</div>';updateRemoveBtn();return;
+  }
   var aa=function(q,k){return q.avgAll&&q.avgAll[k]!=null?q.avgAll[k]:'--';};
   el('list').innerHTML=LAST_VIEW.map(function(i,idx){
     var on=i.latest&&i.latest.ok;
