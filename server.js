@@ -1,7 +1,8 @@
 /**
- * Proxy Monitor v34 (自愈加载 + 启动日志)
- * 修复: 全0问题 -> 迁移容错(ids/ips) / 发现逐行容错 / 启动打印数量 / buildState容错
- * 继承: v33 惩罚均摊+多线折线 / 多源站 / CF CIDR / 解耦 / 清除记录 / 中断安全
+ * Proxy Monitor v36 (基于 v34 最小修复: 生命周期尊重来源)
+ * 核心: 本轮被任何来源引用的节点(producedIds)永不自动删除; 自动清理只删"孤儿"死节点
+ * 启动恢复: 被自动清理屏蔽但本轮仍被来源引用的IP解除屏蔽重新加回
+ * 其余逻辑与 v34 完全一致
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +10,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v34';
+const VERSION = 'v36';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -34,7 +35,7 @@ CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 CONFIG.graveyardFile = path.join(CONFIG.dataDir, 'graveyard.json');
 
 const state = { units: [], nodes: {}, history: {}, blocked: {}, graveyard: { list: [] },
-  cfCidrs: [], cfCidrsAt: 0, ipLineCount: 0,
+  cfCidrs: [], cfCidrsAt: 0, ipLineCount: 0, producedIds: new Set(),
   lastCycle: null, checking: false, abort: false, progress: { tested: 0, total: 0 }, logs: [],
   github: { lastUpload: null, lastError: null }, lastUploadedContent: '' };
 let cycleTimer = null, githubTimer = null;
@@ -155,7 +156,7 @@ async function refreshCfCidrs(force){
 function classifyIp(ip){ if(!ip||!net.isIPv4(ip)||!state.cfCidrs.length)return 'unknown';
   return state.cfCidrs.some(c=>cidrMatch(ip,c))?'cf':'proxy'; }
 
-// ==================== 🌟 迁移容错(ids/ips 兼容) ====================
+// ==================== 迁移容错 ====================
 function migrateNodes(disc){
   const nodes={};
   for(const key of Object.keys(disc||{})){ const e=disc[key]||{};
@@ -180,7 +181,7 @@ function loadData(){
   log('💾 加载完成: 历史节点 '+Object.keys(state.history).length+' / 注册节点 '+Object.keys(state.nodes).length);
 }
 
-// ==================== 🌟 发现(逐行容错+计数) ====================
+// ==================== 🌟 发现(记录 producedIds) ====================
 async function discover(){
   await refreshCfCidrs(false);
   const now=Date.now();
@@ -198,6 +199,8 @@ async function discover(){
   await mapLimit(urlJobs,8,async j=>{ const content=await fetchList(j.url);
     for(const rl of content.split(/\r?\n/)){ const l=rl.split('#')[0].trim(); if(!l||isUrl(l))continue;
       const r=parseLine(l); if(!r||!net.isIPv4(r.host))continue; adds.push({id:r.host+':'+r.port,kind:j.kind,name:j.name}); } });
+  // 🌟 本轮被任何来源引用的节点集合
+  state.producedIds=new Set(adds.map(a=>a.id));
   let added=0;
   for(const a of adds){ try{ if(state.blocked[a.id])continue; if(state.nodes[a.id])continue;
     const [ip,port]=splitId(a.id);
@@ -305,15 +308,19 @@ function computeQuality(points){
   return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgAll,avgProbes,samples:recent.length};
 }
 
-// ==================== 清理 ====================
+// ==================== 🌟 清理(只删孤儿: 本轮无来源引用 且 离线超期) ====================
 async function cleanGraveyard(){
   if(CONFIG.autoCleanDays<=0)return;
   const threshold=Date.now()-CONFIG.autoCleanDays*24*3600*1000;
-  let n=0;
+  let n=0, kept=0;
   for(const id of Object.keys(state.nodes)){
-    if(offlineSince(id)<threshold){ delete state.nodes[id]; state.blocked[id]=Date.now();
-      pushGrave(id,id,offlineSince(id),'auto',`离线超 ${CONFIG.autoCleanDays} 天（自动清理）`); delete state.history[id]; n++; } }
-  if(n){ capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 自动清理 ${n} 个长期离线节点（已屏蔽）`); }
+    if(offlineSince(id)>=threshold)continue;
+    if(state.producedIds.has(id)){ kept++; continue; }   // 🌟 本轮仍被来源引用, 保留显示
+    delete state.nodes[id]; state.blocked[id]=Date.now();
+    pushGrave(id,id,offlineSince(id),'auto',`离线超 ${CONFIG.autoCleanDays} 天且无来源引用（自动清理）`); delete state.history[id]; n++; }
+  if(n||kept){ if(n){capGraveyard(); persistGraveyard();}
+    saveData();
+    log(`🗑️ 自动清理 ${n} 个孤儿死节点 · 保留被来源引用的离线节点 ${kept} 个`); }
 }
 async function removeUnits(ids){
   let removed=0;
@@ -367,7 +374,7 @@ async function autoUpload(){ const {fingerprint}=buildUploadData();
   if(fingerprint===state.lastUploadedContent){ log('⏭️ 优质列表未变化，跳过上传'); return; }
   await uploadGithub(); }
 
-// ==================== API(容错 buildState) ====================
+// ==================== API ====================
 function buildState(){
   try{ state.units=Object.values(state.nodes);
     const items=[];
@@ -397,7 +404,7 @@ const server=http.createServer(async(req,res)=>{
     if(p==='/'||p==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(fs.readFileSync(path.join(__dirname,'public','index.html')));}
     if(p==='/api/state')return json(buildState());
     if(p==='/api/logs')return json({logs:state.logs});
-    if(p=='/api/abort'&&req.method==='POST'){ if(state.checking){state.abort=true;log('⏹ 收到中断请求');} return json({ok:true}); }
+    if(p==='/api/abort'&&req.method==='POST'){ if(state.checking){state.abort=true;log('⏹ 收到中断请求');} return json({ok:true}); }
     if(p==='/api/graveyard'&&req.method==='GET')return json({graveyard:state.graveyard.list});
     if(p==='/api/graveyard/clear'&&req.method==='POST'){state.graveyard.list=[];state.blocked={};persistGraveyard();return json({ok:true});}
     if(p==='/api/remove'&&req.method==='POST'){const{ids}=JSON.parse(await readBody(req)||'{}');
@@ -421,10 +428,14 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 自愈加载)`);
+  log(`🚀 服务启动 (${VERSION} 生命周期尊重来源)`);
   await refreshCfCidrs(true);
-  log(`📄 ip.txt 有效行: ${state.ipLineCount} · 启动时注册节点: ${Object.keys(state.nodes).length}`);
-  await discover();
-  log(`🧩 发现后节点: ${Object.keys(state.nodes).length}`);
+  await discover();   // 先算 producedIds
+  // 🌟 恢复: 被"自动清理"屏蔽但本轮仍被来源引用的IP解除屏蔽
+  (function recover(){ let n=0;
+    for(const g of state.graveyard.list){ if(g.mode==='auto' && state.producedIds.has(g.id) && state.blocked[g.id]){ delete state.blocked[g.id]; n++; } }
+    if(n)log('♻️ 恢复 '+n+' 个被自动清理屏蔽但仍被来源引用的IP'); })();
+  await discover();   // 重新发现, 把恢复的IP加回
+  log(`📄 ip.txt 有效行: ${state.ipLineCount} · 发现后节点: ${Object.keys(state.nodes).length}`);
   state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
