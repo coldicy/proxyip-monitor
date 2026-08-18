@@ -7,7 +7,7 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
---cols:36px minmax(0,2.1fr) minmax(110px,1fr) 74px 62px 62px 62px 64px 112px}
+--cols:36px minmax(0,2.3fr) minmax(120px,1fr) 84px 66px 112px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
@@ -75,22 +75,22 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .capsule.cf{background:rgba(255,165,0,.15);color:#ffc46b;border:1px solid rgba(255,165,0,.35)}
 .capsule.proxy{background:rgba(61,220,151,.14);color:#b8f5da;border:1px solid rgba(61,220,151,.3)}
 .subline{display:flex;flex-direction:column;gap:4px;margin-top:5px}
-.sline{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.llabel{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em;flex:none}
-.kv{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;min-width:0}
+.sline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.llabel{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em;flex:none;min-width:56px}
+.kv{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;min-width:0}
 .kv em{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em;flex:none}
 .kv b{color:#d9edfb;font-size:.74rem;font-weight:700;font-variant-numeric:tabular-nums}
+.kv b.hi{color:var(--accent);font-size:.8rem}
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
-.srcval{color:#c9f3ff;font-size:.74rem;font-weight:700;max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
-.bars{display:inline-flex;align-items:flex-end;gap:3px;height:20px}
-.bars i{width:6px;height:16px;border-radius:2px;cursor:pointer;transition:.15s}
-.bars i:hover{transform:scaleY(1.25)}
-.bars i.g{background:var(--ok)}.bars i.w{background:var(--warn)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.16)}
+/* 🌟 v32: 延迟柱状图(高度=延迟) */
+.bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
+.bars i{width:6px;border-radius:2px;cursor:pointer;transition:.15s;min-height:3px}
+.bars i:hover{filter:brightness(1.4)}
+.bars i.g{background:var(--ok)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.25)}
 .num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums}
 .num i{font-style:normal;color:var(--muted);font-size:.68rem;margin-left:2px}
-.num.small{font-size:.8rem;color:#cfe3f5}
 .rate{font-weight:800;font-size:.86rem;text-align:right;font-variant-numeric:tabular-nums}
 .rate.g{color:var(--ok)}.rate.w{color:var(--warn)}.rate.r{color:var(--err)}
 .statcell{display:flex;align-items:center;justify-content:flex-end;gap:10px}
@@ -106,8 +106,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .mode.auto{background:rgba(148,184,220,.12);color:var(--muted)}
 .empty{padding:50px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
 footer{margin-top:24px;text-align:center;color:var(--muted);font-size:.74rem;line-height:1.9}
-/* 🌟 v31: 支持多行悬浮提示 */
-#tip{position:fixed;z-index:80;pointer-events:none;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:8px 12px;font-size:.74rem;font-weight:600;opacity:0;transition:opacity .12s;white-space:pre-line;max-width:360px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+#tip{position:fixed;z-index:80;pointer-events:none;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:8px 12px;font-size:.74rem;font-weight:600;opacity:0;transition:opacity .12s;white-space:pre-line;max-width:380px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 #tip.show{opacity:1}
 .overlay{position:fixed;inset:0;background:rgba(2,6,11,.65);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
 .overlay.hidden{display:none}
@@ -133,7 +132,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 .help th{color:var(--text)}
 #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:var(--panel2);border:1px solid rgba(90,209,240,.35);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99}
 #toast.show{opacity:1;transform:translate(-50%,0)}#toast.err{border-color:rgba(255,107,129,.4);color:#ffd3da}
-@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.listhead{display:none}.row{grid-template-columns:36px 1fr 1fr;gap:8px}.colhide{display:none}}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.listhead{display:none}.row{grid-template-columns:36px 1fr 1fr;gap:8px}}
 </style>
 </head>
 <body>
@@ -141,7 +140,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>多源站延迟测量 · 官方握手筛选 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>延迟自洽四段拆解 · 双探针分组 · 延迟柱状图 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -163,7 +162,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
       <span class="grow"></span>
       <button class="btn danger" id="btnRemove" style="display:none">🗑️ 删除所选 (0)</button>
       <span class="flabel">排序</span>
-      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="tls">TLS升序</option><option value="rate">成功率降序</option></select>
+      <select class="in" id="sortBy"><option value="total">总延迟升序</option><option value="rate">成功率降序</option></select>
       <button class="btn primary" id="btnCopy">📋 复制筛选节点</button>
     </div>
     <div class="deckrow">
@@ -181,9 +180,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 10 次状态</span><span class="r">总延迟</span><span class="r">TCP</span><span class="r">TLS</span><span class="r">源站</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 N 次延迟柱</span><span class="r">总延迟</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 官方探针握手筛选 · 多自定义源站测真实延迟 · 📖 手册</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 每组延迟自洽(总=TCP+TLS+源站) · 柱高=延迟 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -191,21 +190,23 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、探针分工（v31 终极版）</h2>
+    <h2>一、延迟自洽（v32）</h2>
     <ul>
-      <li><b>官方探针</b> <code>/cdn-cgi/trace</code>：仅做 TCP/TLS 握手测速 + 获取元数据 + 初步筛选（不通直接淘汰）。</li>
-      <li><b>自定义探针</b> (支持多个)：串行测试各个源站，<b>取所有成功探针的平均 TTFB 作为真实总延迟</b>，并作为真伪闸门。</li>
+      <li>官方探针与自定义探针<b>各自在同一次请求内</b>测全 TCP/TLS/源站/总，组内恒等：总 = TCP + TLS + 源站。</li>
+      <li>所有指标在<b>优质窗口内取平均</b>，双组分别展示，可直接相加验证。</li>
+      <li>主「总延迟」列 = 自定义源站总延迟平均（优质门槛依据）。</li>
     </ul>
-    <h2>二、四段延迟拆解</h2>
-    <table><tr><th>段</th><th>来源</th><th>含义</th></tr>
-    <tr><td>TCP</td><td>官方探针</td><td>你→节点 的物理链路</td></tr>
-    <tr><td>TLS</td><td>官方探针</td><td>TLS 握手开销</td></tr>
-    <tr><td>源站</td><td>自定义探针</td><td>节点→真实源站 这一跳</td></tr>
-    <tr><td>总延迟</td><td>自定义探针</td><td>成功探针的平均 TTFB，优质门槛依据</td></tr></table>
-    <h2>三、身份识别与解耦</h2>
+    <h2>二、延迟柱状图</h2>
+    <ul><li>近 N 次状态条高度随延迟变化（越高越慢），颜色=达标/超标/失败，悬浮看该次四段明细。</li></ul>
+    <h2>三、探针分工</h2>
     <ul>
-      <li>拉取 CF 官方 IP 段做本地 CIDR 匹配，打 <b>CloudflareIP</b> / <b>ProxyIP</b> 胶囊，只标识不拦截。</li>
-      <li>配置只负责发现；节点持久化持续监测；清理才删并屏蔽。</li>
+      <li><b>官方探针</b>：TCP/TLS 握手 + 元数据 + 初步筛选。</li>
+      <li><b>自定义探针</b>(多个)：真实回源延迟 + 真伪闸门，取成功探针平均。</li>
+    </ul>
+    <h2>四、身份与解耦</h2>
+    <ul>
+      <li>CF 官方 IP 段 CIDR 匹配打 CloudflareIP/ProxyIP 胶囊，只标识不拦截。</li>
+      <li>配置只负责发现；节点持久化；清理才删并屏蔽。</li>
     </ul>
   </div>
 </div>
@@ -236,13 +237,11 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
         <label>优质判定窗口(次)<input id="cWindow" type="number"></label>
         <label>达标率阈值(0-1, 1=每次都必须达标)<input id="cRate" type="number" step="0.05"></label>
       </div>
-      
       <div style="margin-top:16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
         <label style="font-weight:800; color:var(--accent); font-size:.86rem;">🌟 自定义源站探针 (测延迟+闸门)</label>
         <button class="btn primary" id="addProbeBtn" style="padding:6px 12px;font-size:.76rem">+ 添加探针</button>
       </div>
       <div id="probesList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
-
       <div class="grid2">
         <label>GitHub Token<input id="cGhToken" type="password" placeholder="ghp_xxxx"></label>
         <label>GitHub 仓库(owner/repo)<input id="cGhRepo" type="text"></label>
@@ -290,22 +289,22 @@ function load(){ return fetch('/api/state').then(function(r){return r.json();}).
 function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.config[k]:d; }
 function pointGood(p){ var M=cfgNum('maxTotalMs',0);
   if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
+/* 🌟 v32: 延迟柱状图 */
+function segLine(label,seg){ if(!seg||seg.total==null)return '';
+  return '<div class="sline"><em class="llabel">'+label+'</em>'+
+    '<span class="kv"><b class="hi">'+seg.total+'ms</b></span>'+
+    '<span class="kv"><em>= TCP</em><b>'+(seg.tcp!=null?seg.tcp:'--')+'</b><em>+ TLS</em><b>'+(seg.tls!=null?seg.tls:'--')+'</b><em>+ 源站</em><b>'+(seg.src!=null?seg.src:'--')+'</b></span></div>'; }
 function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
   if(!rec.length)return '<span style="color:var(--muted)">--</span>';
-  return '<span class="bars">'+rec.map(function(p){ var cls,tip;
-    if(!p.ok){cls='f';tip=fmtT(p.t)+' · ❌ 失败';}
-    else if(!pointGood(p)){cls='r';tip=fmtT(p.t)+' · 🟥 总延迟超标 '+p.total+'ms';}
-    else{
-      cls='g';
-      tip=fmtT(p.t)+' · 🟩 总 '+p.total+'ms (TCP '+p.tcp+' / TLS '+p.tls+' / 源 '+p.src+')';
-      if(p.customResults && p.customResults.length){
-        tip += '\n─────────────\n';
-        tip += p.customResults.map(function(r){
-          return (r.ok?'✅':'❌')+' '+r.host+' ['+r.code+'] '+r.ttfb+'ms';
-        }).join('\n');
-      }
-    }
-    return '<i class="'+cls+'" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
+  var totals=rec.filter(function(p){return p.ok&&p.total!=null;}).map(function(p){return p.total;});
+  var max=Math.max(100, totals.length?Math.max.apply(null,totals):100);
+  return '<span class="bars">'+rec.map(function(p){ var h,cls,tip;
+    if(!p.ok){ h=4; cls='f'; tip=fmtT(p.t)+' · ❌ 失败'; }
+    else { var t=p.total!=null?p.total:0; h=Math.max(4,Math.round(t/max*22)); cls=pointGood(p)?'g':'r';
+      tip=fmtT(p.t)+' · 总 '+p.total+'ms';
+      if(p.cus)tip+='\n自定义: 总'+p.cus.total+' = TCP '+p.cus.tcp+' + TLS '+p.cus.tls+' + 源站 '+p.cus.src;
+      if(p.off)tip+='\n官方: 总'+p.off.total+' = TCP '+p.off.tcp+' + TLS '+p.off.tls+' + 源站 '+p.off.src; }
+    return '<i class="'+cls+'" style="height:'+h+'px" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
 function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function kindCapsule(k){ if(k==='cf')return '<span class="capsule cf">CloudflareIP</span>';
   if(k==='proxy')return '<span class="capsule proxy">ProxyIP</span>'; return ''; }
@@ -323,13 +322,12 @@ function getView(){
   if(fColo)items=items.filter(function(i){return (i.colo||'')===fColo;});
   if(fLoc)items=items.filter(function(i){return (i.loc||'')===fLoc;});
   var s=el('sortBy').value;
-  items.sort(function(a,b){ if(s==='tls')return (a.quality.avgTls!=null?a.quality.avgTls:99999)-(b.quality.avgTls!=null?b.quality.avgTls:99999);
-    if(s==='rate')return b.quality.rate-a.quality.rate;
+  items.sort(function(a,b){ if(s==='rate')return b.quality.rate-a.quality.rate;
     return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
   return items; }
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
   var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
-  var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms';
+  var tls=(i.quality.avgCus&&i.quality.avgCus.tls!=null)?i.quality.avgCus.tls+'ms':'?ms';
   return ipPort+'#'+region+' | '+total+' | '+tls; }
 function updateRemoveBtn(){ var b=el('btnRemove');
   if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
@@ -368,24 +366,23 @@ function render(){
     var on=i.latest&&i.latest.ok;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var sv=srcText(i);
-    var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
+    var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" style="color:#c9f3ff;font-size:.74rem;font-weight:700;max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
       '<span class="kv"><em>首次引入</em><b class="time">'+fmtDT(i.firstSeen)+'</b></span></div>';
     var l2='';
     if(i.colo)l2+='<span class="kv"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)l2+='<span class="kv"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
+    if(i.exitIp)l2+='<span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(l2)lines+='<div class="sline">'+l2+'</div>';
-    if(i.exitIp)lines+='<div class="sline"><span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span></div>';
-    if(i.latest&&i.latest.t)lines+='<div class="sline"><span class="kv"><em>最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></span></div>';
-    if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><span class="kv"><em>淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></span></div>';
+    lines+=segLine('自定义源站', i.quality.avgCus);
+    lines+=segLine('官方探针', i.quality.avgOff);
+    if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
+    if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><em class="llabel">淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></div>';
     var ratePct=Math.round(i.quality.rate*100); var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
       '<span class="sel"><input type="checkbox" data-sel="'+esc(i.id)+'"'+(SELECTED.has(i.id)?' checked':'')+'></span>'+
       '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
       '<div>'+barsHtml(i.recent)+'</div>'+
       '<div class="num">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'<i>ms</i>':'--')+'</div>'+
-      '<div class="num small colhide">'+(i.quality.avgTcp!=null?i.quality.avgTcp:'--')+'</div>'+
-      '<div class="num small colhide">'+(i.quality.avgTls!=null?i.quality.avgTls:'--')+'</div>'+
-      '<div class="num small colhide">'+(i.quality.avgSrc!=null?i.quality.avgSrc:'--')+'</div>'+
       '<div class="rate '+rateCls+'">'+ratePct+'%</div>'+
       '<div class="statcell"><button class="iconbtn" data-ci="'+idx+'" title="复制该节点">⧉</button>'+badge+'</div>'+
     '</div>'; }).join('');
@@ -397,7 +394,7 @@ var tipEl=el('tip');
 document.addEventListener('mouseover',function(e){ var b=e.target.closest?e.target.closest('[data-tip]'):null;
   if(b){ tipEl.innerText=b.getAttribute('data-tip'); tipEl.classList.add('show');
     var r=b.getBoundingClientRect();
-    tipEl.style.left=Math.max(8,Math.min(window.innerWidth-380,r.left-20))+'px'; tipEl.style.top=Math.max(8,r.top-38)+'px';
+    tipEl.style.left=Math.max(8,Math.min(window.innerWidth-400,r.left-20))+'px'; tipEl.style.top=Math.max(8,r.top-38)+'px';
   } else tipEl.classList.remove('show'); });
 window.addEventListener('scroll',function(){tipEl.classList.remove('show');},true);
 
@@ -473,11 +470,7 @@ function renderProbesList(){
     list.appendChild(row);
   });
 }
-
-el('addProbeBtn').onclick = function(){
-  EDIT_PROBES.push({url: '', expect: '204'});
-  renderProbesList();
-};
+el('addProbeBtn').onclick = function(){ EDIT_PROBES.push({url: '', expect: '204'}); renderProbesList(); };
 
 el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
