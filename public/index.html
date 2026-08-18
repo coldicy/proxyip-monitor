@@ -7,11 +7,11 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
---cols:36px minmax(0,2.3fr) minmax(120px,1fr) 84px 66px 112px}
+--cols:36px minmax(0,2.1fr) minmax(150px,1.2fr) 78px 56px 56px 56px 62px 110px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
-.shell{max-width:1440px;margin:0 auto;padding:26px 22px 60px}
+.shell{max-width:1480px;margin:0 auto;padding:26px 22px 60px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .brand{display:flex;align-items:center;gap:14px}
 .logo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:linear-gradient(135deg,rgba(90,209,240,.22),rgba(45,212,191,.16));border:1px solid rgba(90,209,240,.35)}
@@ -80,15 +80,15 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;min-width:0}
 .kv em{font-style:normal;color:var(--muted);font-size:.66rem;letter-spacing:.03em;flex:none}
 .kv b{color:#d9edfb;font-size:.74rem;font-weight:700;font-variant-numeric:tabular-nums}
-.kv b.hi{color:var(--accent);font-size:.8rem}
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
-/* 🌟 v32: 延迟柱状图(高度=延迟) */
-.bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
-.bars i{width:6px;border-radius:2px;cursor:pointer;transition:.15s;min-height:3px}
-.bars i:hover{filter:brightness(1.4)}
-.bars i.g{background:var(--ok)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.25)}
+/* 🌟 v33 折线+图例 */
+.spark{display:flex;flex-direction:column;gap:3px}
+.spark svg{display:block}
+.legend{display:flex;gap:8px;flex-wrap:wrap}
+.lg{display:inline-flex;align-items:center;gap:4px;font-size:.62rem;color:var(--muted)}
+.lg i{width:9px;height:3px;border-radius:2px;display:inline-block}
 .num{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums}
 .num i{font-style:normal;color:var(--muted);font-size:.68rem;margin-left:2px}
 .rate{font-weight:800;font-size:.86rem;text-align:right;font-variant-numeric:tabular-nums}
@@ -140,7 +140,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>延迟自洽四段拆解 · 双探针分组 · 延迟柱状图 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>惩罚均摊延迟 · 多探针折线 · CloudflareIP/ProxyIP 识别 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -180,9 +180,9 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
     </div>
   </section>
 
-  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 N 次延迟柱</span><span class="r">总延迟</span><span class="r">成功率</span><span class="r">状态</span></div>
+  <div class="listhead"><span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span><span>节点 (IP)</span><span>近 N 次延迟折线</span><span class="r">总延迟</span><span class="r">TCP</span><span class="r">TLS</span><span class="r">源站</span><span class="r">成功率</span><span class="r">状态</span></div>
   <section class="list" id="list"></section>
-  <footer>Proxy Monitor <span id="ver"></span> · 每组延迟自洽(总=TCP+TLS+源站) · 柱高=延迟 · 📖 手册</footer>
+  <footer>Proxy Monitor <span id="ver"></span> · 总=TCP+TLS+源站(含失败惩罚) · 折线尖峰=失败 · 📖 手册</footer>
 </div>
 
 <div id="tip"></div>
@@ -190,24 +190,19 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 <div id="helpPanel" class="overlay hidden">
   <div class="modal help">
     <div class="mhead"><h2>📖 使用手册 <span id="helpVer" style="color:var(--muted);font-size:.8rem"></span></h2><button class="btn" id="helpClose">✕</button></div>
-    <h2>一、延迟自洽（v32）</h2>
+    <h2>一、延迟与惩罚（v33）</h2>
     <ul>
-      <li>官方探针与自定义探针<b>各自在同一次请求内</b>测全 TCP/TLS/源站/总，组内恒等：总 = TCP + TLS + 源站。</li>
-      <li>所有指标在<b>优质窗口内取平均</b>，双组分别展示，可直接相加验证。</li>
-      <li>主「总延迟」列 = 自定义源站总延迟平均（优质门槛依据）。</li>
+      <li>失败探针：total=P=(timeoutSec+2)×1000，三段各 P/3 均摊；成功=真实四段。</li>
+      <li>每周期 全平均=官方+各自定义 探针段平均，恒等：总=TCP+TLS+源站。</li>
+      <li>列（总/TCP/TLS/源站）=窗口平均，<b>含失败惩罚</b>，不稳定节点平均值会被拖高。</li>
+      <li>在线=官方成功且≥1自定义成功；成功率=在线周期/窗口。</li>
     </ul>
-    <h2>二、延迟柱状图</h2>
-    <ul><li>近 N 次状态条高度随延迟变化（越高越慢），颜色=达标/超标/失败，悬浮看该次四段明细。</li></ul>
+    <h2>二、折线图</h2>
+    <ul><li>官方/各自定义/全平均 多条线；失败处为惩罚尖峰；图例在图下方一行（窗口平均）。</li></ul>
     <h2>三、探针分工</h2>
-    <ul>
-      <li><b>官方探针</b>：TCP/TLS 握手 + 元数据 + 初步筛选。</li>
-      <li><b>自定义探针</b>(多个)：真实回源延迟 + 真伪闸门，取成功探针平均。</li>
-    </ul>
+    <ul><li>官方探针：握手+元数据+初筛；自定义探针(多个)：真实回源延迟+闸门。</li></ul>
     <h2>四、身份与解耦</h2>
-    <ul>
-      <li>CF 官方 IP 段 CIDR 匹配打 CloudflareIP/ProxyIP 胶囊，只标识不拦截。</li>
-      <li>配置只负责发现；节点持久化；清理才删并屏蔽。</li>
-    </ul>
+    <ul><li>CF 官方 IP 段 CIDR 匹配打 CloudflareIP/ProxyIP 胶囊，只标识不拦截；配置只发现，节点持久化，清理才删并屏蔽。</li></ul>
   </div>
 </div>
 
@@ -271,6 +266,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 (function(){
 'use strict';
 var STATE=null,TAB='all',LAST_VIEW=[],SELECTED=new Set(),EDIT_PROBES=[];
+var PALETTE=['#3ddc97','#ffc46b','#c792ea','#ff6b81','#82aaff'];
 function el(id){return document.getElementById(id);}
 function esc(v){v=String(v==null?'':v);return v.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pad(n){return n<10?'0'+n:''+n;}
@@ -289,22 +285,34 @@ function load(){ return fetch('/api/state').then(function(r){return r.json();}).
 function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.config[k]:d; }
 function pointGood(p){ var M=cfgNum('maxTotalMs',0);
   if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
-/* 🌟 v32: 延迟柱状图 */
-function segLine(label,seg){ if(!seg||seg.total==null)return '';
-  return '<div class="sline"><em class="llabel">'+label+'</em>'+
-    '<span class="kv"><b class="hi">'+seg.total+'ms</b></span>'+
-    '<span class="kv"><em>= TCP</em><b>'+(seg.tcp!=null?seg.tcp:'--')+'</b><em>+ TLS</em><b>'+(seg.tls!=null?seg.tls:'--')+'</b><em>+ 源站</em><b>'+(seg.src!=null?seg.src:'--')+'</b></span></div>'; }
-function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
+/* 🌟 v33 多线折线 + 图例 */
+function sparkHtml(recent, probesCfg){
+  var win=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-win);
   if(!rec.length)return '<span style="color:var(--muted)">--</span>';
-  var totals=rec.filter(function(p){return p.ok&&p.total!=null;}).map(function(p){return p.total;});
-  var max=Math.max(100, totals.length?Math.max.apply(null,totals):100);
-  return '<span class="bars">'+rec.map(function(p){ var h,cls,tip;
-    if(!p.ok){ h=4; cls='f'; tip=fmtT(p.t)+' · ❌ 失败'; }
-    else { var t=p.total!=null?p.total:0; h=Math.max(4,Math.round(t/max*22)); cls=pointGood(p)?'g':'r';
-      tip=fmtT(p.t)+' · 总 '+p.total+'ms';
-      if(p.cus)tip+='\n自定义: 总'+p.cus.total+' = TCP '+p.cus.tcp+' + TLS '+p.cus.tls+' + 源站 '+p.cus.src;
-      if(p.off)tip+='\n官方: 总'+p.off.total+' = TCP '+p.off.tcp+' + TLS '+p.off.tls+' + 源站 '+p.off.src; }
-    return '<i class="'+cls+'" style="height:'+h+'px" data-tip="'+esc(tip)+'"></i>'; }).join('')+'</span>'; }
+  var series=[{name:'官方',color:'#5ad1f0',bold:false,vals:rec.map(function(p){return p.off;})}];
+  var nCus=probesCfg?probesCfg.length:0;
+  for(var i=0;i<nCus;i++){
+    var host=''; try{host=new URL(probesCfg[i].url).hostname;}catch(e){host=('自定义'+(i+1));}
+    series.push({name:host,color:PALETTE[i%PALETTE.length],bold:false,vals:rec.map(function(p){return p.cus?p.cus[i]:null;})});
+  }
+  series.push({name:'全平均',color:'#ffffff',bold:true,vals:rec.map(function(p){return p.total;})});
+  var max=100; series.forEach(function(s){s.vals.forEach(function(v){if(v!=null&&v>max)max=v;});});
+  var W=150,H=26,step=W/Math.max(1,rec.length-1);
+  var paths=series.map(function(s){
+    var d='',pen=false;
+    s.vals.forEach(function(v,idx){ if(v==null){pen=false;return;}
+      var x=idx*step, y=H-1-(v/max)*(H-2);
+      d+=(pen?' L':' M')+x.toFixed(1)+' '+y.toFixed(1); pen=true; });
+    return '<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="'+(s.bold?2:1)+'" stroke-linecap="round"/>';
+  }).join('');
+  var svg='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+paths+'</svg>';
+  var legend=series.map(function(s){
+    var vals=s.vals.filter(function(v){return v!=null;});
+    var avg=vals.length?Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length):null;
+    return '<span class="lg"><i style="background:'+s.color+'"></i>'+esc(s.name)+' '+(avg!=null?avg:'--')+'</span>';
+  }).join('');
+  return '<div class="spark">'+svg+'<div class="legend">'+legend+'</div></div>';
+}
 function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function kindCapsule(k){ if(k==='cf')return '<span class="capsule cf">CloudflareIP</span>';
   if(k==='proxy')return '<span class="capsule proxy">ProxyIP</span>'; return ''; }
@@ -317,17 +325,19 @@ function getView(){
     return [i.label,i.srcName,srcText(i),i.colo,i.loc].some(function(v){return v&&String(v).toLowerCase().indexOf(q)>=0;}); });
   var fKind=el('fKind').value; if(fKind)items=items.filter(function(i){return i.ipKind===fKind;});
   var fTotal=parseFloat(el('fTotal').value),fRate=parseFloat(el('fRate').value),fColo=el('fColo').value,fLoc=el('fLoc').value;
-  if(!isNaN(fTotal))items=items.filter(function(i){return i.quality.avgTotal!=null&&i.quality.avgTotal<=fTotal;});
+  if(!isNaN(fTotal))items=items.filter(function(i){return i.quality.avgAll&&i.quality.avgAll.total!=null&&i.quality.avgAll.total<=fTotal;});
   if(!isNaN(fRate))items=items.filter(function(i){return i.quality.rate*100>=fRate;});
   if(fColo)items=items.filter(function(i){return (i.colo||'')===fColo;});
   if(fLoc)items=items.filter(function(i){return (i.loc||'')===fLoc;});
   var s=el('sortBy').value;
   items.sort(function(a,b){ if(s==='rate')return b.quality.rate-a.quality.rate;
-    return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
+    var at=a.quality.avgAll&&a.quality.avgAll.total!=null?a.quality.avgAll.total:99999;
+    var bt=b.quality.avgAll&&b.quality.avgAll.total!=null?b.quality.avgAll.total:99999;
+    return at-bt; });
   return items; }
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
-  var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
-  var tls=(i.quality.avgCus&&i.quality.avgCus.tls!=null)?i.quality.avgCus.tls+'ms':'?ms';
+  var total=i.quality.avgAll&&i.quality.avgAll.total!=null?i.quality.avgAll.total+'ms':'?ms';
+  var tls=i.quality.avgAll&&i.quality.avgAll.tls!=null?i.quality.avgAll.tls+'ms':'?ms';
   return ipPort+'#'+region+' | '+total+' | '+tls; }
 function updateRemoveBtn(){ var b=el('btnRemove');
   if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
@@ -346,7 +356,7 @@ function render(){
   }else{ el('pwrap').classList.add('hidden'); el('btnCheck').disabled=false; el('btnCheck').innerText='⚡ 立即检测';
     el('cycleInfo').textContent='上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s'; el('cycleInfo').className='pill'; }
   var need=Math.round(s.config.qualityRate*100);
-  el('cfgInfo').textContent='优质 = 样本≥'+win+' 且 '+need+'%达标'+(s.config.maxTotalMs>0?' 且 总延迟≤'+s.config.maxTotalMs+'ms':'')+' · 并发 '+s.config.concurrency;
+  el('cfgInfo').textContent='优质 = 样本≥'+win+' 且 '+need+'%达标'+(s.config.maxTotalMs>0?' 且 总延迟≤'+s.config.maxTotalMs+'ms(含惩罚)':'')+' · 并发 '+s.config.concurrency;
   el('cards').innerHTML=
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
     '<div class="card ok"><div class="ic g">🟢</div><div><b>'+s.summary.online+'</b><span>当前在线</span></div></div>'+
@@ -362,27 +372,29 @@ function render(){
   LAST_VIEW=getView();
   el('filterCount').textContent=LAST_VIEW.length+' / '+s.items.length+' 个';
   if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';updateRemoveBtn();return;}
+  var aa=function(q,k){return q.avgAll&&q.avgAll[k]!=null?q.avgAll[k]:'--';};
   el('list').innerHTML=LAST_VIEW.map(function(i,idx){
     var on=i.latest&&i.latest.ok;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var sv=srcText(i);
-    var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" style="color:#c9f3ff;font-size:.74rem;font-weight:700;max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
+    var lines='<div class="sline"><em class="llabel">来源</em><b style="color:#c9f3ff;font-size:.74rem;font-weight:700;max-width:46ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
       '<span class="kv"><em>首次引入</em><b class="time">'+fmtDT(i.firstSeen)+'</b></span></div>';
     var l2='';
     if(i.colo)l2+='<span class="kv"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
     if(i.loc)l2+='<span class="kv"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp)l2+='<span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(l2)lines+='<div class="sline">'+l2+'</div>';
-    lines+=segLine('自定义源站', i.quality.avgCus);
-    lines+=segLine('官方探针', i.quality.avgOff);
     if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
     if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><em class="llabel">淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></div>';
     var ratePct=Math.round(i.quality.rate*100); var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
       '<span class="sel"><input type="checkbox" data-sel="'+esc(i.id)+'"'+(SELECTED.has(i.id)?' checked':'')+'></span>'+
       '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
-      '<div>'+barsHtml(i.recent)+'</div>'+
-      '<div class="num">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'<i>ms</i>':'--')+'</div>'+
+      '<div>'+sparkHtml(i.recent, s.config.customProbes)+'</div>'+
+      '<div class="num">'+aa(i.quality,'total')+(i.quality.avgAll&&i.quality.avgAll.total!=null?'<i>ms</i>':'')+'</div>'+
+      '<div class="num" style="font-size:.8rem;color:#cfe3f5">'+aa(i.quality,'tcp')+'</div>'+
+      '<div class="num" style="font-size:.8rem;color:#cfe3f5">'+aa(i.quality,'tls')+'</div>'+
+      '<div class="num" style="font-size:.8rem;color:#cfe3f5">'+aa(i.quality,'src')+'</div>'+
       '<div class="rate '+rateCls+'">'+ratePct+'%</div>'+
       '<div class="statcell"><button class="iconbtn" data-ci="'+idx+'" title="复制该节点">⧉</button>'+badge+'</div>'+
     '</div>'; }).join('');

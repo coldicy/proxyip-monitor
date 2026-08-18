@@ -1,7 +1,8 @@
 /**
- * Proxy Monitor v32 (延迟自洽 + 双探针分组 + 延迟柱状图)
- * 官方/自定义探针各自在同一次请求内测全 TCP/TLS/源站/总, 窗口内平均, 组内恒等
- * 继承: v31 多源站测延迟 / CF CIDR 分类 / 配置-节点解耦 / 清除记录 / 中断安全
+ * Proxy Monitor v33 (惩罚均摊 + 多线折线)
+ * 失败探针: total=P, 三段各P/3 (P=(timeoutSec+2)*1000); 全平均=官方+各自定义平均, 恒等
+ * 在线=官方成功且≥1自定义成功; 列=全平均窗口均值(含惩罚); 折线=各探针total尖峰+全平均
+ * 继承: 多源站 / CF CIDR 分类 / 配置-节点解耦 / 清除记录 / 中断安全 / 原子落盘
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +10,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v32';
+const VERSION = 'v33';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -93,11 +94,19 @@ function curlFailText(code){ if(code===28)return '超时'; if(code===7)return '�
 function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{return JSON.parse(l[l.length-1]);}catch(e){return null;}}
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
-/* 🌟 从 curl -w 原始值构建自洽四段 */
+/* 真实四段 */
 function buildSegs(w){ if(!w)return null;
   const tcp=Math.max(0,Math.round((w.tcp||0)*1000));
   const tls=Math.max(0,Math.round(((w.tls||0)-(w.tcp||0))*1000));
   const total=Math.max(0,Math.round((w.ttfb||0)*1000));
+  return {tcp,tls,total,src:Math.max(0,total-tcp-tls)}; }
+/* 🌟 惩罚四段: total=P, 三段P/3均摊(末段补足) */
+function penaltySegs(){ const P=(CONFIG.timeoutSec+2)*1000; const t=Math.round(P/3);
+  return {tcp:t,tls:t,src:Math.max(0,P-2*t),total:P}; }
+/* 多段平均(恒等) */
+function avgSegs(list){ if(!list||!list.length)return null;
+  const avg=f=>Math.round(list.reduce((s,x)=>s+f(x),0)/list.length);
+  const tcp=avg(x=>x.tcp), tls=avg(x=>x.tls), total=avg(x=>x.total);
   return {tcp,tls,total,src:Math.max(0,total-tcp-tls)}; }
 function ensureIpFile(){ try{ fs.mkdirSync(path.dirname(CONFIG.ipFile),{recursive:true});
   let st=null; try{st=fs.statSync(CONFIG.ipFile);}catch(e){}
@@ -194,9 +203,9 @@ async function discover(){
   return added;
 }
 
-// ==================== 🌟 官方探针(自洽四段+元数据) ====================
+// ==================== 官方探针(成功真实/失败惩罚) ====================
 async function probeLatency(u){
-  const point={t:Date.now(),ok:false,off:null,colo:null,loc:null,exitIp:null,failReason:null};
+  const point={t:Date.now(),ok:false,off:penaltySegs(),colo:null,loc:null,exitIp:null,failReason:null};
   if(!u.ip){ point.failReason='无有效IP'; return point; }
   const probe=splitProbe(CONFIG.probeUrl); const ms=CONFIG.timeoutSec*1000;
   const latCmd=`curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec+2} 'https://${probe.host}:${u.port}${probe.path}'`;
@@ -212,7 +221,7 @@ async function probeLatency(u){
   return point;
 }
 
-// ==================== 🌟 自定义探针(各自自洽四段) ====================
+// ==================== 自定义探针(成功真实/失败惩罚) ====================
 async function probeCustoms(u){
   const results=[]; const ms=CONFIG.timeoutSec*1000;
   for(const p of CONFIG.customProbes){
@@ -222,22 +231,14 @@ async function probeCustoms(u){
       const r=await runCurl2(cmd,ms+2500);
       const res=parseCurlJson(r.out);
       const code=res?String(res.http):'000';
-      const segs=buildSegs(res);
       let ok=false,failReason=null;
       if(code==='000'&&r.code!==0)failReason=`连接失败(${curlFailText(r.code)})`;
       else if(code!==expectCode)failReason=`预期${expectCode}实际${code}`;
       else ok=true;
-      results.push({url:p.url,host:cu.hostname,expect:expectCode,code,segs,ok,failReason});
-    }catch(e){ results.push({url:p.url,host:p.url,expect:p.expect,code:'000',segs:null,ok:false,failReason:'配置错误'}); }
+      results.push({host:cu.hostname,expect:expectCode,code,ok,failReason,segs: ok?buildSegs(res):penaltySegs()});
+    }catch(e){ results.push({host:String(p.url),expect:p.expect,code:'000',ok:false,failReason:'配置错误',segs:penaltySegs()}); }
   }
-  const passed=results.filter(r=>r.ok&&r.segs);
-  let agg=null;
-  if(passed.length){
-    const avg=f=>Math.round(passed.reduce((s,r)=>s+f(r.segs),0)/passed.length);
-    const tcp=avg(s=>s.tcp), tls=avg(s=>s.tls), total=avg(s=>s.total);
-    agg={tcp,tls,total,src:Math.max(0,total-tcp-tls)};
-  }
-  return {results,agg};
+  return results;
 }
 
 function pushHistory(id,point){ if(!state.history[id])state.history[id]=[];
@@ -259,15 +260,15 @@ async function runCycle(){
         const u=queue.shift();
         try{
           const lat=await probeLatency(u);
-          const point={t:Date.now(),ok:false,off:lat.off,cus:null,total:null,colo:lat.colo,loc:lat.loc,exitIp:lat.exitIp,failReason:lat.failReason,customResults:[]};
-          if(lat.ok){
-            if(CONFIG.customProbes.length){
-              const cus=await probeCustoms(u);
-              point.customResults=cus.results; point.cus=cus.agg;
-              if(cus.agg){ point.ok=true; point.total=cus.agg.total; }
-              else { point.ok=false; point.failReason='自定义源站均未达标: '+cus.results.map(r=>`${r.host}(${r.failReason})`).join(', '); }
-            } else { point.ok=true; point.total=lat.off.total; }
-          }
+          let cusResults;
+          if(lat.ok && CONFIG.customProbes.length){ cusResults=await probeCustoms(u); }
+          else { cusResults=CONFIG.customProbes.map(p=>{ try{const cu=new URL(p.url);return{host:cu.hostname,ok:false,segs:penaltySegs()};}catch(e){return{host:String(p.url),ok:false,segs:penaltySegs()};} }); }
+          const allList=[lat.off, ...cusResults.map(r=>r.segs)];
+          const all=avgSegs(allList);
+          const online = CONFIG.customProbes.length ? (lat.ok && cusResults.some(r=>r.ok)) : lat.ok;
+          const point={t:Date.now(),ok:online,off:lat.off,cus:cusResults,all:all,total:all?all.total:null,
+            colo:lat.colo,loc:lat.loc,exitIp:lat.exitIp,
+            failReason: !lat.ok ? lat.failReason : (!online ? ('自定义源站均未达标: '+cusResults.map(r=>`${r.host}(${r.failReason||'失败'})`).join(', ')) : null)};
           if(!(state.abort && point.ok)){
             pushHistory(u.id,point); state.progress.tested++;
             log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' 总='+point.total+'ms'):(' 失败: '+point.failReason)));
@@ -286,19 +287,20 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== 🌟 质量判定(双组平均) ====================
+// ==================== 质量判定(全平均含惩罚) ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
-  if(!recent.length)return{quality:false,rate:0,avgTotal:null,avgCus:null,avgOff:null,samples:0};
+  if(!recent.length)return{quality:false,rate:0,avgAll:null,avgProbes:null,samples:0};
   const oks=recent.filter(p=>p.ok); const rate=oks.length/recent.length;
-  const avgOf=g=>{ const v=oks.map(g).filter(x=>x!=null&&isFinite(x)); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null; };
-  const mk=pre=>{ const total=avgOf(p=>p[pre]&&p[pre].total); if(total==null)return null;
-    return {total,tcp:avgOf(p=>p[pre]&&p[pre].tcp),tls:avgOf(p=>p[pre]&&p[pre].tls),src:avgOf(p=>p[pre]&&p[pre].src)}; };
-  const avgCus=mk('cus'); const avgOff=mk('off');
-  const avgTotal=avgCus?avgCus.total:(avgOff?avgOff.total:null);
+  const avgOf=g=>{ const v=recent.map(g).filter(x=>x!=null&&isFinite(x)); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null; };
+  const avgAll={ total:avgOf(p=>p.all&&p.all.total), tcp:avgOf(p=>p.all&&p.all.tcp), tls:avgOf(p=>p.all&&p.all.tls), src:avgOf(p=>p.all&&p.all.src) };
+  const maxCus=recent.reduce((m,p)=>Math.max(m,(p.cus||[]).length),0);
+  const cusAvgs=[]; for(let i=0;i<maxCus;i++) cusAvgs.push(avgOf(p=>p.cus&&p.cus[i]&&p.cus[i].segs?p.cus[i].segs.total:null));
+  const avgProbes={ off:avgOf(p=>p.off&&p.off.total), cus:cusAvgs };
+  const avgTotal=avgAll.total;
   const enough=recent.length>=CONFIG.qualityWindow;
   const latOk=CONFIG.maxTotalMs<=0||(avgTotal!=null&&avgTotal<=CONFIG.maxTotalMs);
-  return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgTotal,avgCus,avgOff,samples:recent.length};
+  return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgAll,avgProbes,samples:recent.length};
 }
 
 // ==================== 清理 ====================
@@ -322,16 +324,16 @@ async function removeUnits(ids){
 
 // ==================== GitHub ====================
 function formatNodeLine(ipPort,region,q){
-  const total=q.avgTotal!=null?q.avgTotal+'ms':'?ms';
-  const tls=q.avgCus&&q.avgCus.tls!=null?q.avgCus.tls+'ms':'?ms';
+  const total=q.avgAll&&q.avgAll.total!=null?q.avgAll.total+'ms':'?ms';
+  const tls=q.avgAll&&q.avgAll.tls!=null?q.avgAll.tls+'ms':'?ms';
   return `${ipPort}#${region} | ${total} | ${tls}`; }
 function buildUploadData(){
   const seen=new Map();
   state.units.filter(u=>u.ip).forEach(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
     const q=computeQuality(hist); if(!q.quality)return;
     const k=u.ip+':'+u.port; const cur=seen.get(k);
-    if(!cur||(q.avgTotal??99999)<(cur.q.avgTotal??99999))seen.set(k,{u,q,latest}); });
-  const nodes=[...seen.values()].sort((a,b)=>(a.q.avgTotal??99999)-(b.q.avgTotal??99999));
+    if(!cur||((q.avgAll&&q.avgAll.total)??99999)<((cur.q.avgAll&&cur.q.avgAll.total)??99999))seen.set(k,{u,q,latest}); });
+  const nodes=[...seen.values()].sort((a,b)=>((a.q.avgAll&&a.q.avgAll.total)??99999)-((b.q.avgAll&&b.q.avgAll.total)??99999));
   const bodies={'all.txt':[]};
   nodes.forEach(({u,q,latest})=>{ const ipPort=`${u.ip}:${u.port}`; const region=latest?(latest.loc||latest.colo||'Unknown'):'Unknown';
     const line=formatNodeLine(ipPort,region,q); bodies['all.txt'].push(line);
@@ -371,7 +373,7 @@ function buildState(){
         srcKind:(u.firstSource&&u.firstSource.kind)||'pure', srcName:(u.firstSource&&u.firstSource.name)||u.id, firstSeen:u.firstSeen||null,
         colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
         latest,quality:computeQuality(hist),
-        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,off:p.off,cus:p.cus})) }; });
+        recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,off:p.off&&p.off.total,cus:(p.cus||[]).map(r=>r.segs?r.segs.total:null)})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
       config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbes:CONFIG.customProbes,concurrency:CONFIG.concurrency},
@@ -413,7 +415,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 延迟自洽+双探针分组)`);
+  log(`🚀 服务启动 (${VERSION} 惩罚均摊+多线折线)`);
   await refreshCfCidrs(true);
   await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
