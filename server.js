@@ -1,17 +1,15 @@
 /**
- * Proxy Monitor v33-fix7 (界面优化 + 复制/上传格式简化)
- * 1. 减小来源/最近标签与值的间距
- * 2. 列名更明确：平均总延迟、平均TCP、平均TLS、平均HTTP
- * 3. 延迟柱 → 优质窗口延迟统计图
- * 4. 复制/上传格式简化为：IP#地区 | 总延迟 | TCP | TLS | HTTP
- */
+Proxy Monitor v33-fix8 (历史失败原因透出)
+- /api/state 的 recent 样本新增 failReason 字段
+- 前端悬浮离线红柱 / 离线徽章可直接显示每次检测的具体失败原因，无需解析日志
+*/
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33-fix7';
+const VERSION = 'v33-fix8';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -318,7 +316,12 @@ async function runCycle(){
             pushHistory(u.id,point); state.progress.tested++;
             log((point.ok?'✅ ':'❌ ')+u.id+(point.ok?(' 总='+point.total+'ms'):(' 失败: '+point.failReason)));
           }
-        }catch(e){ log('⚠️ '+u.id+' 检测异常: '+e.message); state.progress.tested++; }
+        }catch(e){
+          log('⚠️  '+u.id+' 检测异常: '+e.message);
+          pushHistory(u.id,{t:Date.now(),ok:false,off:null,cus:null,total:null,avgTcp:null,avgTls:null,avgHttp:null,
+          colo:null,loc:null,exitIp:null,failReason:'检测异常: '+e.message,probes:[]});
+          state.progress.tested++;
+        }
       } });
     await Promise.all(workers);
     if(state.abort)log('⏹ 检测已中断，完成 '+state.progress.tested+'/'+total);
@@ -454,7 +457,7 @@ function buildState(){
         colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
         latest,quality:computeQuality(hist),
         recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,off:p.off,cus:p.cus,probes:p.probes||[],
-          avgTcp:p.avgTcp,avgTls:p.avgTls,avgHttp:p.avgHttp})) }; });
+          avgTcp:p.avgTcp,avgTls:p.avgTls,avgHttp:p.avgHttp,failReason:p.failReason||null})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
       config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,

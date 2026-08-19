@@ -22,15 +22,8 @@
       --shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
 
     body {
       font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -40,14 +33,10 @@
       overflow-x: hidden;
     }
 
-    body.modal-open {
-      overflow: hidden;
-    }
+    body.modal-open { overflow: hidden; }
 
     .bg {
-      position: fixed;
-      inset: 0;
-      z-index: -2;
+      position: fixed; inset: 0; z-index: -2;
       background:
         radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.14), transparent 32%),
         radial-gradient(circle at 85% 10%, rgba(139, 92, 246, 0.12), transparent 28%),
@@ -56,960 +45,322 @@
     }
 
     .bg::after {
-      content: "";
-      position: absolute;
-      inset: 0;
+      content: ""; position: absolute; inset: 0;
       background: linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px);
-      background-size: 100% 34px;
-      opacity: 0.22;
-      pointer-events: none;
+      background-size: 100% 34px; opacity: 0.22; pointer-events: none;
     }
 
     .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 60;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      position: sticky; top: 0; z-index: 60;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
       padding: 16px 22px;
       background: rgba(5, 8, 16, 0.72);
       border-bottom: 1px solid var(--line);
       backdrop-filter: blur(16px);
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-width: 0;
-    }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
 
     .logo {
-      width: 54px;
-      height: 54px;
-      display: grid;
-      place-items: center;
-      font-size: 29px;
-      border-radius: 18px;
+      width: 54px; height: 54px; display: grid; place-items: center;
+      font-size: 29px; border-radius: 18px;
       background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(139, 92, 246, 0.22));
       border: 1px solid rgba(148, 163, 184, 0.16);
       box-shadow: 0 10px 30px rgba(56, 189, 248, 0.12);
       flex: 0 0 auto;
     }
 
-    .brand h1 {
-      font-size: 23px;
-      letter-spacing: 0.4px;
-      line-height: 1.15;
-    }
+    .brand h1 { font-size: 23px; letter-spacing: 0.4px; line-height: 1.15; }
+    .brand p { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
-    .brand p {
-      margin-top: 4px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 10px;
-    }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      min-height: 38px;
-      padding: 9px 14px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: rgba(30, 41, 59, 0.72);
-      color: var(--text);
-      font-size: 13px;
-      line-height: 1;
-      cursor: pointer;
-      transition: 0.18s ease;
-      white-space: nowrap;
-      user-select: none;
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      min-height: 38px; padding: 9px 14px;
+      border: 1px solid var(--line); border-radius: 12px;
+      background: rgba(30, 41, 59, 0.72); color: var(--text);
+      font-size: 13px; line-height: 1; cursor: pointer;
+      transition: 0.18s ease; white-space: nowrap; user-select: none;
     }
 
-    .btn:hover {
-      transform: translateY(-1px);
-      border-color: rgba(56, 189, 248, 0.42);
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
-    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(56, 189, 248, 0.42); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18); }
+    .btn:active { transform: translateY(0); }
+    .btn.primary { background: linear-gradient(135deg, #0ea5e9, #4f46e5); border-color: transparent; color: white; }
+    .btn.danger { background: linear-gradient(135deg, #ef4444, #b91c1c); border-color: transparent; color: white; }
+    .btn.ghost { background: transparent; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
 
-    .btn:active {
-      transform: translateY(0);
-    }
+    main { width: min(1760px, calc(100% - 40px)); margin: 20px auto 0; display: grid; gap: 16px; }
 
-    .btn.primary {
-      background: linear-gradient(135deg, #0ea5e9, #4f46e5);
-      border-color: transparent;
-      color: white;
-    }
-
-    .btn.danger {
-      background: linear-gradient(135deg, #ef4444, #b91c1c);
-      border-color: transparent;
-      color: white;
-    }
-
-    .btn.ghost {
-      background: transparent;
-    }
-
-    .btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      transform: none !important;
-      box-shadow: none !important;
-    }
-
-    main {
-      width: min(1760px, calc(100% - 40px));
-      margin: 20px auto 0;
-      display: grid;
-      gap: 16px;
-    }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 12px;
-    }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 
     .card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 16px;
-      backdrop-filter: blur(14px);
+      background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px; backdrop-filter: blur(14px);
     }
 
-    .card .label {
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 8px;
-    }
-
-    .card .value {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: 0.3px;
-    }
-
-    .card .sub {
-      margin-top: 7px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .span-2 {
-      grid-column: span 2;
-    }
+    .card .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .card .value { font-size: 26px; font-weight: 800; letter-spacing: 0.3px; }
+    .card .sub { margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .span-2 { grid-column: span 2; }
 
     .progress-wrap {
-      height: 10px;
-      border-radius: 999px;
-      overflow: hidden;
+      height: 10px; border-radius: 999px; overflow: hidden;
       background: rgba(148, 163, 184, 0.12);
       border: 1px solid rgba(148, 163, 184, 0.08);
     }
 
     .progress-fill {
-      width: 0%;
-      height: 100%;
-      border-radius: 999px;
+      width: 0%; height: 100%; border-radius: 999px;
       background: linear-gradient(90deg, #38bdf8, #8b5cf6, #34d399);
       transition: width 0.45s ease;
     }
 
     .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
-      padding: 16px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); backdrop-filter: blur(14px); padding: 16px;
     }
 
-    .toolbar {
-      display: grid;
-      gap: 12px;
+    .toolbar { display: grid; gap: 12px; }
+
+    .toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+    .input, select, textarea {
+      background: rgba(15, 23, 42, 0.76); color: var(--text);
+      border: 1px solid var(--line); border-radius: 11px;
+      padding: 9px 10px; font-size: 13px; outline: none; transition: 0.18s ease;
     }
 
-    .toolbar-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .filters {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .input,
-    select,
-    textarea {
-      background: rgba(15, 23, 42, 0.76);
-      color: var(--text);
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      padding: 9px 10px;
-      font-size: 13px;
-      outline: none;
-      transition: 0.18s ease;
-    }
-
-    .input:focus,
-    select:focus,
-    textarea:focus {
+    .input:focus, select:focus, textarea:focus {
       border-color: rgba(56, 189, 248, 0.55);
       box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
     }
 
-    select {
-      cursor: pointer;
-    }
+    select { cursor: pointer; }
 
-    label.filter {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      white-space: nowrap;
-    }
+    label.filter { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+    label.check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; user-select: none; cursor: pointer; }
 
-    label.check {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      white-space: nowrap;
-      user-select: none;
-      cursor: pointer;
-    }
+    input[type="checkbox"] { width: 16px; height: 16px; accent-color: #38bdf8; cursor: pointer; }
 
-    input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      accent-color: #38bdf8;
-      cursor: pointer;
-    }
-
-    .table-panel {
-      padding: 12px;
-    }
+    .table-panel { padding: 12px; }
 
     .table-wrap {
-      overflow: auto;
-      max-height: calc(100vh - 340px);
-      min-height: 320px;
-      border-radius: 14px;
-      border: 1px solid rgba(148, 163, 184, 0.08);
+      overflow: auto; max-height: calc(100vh - 340px); min-height: 320px;
+      border-radius: 14px; border: 1px solid rgba(148, 163, 184, 0.08);
       background: rgba(8, 12, 22, 0.32);
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 1320px;
-    }
+    table { width: 100%; border-collapse: collapse; min-width: 1380px; }
 
     thead th {
-      position: sticky;
-      top: 0;
-      z-index: 3;
-      background: rgba(8, 12, 24, 0.98);
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-      text-align: left;
-      padding: 13px 10px;
-      border-bottom: 1px solid var(--line);
-      white-space: nowrap;
+      position: sticky; top: 0; z-index: 3;
+      background: rgba(8, 12, 24, 0.98); color: var(--muted);
+      font-size: 12px; font-weight: 700; text-align: left;
+      padding: 13px 10px; border-bottom: 1px solid var(--line); white-space: nowrap;
     }
 
-    tbody td {
-      padding: 11px 10px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
-      vertical-align: middle;
-    }
+    tbody td { padding: 11px 10px; border-bottom: 1px solid rgba(148, 163, 184, 0.08); vertical-align: middle; }
+    tbody tr { transition: background 0.15s ease; }
+    tbody tr:hover { background: rgba(56, 189, 248, 0.055); }
+    tbody tr.selected { background: rgba(56, 189, 248, 0.09); }
 
-    tbody tr {
-      transition: background 0.15s ease;
-    }
+    .ip { font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.2px; }
 
-    tbody tr:hover {
-      background: rgba(56, 189, 248, 0.055);
-    }
+    .meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; color: var(--muted); font-size: 11px; align-items: center; }
+    .meta span { white-space: nowrap; }
 
-    tbody tr.selected {
-      background: rgba(56, 189, 248, 0.09);
-    }
+    .tag { padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .tag.cf { color: #7dd3fc; border-color: rgba(125, 211, 252, 0.35); background: rgba(14, 165, 233, 0.12); }
+    .tag.proxy { color: #a7f3d0; border-color: rgba(52, 211, 153, 0.35); background: rgba(16, 185, 129, 0.12); }
+    .tag.unknown { color: #cbd5e1; }
 
-    .ip {
-      font-weight: 800;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 13px;
-      letter-spacing: 0.2px;
-    }
+    .bars { display: flex; align-items: flex-end; gap: 3px; height: 48px; min-width: 180px; }
+    .bar { width: 7px; border-radius: 3px 3px 1px 1px; cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease; flex: 0 0 auto; }
+    .bar:hover { transform: scaleY(1.12); filter: brightness(1.15); }
+    .bar.ok { background: linear-gradient(180deg, #34d399, #059669); }
+    .bar.warn { background: linear-gradient(180deg, #fbbf24, #d97706); }
+    .bar.fail { background: linear-gradient(180deg, #fb7185, #be123c); }
+    .chart-empty { color: var(--muted); font-size: 12px; }
 
-    .meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-top: 7px;
-      color: var(--muted);
-      font-size: 11px;
-      align-items: center;
-    }
+    .metric { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; font-size: 13px; }
+    .unit { color: var(--muted); font-size: 10px; margin-left: 2px; }
 
-    .tag {
-      padding: 2px 7px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      font-size: 10px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .tag.cf {
-      color: #7dd3fc;
-      border-color: rgba(125, 211, 252, 0.35);
-      background: rgba(14, 165, 233, 0.12);
-    }
-
-    .tag.proxy {
-      color: #a7f3d0;
-      border-color: rgba(52, 211, 153, 0.35);
-      background: rgba(16, 185, 129, 0.12);
-    }
-
-    .tag.unknown {
-      color: #cbd5e1;
-    }
-
-    .bars {
-      display: flex;
-      align-items: flex-end;
-      gap: 3px;
-      height: 48px;
-      min-width: 180px;
-    }
-
-    .bar {
-      width: 7px;
-      border-radius: 3px 3px 1px 1px;
-      cursor: pointer;
-      transition: transform 0.12s ease, filter 0.12s ease;
-      flex: 0 0 auto;
-    }
-
-    .bar:hover {
-      transform: scaleY(1.12);
-      filter: brightness(1.15);
-    }
-
-    .bar.ok {
-      background: linear-gradient(180deg, #34d399, #059669);
-    }
-
-    .bar.warn {
-      background: linear-gradient(180deg, #fbbf24, #d97706);
-    }
-
-    .bar.fail {
-      background: linear-gradient(180deg, #fb7185, #be123c);
-    }
-
-    .chart-empty {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .metric {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      white-space: nowrap;
-      font-size: 13px;
-    }
-
-    .unit {
-      color: var(--muted);
-      font-size: 10px;
-      margin-left: 2px;
-    }
-
-    .good {
-      color: var(--good);
-    }
-
-    .warn {
-      color: var(--warn);
-    }
-
-    .bad {
-      color: var(--bad);
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .sub {
-      color: var(--muted);
-      font-size: 11px;
-      margin-top: 5px;
-      line-height: 1.45;
-    }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .muted { color: var(--muted); font-size: 12px; }
+    .sub { color: var(--muted); font-size: 11px; margin-top: 5px; line-height: 1.45; }
 
     .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 800;
-      border: 1px solid transparent;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800;
+      border: 1px solid transparent; white-space: nowrap; cursor: default;
     }
 
-    .badge.quality {
-      color: #052e16;
-      background: linear-gradient(135deg, #34d399, #a3e635);
-    }
+    .badge.quality { color: #052e16; background: linear-gradient(135deg, #34d399, #a3e635); }
+    .badge.ok { color: #082f49; background: linear-gradient(135deg, #38bdf8, #22d3ee); }
+    .badge.online { color: #0f172a; background: linear-gradient(135deg, #a3e635, #84cc16); }
+    .badge.offline { color: #fec2c8; background: rgba(244, 63, 94, 0.16); border-color: rgba(244, 63, 94, 0.3); }
 
-    .badge.ok {
-      color: #082f49;
-      background: linear-gradient(135deg, #38bdf8, #22d3ee);
-    }
-
-    .badge.online {
-      color: #0f172a;
-      background: linear-gradient(135deg, #a3e635, #84cc16);
-    }
-
-    .badge.offline {
-      color: #fec2c8;
-      background: rgba(244, 63, 94, 0.16);
-      border-color: rgba(244, 63, 94, 0.3);
-    }
-
-    .ops {
-      display: flex;
-      gap: 6px;
-      flex-wrap: nowrap;
-    }
+    .ops { display: flex; gap: 6px; flex-wrap: nowrap; }
 
     .mini-btn {
-      padding: 6px 9px;
-      border-radius: 9px;
-      border: 1px solid var(--line);
-      background: rgba(15, 23, 42, 0.8);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 12px;
-      transition: 0.16s ease;
-      white-space: nowrap;
+      padding: 6px 9px; border-radius: 9px; border: 1px solid var(--line);
+      background: rgba(15, 23, 42, 0.8); color: var(--text);
+      cursor: pointer; font-size: 12px; transition: 0.16s ease; white-space: nowrap;
     }
 
-    .mini-btn:hover {
-      border-color: rgba(56, 189, 248, 0.45);
-      transform: translateY(-1px);
-    }
+    .mini-btn:hover { border-color: rgba(56, 189, 248, 0.45); transform: translateY(-1px); }
 
-    .empty {
-      padding: 34px 18px;
-      text-align: center;
-      color: var(--muted);
-      line-height: 1.7;
-    }
+    .empty { padding: 34px 18px; text-align: center; color: var(--muted); line-height: 1.7; }
 
-    .footer {
-      color: var(--muted);
-      text-align: center;
-      padding: 8px 0 28px;
-      font-size: 12px;
-      line-height: 1.7;
-    }
-
-    .footer a {
-      color: #7dd3fc;
-      cursor: pointer;
-      text-decoration: none;
-    }
-
-    .footer a:hover {
-      text-decoration: underline;
-    }
+    .footer { color: var(--muted); text-align: center; padding: 8px 0 28px; font-size: 12px; line-height: 1.7; }
+    .footer a { color: #7dd3fc; cursor: pointer; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
 
     .modal {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: rgba(2, 6, 23, 0.72);
-      backdrop-filter: blur(9px);
+      position: fixed; inset: 0; z-index: 100; display: none;
+      align-items: center; justify-content: center; padding: 20px;
+      background: rgba(2, 6, 23, 0.72); backdrop-filter: blur(9px);
     }
 
-    .modal.show {
-      display: flex;
-    }
+    .modal.show { display: flex; }
 
     .modal-card {
-      width: 100%;
-      max-width: 980px;
-      max-height: 90vh;
-      overflow: auto;
+      width: 100%; max-width: 980px; max-height: 90vh; overflow: auto;
       background: linear-gradient(180deg, rgba(9, 13, 25, 0.99), rgba(8, 12, 22, 0.99));
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
-      padding: 22px;
+      border: 1px solid var(--line); border-radius: 24px;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5); padding: 22px;
     }
 
-    .modal-card.large {
-      max-width: 1240px;
-    }
-
-    .modal-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .modal-head h2 {
-      font-size: 19px;
-      letter-spacing: 0.3px;
-    }
+    .modal-card.large { max-width: 1240px; }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .modal-head h2 { font-size: 19px; letter-spacing: 0.3px; }
 
     .close-btn {
-      width: 36px;
-      height: 36px;
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      background: rgba(15, 23, 42, 0.8);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 15px;
-      transition: 0.16s ease;
+      width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 11px;
+      background: rgba(15, 23, 42, 0.8); color: var(--text);
+      cursor: pointer; font-size: 15px; transition: 0.16s ease;
     }
 
-    .close-btn:hover {
-      border-color: rgba(251, 113, 133, 0.5);
-      color: #fec2c8;
-      transform: translateY(-1px);
-    }
+    .close-btn:hover { border-color: rgba(251, 113, 133, 0.5); color: #fec2c8; transform: translateY(-1px); }
+    .modal-foot { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 
-    .modal-foot {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 18px;
-    }
+    .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .wide { grid-column: 1 / -1; }
 
-    .settings-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 12px;
-    }
+    .section-title { margin: 22px 0 10px; font-size: 14px; font-weight: 800; color: #bae6fd; border-left: 3px solid var(--accent); padding-left: 9px; }
 
-    .field {
-      display: grid;
-      gap: 6px;
-    }
+    .probe-row { display: grid; grid-template-columns: minmax(220px, 1fr) 130px 44px; gap: 8px; margin-bottom: 8px; }
 
-    .field label {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .wide {
-      grid-column: 1 / -1;
-    }
-
-    .section-title {
-      margin: 22px 0 10px;
-      font-size: 14px;
-      font-weight: 800;
-      color: #bae6fd;
-      border-left: 3px solid var(--accent);
-      padding-left: 9px;
-    }
-
-    .probe-row {
-      display: grid;
-      grid-template-columns: minmax(220px, 1fr) 130px 44px;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .graveyard-list {
-      max-height: 280px;
-      overflow: auto;
-      display: grid;
-      gap: 8px;
-      padding-right: 4px;
-    }
+    .graveyard-list { max-height: 280px; overflow: auto; display: grid; gap: 8px; padding-right: 4px; }
 
     .grave-item {
-      border: 1px solid var(--line);
-      background: rgba(15, 23, 42, 0.5);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.65;
+      border: 1px solid var(--line); background: rgba(15, 23, 42, 0.5);
+      border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--muted); line-height: 1.65;
     }
 
     .logs-box {
-      background: #040711;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px;
-      height: min(62vh, 580px);
-      overflow: auto;
+      background: #040711; border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+      height: min(62vh, 580px); overflow: auto;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.75;
+      font-size: 12px; line-height: 1.75;
     }
 
-    .log-line {
-      border-bottom: 1px dashed rgba(148, 163, 184, 0.07);
-      padding: 3px 0;
-      word-break: break-word;
-    }
-
-    .log-time {
-      color: #64748b;
-      margin-right: 8px;
-      white-space: nowrap;
-    }
+    .log-line { border-bottom: 1px dashed rgba(148, 163, 184, 0.07); padding: 3px 0; word-break: break-word; }
+    .log-time { color: #64748b; margin-right: 8px; white-space: nowrap; }
 
     .tooltip {
-      position: fixed;
-      z-index: 220;
-      display: none;
-      max-width: 460px;
+      position: fixed; z-index: 220; display: none; max-width: 480px;
       background: rgba(4, 9, 20, 0.99);
-      border: 1px solid rgba(125, 211, 252, 0.22);
-      border-radius: 14px;
-      padding: 12px;
-      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
-      pointer-events: none;
-      font-size: 12px;
-      line-height: 1.6;
+      border: 1px solid rgba(125, 211, 252, 0.22); border-radius: 14px;
+      padding: 12px; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
+      pointer-events: none; font-size: 12px; line-height: 1.6;
     }
 
-    .tooltip.show {
-      display: block;
-    }
-
-    .tooltip h4 {
-      font-size: 13px;
-      margin-bottom: 8px;
-      line-height: 1.5;
-    }
-
-    .tooltip .grid {
-      display: grid;
-      grid-template-columns: auto auto;
-      gap: 4px 14px;
-      color: var(--muted);
-    }
-
-    .tooltip .grid span:nth-child(even) {
-      color: var(--text);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
+    .tooltip.show { display: block; }
+    .tooltip h4 { font-size: 13px; margin-bottom: 8px; line-height: 1.5; }
+    .tooltip .grid { display: grid; grid-template-columns: auto auto; gap: 4px 14px; color: var(--muted); }
+    .tooltip .grid span:nth-child(even) { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
     .tooltip .probe-item {
-      margin-top: 7px;
-      padding: 8px 9px;
-      border-radius: 10px;
+      margin-top: 7px; padding: 8px 9px; border-radius: 10px;
       background: rgba(148, 163, 184, 0.08);
-      border: 1px solid rgba(148, 163, 184, 0.08);
-      word-break: break-all;
+      border: 1px solid rgba(148, 163, 184, 0.08); word-break: break-all;
     }
 
-    .toast-wrap {
-      position: fixed;
-      right: 18px;
-      bottom: 18px;
-      z-index: 320;
-      display: grid;
-      gap: 8px;
-    }
+    .toast-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 320; display: grid; gap: 8px; }
 
     .toast {
-      min-width: 240px;
-      max-width: 400px;
-      padding: 12px 14px;
-      border-radius: 13px;
-      color: #fff;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
-      font-size: 13px;
-      line-height: 1.55;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      transition: 0.25s ease;
-      animation: slideIn 0.25s ease;
-      backdrop-filter: blur(10px);
+      min-width: 240px; max-width: 400px; padding: 12px 14px; border-radius: 13px;
+      color: #fff; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+      font-size: 13px; line-height: 1.55; border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: 0.25s ease; animation: slideIn 0.25s ease; backdrop-filter: blur(10px);
     }
 
-    .toast.info {
-      background: rgba(15, 23, 42, 0.95);
-    }
-
-    .toast.success {
-      background: rgba(5, 150, 105, 0.94);
-    }
-
-    .toast.error {
-      background: rgba(225, 29, 72, 0.94);
-    }
-
-    .toast.warn {
-      background: rgba(180, 83, 9, 0.94);
-    }
+    .toast.info { background: rgba(15, 23, 42, 0.95); }
+    .toast.success { background: rgba(5, 150, 105, 0.94); }
+    .toast.error { background: rgba(225, 29, 72, 0.94); }
+    .toast.warn { background: rgba(180, 83, 9, 0.94); }
 
     @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    .manual {
-      display: grid;
-      grid-template-columns: 225px minmax(0, 1fr);
-      gap: 18px;
-    }
+    .manual { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 18px; }
 
-    .manual-nav {
-      position: sticky;
-      top: 0;
-      align-self: start;
-      max-height: 72vh;
-      overflow: auto;
-      display: grid;
-      gap: 6px;
-      padding-right: 4px;
-    }
+    .manual-nav { position: sticky; top: 0; align-self: start; max-height: 72vh; overflow: auto; display: grid; gap: 6px; padding-right: 4px; }
+    .manual-nav a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 8px 10px; border-radius: 10px; transition: 0.16s ease; }
+    .manual-nav a:hover { background: rgba(56, 189, 248, 0.09); color: #e0f2fe; }
 
-    .manual-nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 13px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      transition: 0.16s ease;
-    }
-
-    .manual-nav a:hover {
-      background: rgba(56, 189, 248, 0.09);
-      color: #e0f2fe;
-    }
-
-    .manual-body {
-      min-width: 0;
-      scroll-behavior: smooth;
-    }
-
-    .manual-body section {
-      margin-bottom: 26px;
-      scroll-margin-top: 12px;
-    }
-
-    .manual-body h2 {
-      font-size: 18px;
-      color: #e0f2fe;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    }
-
-    .manual-body h3 {
-      font-size: 14px;
-      color: #bae6fd;
-      margin: 14px 0 7px;
-    }
-
-    .manual-body p,
-    .manual-body li {
-      color: #cbd5e1;
-      line-height: 1.8;
-      font-size: 13px;
-    }
-
-    .manual-body ul,
-    .manual-body ol {
-      padding-left: 20px;
-      display: grid;
-      gap: 6px;
-    }
+    .manual-body { min-width: 0; scroll-behavior: smooth; }
+    .manual-body section { margin-bottom: 26px; scroll-margin-top: 12px; }
+    .manual-body h2 { font-size: 18px; color: #e0f2fe; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    .manual-body h3 { font-size: 14px; color: #bae6fd; margin: 14px 0 7px; }
+    .manual-body p, .manual-body li { color: #cbd5e1; line-height: 1.8; font-size: 13px; }
+    .manual-body ul, .manual-body ol { padding-left: 20px; display: grid; gap: 6px; }
 
     .manual-body code {
-      background: rgba(148, 163, 184, 0.14);
-      padding: 2px 6px;
-      border-radius: 6px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      word-break: break-all;
+      background: rgba(148, 163, 184, 0.14); padding: 2px 6px; border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all;
     }
 
-    .manual-body pre {
-      background: #050810;
-      border: 1px solid var(--line);
-      padding: 12px;
-      border-radius: 12px;
-      overflow: auto;
-      margin: 10px 0;
-    }
+    .manual-body pre { background: #050810; border: 1px solid var(--line); padding: 12px; border-radius: 12px; overflow: auto; margin: 10px 0; }
 
-    .manual-body pre code {
-      background: transparent;
-      padding: 0;
-      font-size: 12px;
-      line-height: 1.75;
-      color: #dbeafe;
-      white-space: pre;
-    }
+    .manual-body pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.75; color: #dbeafe; white-space: pre; }
 
-    .callout {
-      padding: 12px 14px;
-      border-radius: 12px;
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      background: rgba(14, 165, 233, 0.08);
-      margin: 12px 0;
-    }
+    .callout { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.25); background: rgba(14, 165, 233, 0.08); margin: 12px 0; }
+    .callout.warn { border-color: rgba(251, 191, 36, 0.3); background: rgba(251, 191, 36, 0.08); }
+    .callout p, .callout li { color: #e2e8f0; }
 
-    .callout.warn {
-      border-color: rgba(251, 191, 36, 0.3);
-      background: rgba(251, 191, 36, 0.08);
-    }
+    .table-mini { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .table-mini th, .table-mini td { border: 1px solid rgba(148, 163, 184, 0.15); padding: 9px; font-size: 12px; text-align: left; vertical-align: top; line-height: 1.7; }
+    .table-mini th { color: #e0f2fe; background: rgba(148, 163, 184, 0.08); white-space: nowrap; }
 
-    .callout p,
-    .callout li {
-      color: #e2e8f0;
-    }
+    .code-area { width: 100%; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.7; resize: vertical; }
 
-    .table-mini {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-    }
-
-    .table-mini th,
-    .table-mini td {
-      border: 1px solid rgba(148, 163, 184, 0.15);
-      padding: 9px;
-      font-size: 12px;
-      text-align: left;
-      vertical-align: top;
-      line-height: 1.7;
-    }
-
-    .table-mini th {
-      color: #e0f2fe;
-      background: rgba(148, 163, 184, 0.08);
-      white-space: nowrap;
-    }
-
-    .code-area {
-      width: 100%;
-      min-height: 220px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.7;
-      resize: vertical;
-    }
-
-    @media (max-width: 1100px) {
-      .span-2 {
-        grid-column: span 1;
-      }
-    }
+    @media (max-width: 1100px) { .span-2 { grid-column: span 1; } }
 
     @media (max-width: 920px) {
-      .topbar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .actions {
-        width: 100%;
-        justify-content: flex-start;
-      }
-
-      main {
-        width: min(100% - 20px, 1760px);
-        margin-top: 12px;
-      }
-
-      .manual {
-        grid-template-columns: 1fr;
-      }
-
-      .manual-nav {
-        position: static;
-        max-height: none;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      }
-
-      .table-wrap {
-        max-height: none;
-      }
-
-      .probe-row {
-        grid-template-columns: 1fr;
-      }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .actions { width: 100%; justify-content: flex-start; }
+      main { width: min(100% - 20px, 1760px); margin-top: 12px; }
+      .manual { grid-template-columns: 1fr; }
+      .manual-nav { position: static; max-height: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .table-wrap { max-height: none; }
+      .probe-row { grid-template-columns: 1fr; }
     }
 
-    ::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.22);
-      border-radius: 999px;
-      border: 2px solid rgba(6, 10, 19, 0.6);
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(148, 163, 184, 0.34);
-    }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.22); border-radius: 999px; border: 2px solid rgba(6, 10, 19, 0.6); }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.34); }
   </style>
 </head>
 <body>
@@ -1174,6 +525,7 @@
               <li>支持按总延迟上限、成功率阈值、达标率阈值筛选优质节点。</li>
               <li>支持将优质节点自动或手动上传到 GitHub 仓库。</li>
               <li>支持删除、屏蔽、自动清理长期离线节点。</li>
+              <li>每次检测的失败原因会随样本持久化，任意一次离线都可回溯原因。</li>
             </ul>
           </section>
 
@@ -1188,9 +540,7 @@
               <li>等待检测完成后，使用筛选、复制、上传功能。</li>
             </ol>
             <div class="callout">
-              <p>
-                优质节点需要样本充足。若优质判定窗口为 10，则至少需要 10 次检测样本后，才会开始判定优质。
-              </p>
+              <p>优质节点需要样本充足。若优质判定窗口为 10，则至少需要 10 次检测样本后，才会开始判定优质。</p>
             </div>
           </section>
 
@@ -1221,57 +571,18 @@ https://example.com/proxyip-list.txt
           <section id="m-metrics">
             <h2>4. 核心指标</h2>
             <table class="table-mini">
-              <tr>
-                <th>指标</th>
-                <th>含义</th>
-              </tr>
-              <tr>
-                <td>平均总延迟</td>
-                <td>
-                  优质窗口内在线样本的总延迟平均值。总延迟 = 官方探针 + 所有自定义探针总延迟的平均值。
-                </td>
-              </tr>
-              <tr>
-                <td>平均TCP</td>
-                <td>
-                  TCP 建立连接耗时的平均值，对应 <code>time_connect</code>。
-                </td>
-              </tr>
-              <tr>
-                <td>平均TLS</td>
-                <td>
-                  TLS 握手耗时的平均值，约等于 <code>time_appconnect - time_connect</code>。
-                </td>
-              </tr>
-              <tr>
-                <td>平均HTTP</td>
-                <td>
-                  从 TLS 完成到收到首字节 / 开始回源响应的平均耗时，约等于 <code>time_starttransfer - time_appconnect</code>。
-                </td>
-              </tr>
-              <tr>
-                <td>成功率</td>
-                <td>
-                  优质窗口内在线次数 / 窗口大小。例如窗口为 10，其中 9 次在线，则成功率为 90%。
-                </td>
-              </tr>
-              <tr>
-                <td>达标率</td>
-                <td>
-                  优质窗口内“在线且总延迟 ≤ 上限”的次数 / 窗口大小。若优质总延迟上限为 0，则达标率等同于成功率。
-                </td>
-              </tr>
-              <tr>
-                <td>优质节点</td>
-                <td>
-                  样本数达到优质判定窗口，且成功率 ≥ 成功率阈值，达标率 ≥ 达标率阈值。
-                </td>
-              </tr>
+              <tr><th>指标</th><th>含义</th></tr>
+              <tr><td>平均总延迟</td><td>优质窗口内在线样本的总延迟平均值。总延迟 = 官方探针 + 所有自定义探针总延迟的平均值。</td></tr>
+              <tr><td>平均TCP</td><td>TCP 建立连接耗时的平均值，对应 <code>time_connect</code>。</td></tr>
+              <tr><td>平均TLS</td><td>TLS 握手耗时的平均值，约等于 <code>time_appconnect - time_connect</code>。</td></tr>
+              <tr><td>平均HTTP</td><td>从 TLS 完成到收到首字节 / 开始回源响应的平均耗时，约等于 <code>time_starttransfer - time_appconnect</code>。</td></tr>
+              <tr><td>成功率</td><td>优质窗口内在线次数 / 窗口大小。例如窗口为 10，其中 9 次在线，则成功率为 90%。</td></tr>
+              <tr><td>达标率</td><td>优质窗口内“在线且总延迟 ≤ 上限”的次数 / 窗口大小。若优质总延迟上限为 0，则达标率等同于成功率。</td></tr>
+              <tr><td>优质节点</td><td>样本数达到优质判定窗口，且成功率 ≥ 成功率阈值，达标率 ≥ 达标率阈值。</td></tr>
             </table>
             <p>
               举例：优质窗口 10 次，总延迟上限 300ms，成功率阈值 0.9，达标率阈值 0.8。
-              某节点 10 次中 9 次在线，其中 8 次总延迟 ≤ 300ms，则：
-              成功率 90%，达标率 80%，满足优质条件。
+              某节点 10 次中 9 次在线，其中 8 次总延迟 ≤ 300ms，则：成功率 90%，达标率 80%，满足优质条件。
             </p>
           </section>
 
@@ -1280,8 +591,8 @@ https://example.com/proxyip-list.txt
             <h3>官方探针</h3>
             <ul>
               <li>默认使用 <code>https://www.cloudflare.com/cdn-cgi/trace</code>。</li>
-              <li>用于检测节点是否具备 Cloudflare 反代能力，并读取 <code>colo</code>、<code>loc</code>、<code>ip</code> 等元数据。</li>
-              <li>官方探针要求返回 Cloudflare trace 内容，否则可能显示“官方探针返回非 CF 内容”。</li>
+              <li>用于检测节点是否具备 Cloudflare 反代能力，并读取 <code>colo</code>、<code>loc</code>、<code>ip</code>（出口IP）等元数据。</li>
+              <li>官方探针要求返回 Cloudflare trace 内容，否则记录失败原因“官方探针返回非 CF 内容”。</li>
               <li>官方探针提供 TCP / TLS / HTTP 基础延迟数据。</li>
             </ul>
 
@@ -1289,6 +600,7 @@ https://example.com/proxyip-list.txt
             <ul>
               <li>用于检测真实回源业务是否可用。</li>
               <li>每个探针都必须成功，该次检测才会被认为在线。</li>
+              <li>任一自定义探针失败，该次样本会记录精确原因，例如 <code>自定义探针失败: https://xxx (预期200实际502)</code>。</li>
               <li>支持设置期望 HTTP 状态码，例如 <code>200</code>、<code>204</code>、<code>301</code>。</li>
               <li>最终平均延迟会综合官方探针与所有自定义探针。</li>
             </ul>
@@ -1306,7 +618,7 @@ https://example.com/proxyip-list.txt
             <h3>顶部按钮</h3>
             <ul>
               <li><code>📖 手册</code>：打开本手册。</li>
-              <li><code>📜 日志</code>：查看运行日志，排查检测失败原因。</li>
+              <li><code>📜 日志</code>：查看运行日志。</li>
               <li><code>⚙️ 设置</code>：配置运行参数、探针、节点列表与 GitHub。</li>
               <li><code>⏹ 中断</code>：中断当前正在执行的批量检测。</li>
               <li><code>⚡ 立即检测</code>：立即触发一次检测。</li>
@@ -1315,20 +627,23 @@ https://example.com/proxyip-list.txt
 
             <h3>表格列</h3>
             <ul>
-              <li><code>节点 (IP)</code>：IP、端口、身份、地区、数据中心与首次来源。</li>
+              <li><code>节点 (IP)</code>：IP、端口、身份、地区（国旗）、数据中心、出口IP、最近检测时间与首次来源（纯IP / 域名 / 列表）。</li>
               <li><code>优质窗口延迟统计图</code>：最近 N 次检测结果柱状图。</li>
               <li><code>平均总延迟 / TCP / TLS / HTTP</code>：优质窗口内在线样本的平均值。</li>
               <li><code>达标率 / 成功率</code>：优质窗口内的两个核心比例。</li>
-              <li><code>状态</code>：优质、达标、在线、离线。</li>
+              <li><code>状态</code>：优质、达标、在线、离线（离线徽章悬浮可查看最近一次失败原因）。</li>
               <li><code>操作</code>：复制单个节点或删除单个节点。</li>
             </ul>
 
-            <h3>延迟柱状图</h3>
+            <h3>延迟柱状图与失败原因</h3>
             <ul>
               <li>绿色：在线，且总延迟满足上限；若上限为 0，则在线即绿色。</li>
               <li>黄色：在线，但总延迟超过设定上限。</li>
-              <li>红色：该次检测失败。</li>
-              <li>鼠标悬浮可查看该次检测的详细探针数据。</li>
+              <li>红色：该次检测失败。悬浮可查看后端随样本记录的该次精确失败原因，例如：
+                <code>不具备反代CF能力 (超时)</code>、<code>官方探针返回非 CF 内容 (不具备反代能力)</code>、
+                <code>自定义探针失败: https://xxx (预期200实际502)</code>、<code>检测异常: ...</code>。</li>
+              <li>失败原因与检测样本一起持久化在 history.json，因此历史红柱同样可回溯原因，无需依赖日志。</li>
+              <li>悬浮同时展示该次各探针的 总 / TCP / TLS / HTTP 明细。</li>
             </ul>
 
             <h3>复制格式</h3>
@@ -1363,17 +678,13 @@ https://example.com/proxyip-list.txt
               <tr><td>优质列表变化时自动上传</td><td>每轮检测后若优质列表变化，则自动上传。</td></tr>
             </table>
             <div class="callout warn">
-              <p>
-                后端要求达标率阈值不能高于成功率阈值。若设置过高，会自动调整为不超过成功率阈值。
-              </p>
+              <p>后端要求达标率阈值不能高于成功率阈值。若设置过高，会自动调整为不超过成功率阈值。</p>
             </div>
           </section>
 
           <section id="m-github">
             <h2>8. GitHub 同步</h2>
-            <p>
-              配置 GitHub 后，系统会将当前优质节点上传到指定仓库。上传文件格式如下：
-            </p>
+            <p>配置 GitHub 后，系统会将当前优质节点上传到指定仓库。上传文件格式如下：</p>
             <pre><code># ProxyIP quality list (auto uploaded by proxy-monitor VERSION)
 # updated: 2026-01-01T00:00:00.000Z
 # nodes: 3
@@ -1427,6 +738,12 @@ https://example.com/proxyip-list.txt
               <li>探针路径需要鉴权、跳转或返回非预期内容。</li>
             </ul>
 
+            <h3>离线原因从哪里看？</h3>
+            <p>
+              悬浮红色失败柱或“离线”徽章即可查看。原因由后端在每次检测时写入样本（failReason 字段）并持久化，
+              因此任何一次历史离线都能回溯精确原因，不再依赖日志是否被滚动覆盖。
+            </p>
+
             <h3>为什么 GitHub 上传失败？</h3>
             <ul>
               <li>Token 无效、过期或权限不足。</li>
@@ -1436,9 +753,7 @@ https://example.com/proxyip-list.txt
             </ul>
 
             <h3>如何只复制优质节点？</h3>
-            <p>
-              勾选筛选区的 <code>只看优质</code>，然后点击 <code>📋 复制筛选节点</code>。
-            </p>
+            <p>勾选筛选区的 <code>只看优质</code>，然后点击 <code>📋 复制筛选节点</code>。</p>
 
             <h3>为什么删除后的节点又出现了？</h3>
             <p>
@@ -1451,7 +766,7 @@ https://example.com/proxyip-list.txt
             <h2>11. API 说明</h2>
             <table class="table-mini">
               <tr><th>接口</th><th>方法</th><th>用途</th></tr>
-              <tr><td><code>/api/state</code></td><td>GET</td><td>获取当前节点、质量、进度、配置摘要。</td></tr>
+              <tr><td><code>/api/state</code></td><td>GET</td><td>获取当前节点、质量、进度、配置摘要；recent 样本含 failReason。</td></tr>
               <tr><td><code>/api/logs</code></td><td>GET</td><td>获取运行日志。</td></tr>
               <tr><td><code>/api/check</code></td><td>POST</td><td>手动触发检测。</td></tr>
               <tr><td><code>/api/abort</code></td><td>POST</td><td>中断当前检测。</td></tr>
@@ -1620,22 +935,14 @@ https://example.com/proxyip-list.txt
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-    const DATA = {
-      state: null
-    };
+    const DATA = { state: null };
 
     let currentFiltered = [];
     let SELECTED = new Set();
     let SORT = "total_asc";
     let FILTERS = {
-      search: "",
-      kind: "all",
-      maxLatency: "",
-      minQual: "",
-      minSuccess: "",
-      colo: "",
-      loc: "",
-      onlyQuality: false
+      search: "", kind: "all", maxLatency: "", minQual: "", minSuccess: "",
+      colo: "", loc: "", onlyQuality: false
     };
 
     let pollTimer = null;
@@ -1675,11 +982,8 @@ https://example.com/proxyip-list.txt
       return fetch(path, options).then(async (res) => {
         const ct = res.headers.get("content-type") || "";
         let data = null;
-        if (ct.includes("application/json")) {
-          data = await res.json();
-        } else {
-          data = await res.text();
-        }
+        if (ct.includes("application/json")) data = await res.json();
+        else data = await res.text();
         if (!res.ok) {
           const msg = data && data.error ? data.error : ("HTTP " + res.status);
           throw new Error(msg);
@@ -1703,21 +1007,23 @@ https://example.com/proxyip-list.txt
 
     function escapeHtml(v) {
       return String(v ?? "").replace(/[&<>"']/g, (s) => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       }[s]));
     }
 
     function fmtTime(ts) {
       if (!ts) return "-";
-      try {
-        return new Date(ts).toLocaleString("zh-CN", { hour12: false });
-      } catch (e) {
-        return "-";
-      }
+      try { return new Date(ts).toLocaleString("zh-CN", { hour12: false }); }
+      catch (e) { return "-"; }
+    }
+
+    // 国家/地区代码 → 国旗 emoji（如 HK → 🇭🇰, SG → 🇸🇬）
+    function flagEmoji(code) {
+      if (!code) return "🌍";
+      const c = String(code).trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(c)) return "🌍";
+      const base = 0x1F1E6;
+      return String.fromCodePoint(base + c.charCodeAt(0) - 65, base + c.charCodeAt(1) - 65);
     }
 
     function fmtCellMs(v) {
@@ -1759,6 +1065,13 @@ https://example.com/proxyip-list.txt
       return "bad";
     }
 
+    // 失败原因：直接读取样本自带的 failReason（后端 v33-fix8 起 recent 已透出，历史数据同样有效）
+    function failReasonFor(p) {
+      if (p && p.failReason) return p.failReason;
+      if (p && p.off) return "官方探针成功，但自定义源站探针未全部通过";
+      return "官方探针未通过（连接失败 / 超时 / 非CF内容）";
+    }
+
     function statusHtml(item) {
       const q = item.quality || {};
       const latest = item.latest || {};
@@ -1770,7 +1083,18 @@ https://example.com/proxyip-list.txt
         }
         return '<span class="badge online">在线</span>';
       }
-      return '<span class="badge offline">离线</span>';
+      const fr = latest.failReason;
+      return `<span class="badge offline"${fr ? ` title="${escapeHtml(fr)}"` : ""}>离线</span>`;
+    }
+
+    // 来源语义化标签：pure 不再重复抄写 IP:端口
+    function srcLabelOf(item) {
+      const kind = item.srcKind || "pure";
+      const name = item.srcName || "";
+      if (kind === "pure") return "纯IP";
+      if (kind === "dom") return "域名" + (name ? "/" + name : "");
+      if (kind === "url") return "列表" + (name ? "/" + name : "");
+      return kind + (name ? "/" + name : "");
     }
 
     function barsHtml(item) {
@@ -1806,8 +1130,9 @@ https://example.com/proxyip-list.txt
       const kind = item.ipKind || "unknown";
       const kindCls = kind === "cf" ? "cf" : kind === "proxy" ? "proxy" : "unknown";
       const kindTxt = kind === "cf" ? "CloudflareIP" : kind === "proxy" ? "ProxyIP" : "未知";
-      const srcLabel = `${item.srcKind || "pure"}/${item.srcName || item.id}`;
       const recentCount = (item.recent || []).slice(-win).length;
+
+      const loc = latest.loc || null;
 
       const qualRateCell = hasSamples ? fmtPct(q.qualRate) : fmtPct(null);
       const successRateCell = hasSamples ? fmtPct(q.rate) : fmtPct(null);
@@ -1821,9 +1146,11 @@ https://example.com/proxyip-list.txt
             <div class="ip">${escapeHtml(item.ip)}:${item.port}</div>
             <div class="meta">
               <span class="tag ${kindCls}">${kindTxt}</span>
-              <span title="地区">🌍 ${escapeHtml(latest.loc || "-")}</span>
+              <span title="地区">${flagEmoji(loc)} ${escapeHtml(loc || "-")}</span>
               <span title="数据中心">🏢 ${escapeHtml(latest.colo || "-")}</span>
-              <span title="首次来源">📥 ${escapeHtml(srcLabel)}</span>
+              ${latest.exitIp ? `<span title="出口IP">🌐 ${escapeHtml(latest.exitIp)}</span>` : ""}
+              ${latest.t ? `<span title="最近检测">🕒 ${escapeHtml(fmtTime(latest.t))}</span>` : ""}
+              <span title="首次来源">📥 ${escapeHtml(srcLabelOf(item))}</span>
             </div>
           </td>
           <td>
@@ -1864,13 +1191,8 @@ https://example.com/proxyip-list.txt
         });
       }
 
-      if (f.kind !== "all") {
-        arr = arr.filter(i => i.ipKind === f.kind);
-      }
-
-      if (f.onlyQuality) {
-        arr = arr.filter(i => i.quality?.quality);
-      }
+      if (f.kind !== "all") arr = arr.filter(i => i.ipKind === f.kind);
+      if (f.onlyQuality) arr = arr.filter(i => i.quality?.quality);
 
       const maxLatency = parseFloat(f.maxLatency);
       if (isFinite(maxLatency)) {
@@ -1878,22 +1200,13 @@ https://example.com/proxyip-list.txt
       }
 
       const minQual = parseRatioInput(f.minQual);
-      if (minQual != null) {
-        arr = arr.filter(i => (i.quality?.qualRate ?? 0) >= minQual);
-      }
+      if (minQual != null) arr = arr.filter(i => (i.quality?.qualRate ?? 0) >= minQual);
 
       const minSuccess = parseRatioInput(f.minSuccess);
-      if (minSuccess != null) {
-        arr = arr.filter(i => (i.quality?.rate ?? 0) >= minSuccess);
-      }
+      if (minSuccess != null) arr = arr.filter(i => (i.quality?.rate ?? 0) >= minSuccess);
 
-      if (f.colo) {
-        arr = arr.filter(i => i.latest?.colo === f.colo);
-      }
-
-      if (f.loc) {
-        arr = arr.filter(i => i.latest?.loc === f.loc);
-      }
+      if (f.colo) arr = arr.filter(i => i.latest?.colo === f.colo);
+      if (f.loc) arr = arr.filter(i => i.latest?.loc === f.loc);
 
       const totalVal = (i) => i.quality?.avgTotal ?? Infinity;
       const successVal = (i) => i.quality?.rate ?? -1;
@@ -1921,11 +1234,12 @@ https://example.com/proxyip-list.txt
       els.selectAll.indeterminate = visibleSelected > 0 && visibleSelected < currentFiltered.length;
     }
 
-    function setSelectOptions(sel, values, allLabel) {
+    function setSelectOptions(sel, values, allLabel, labelFn) {
       const current = sel.value;
       const opts = [`<option value="">${allLabel}</option>`];
       values.forEach(v => {
-        opts.push(`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`);
+        const label = labelFn ? labelFn(v) : v;
+        opts.push(`<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`);
       });
       sel.innerHTML = opts.join("");
       if (values.includes(current)) sel.value = current;
@@ -1975,7 +1289,7 @@ https://example.com/proxyip-list.txt
       const locs = [...new Set(DATA.state.items.map(i => i.latest?.loc).filter(Boolean))].sort();
 
       setSelectOptions($("#coloFilter"), colos, "数据中心: 全部");
-      setSelectOptions($("#locFilter"), locs, "地区: 全部");
+      setSelectOptions($("#locFilter"), locs, "地区: 全部", v => `${flagEmoji(v)} ${v}`);
 
       if (!colos.includes($("#coloFilter").value)) {
         $("#coloFilter").value = "";
@@ -2314,9 +1628,11 @@ https://example.com/proxyip-list.txt
     }
 
     function buildTooltipHtml(p, item) {
+      const latest = item.latest || {};
       const status = p.ok ? '<span class="good">成功</span>' : '<span class="bad">失败</span>';
+
       let html = `
-        <h4>${escapeHtml(item.ip)}:${item.port} · ${escapeHtml(fmtTime(p.t))}</h4>
+        <h4>${flagEmoji(latest.loc)} ${escapeHtml(item.ip)}:${item.port} · ${escapeHtml(fmtTime(p.t))}</h4>
         <div class="grid">
           <span>状态</span><span>${status}</span>
       `;
@@ -2326,6 +1642,13 @@ https://example.com/proxyip-list.txt
       if (p.avgTls != null) html += `<span>平均TLS</span><span>${Math.round(p.avgTls)} ms</span>`;
       if (p.avgHttp != null) html += `<span>平均HTTP</span><span>${Math.round(p.avgHttp)} ms</span>`;
       html += `</div>`;
+
+      if (!p.ok) {
+        const reason = failReasonFor(p);
+        if (reason) {
+          html += `<div class="probe-item" style="border-color:rgba(244,63,94,.35);">❌ 失败原因：${escapeHtml(reason)}</div>`;
+        }
+      }
 
       if (Array.isArray(p.probes) && p.probes.length) {
         html += `<div style="margin-top:9px;color:var(--muted)">探针明细（总 / TCP / TLS / HTTP）</div>`;
@@ -2348,8 +1671,6 @@ https://example.com/proxyip-list.txt
             总 ${p.off.total ?? "-"} ms · TCP ${p.off.tcp ?? "-"} ms · TLS ${p.off.tls ?? "-"} ms · HTTP ${p.off.src ?? "-"} ms
           </div>
         `;
-      } else if (!p.ok) {
-        html += `<div class="muted" style="margin-top:9px">本次未形成完整探针数据。常见原因：官方探针失败或自定义探针中断。详细原因请查看日志。</div>`;
       }
 
       return html;
@@ -2395,7 +1716,6 @@ https://example.com/proxyip-list.txt
 
     // 事件绑定
     document.addEventListener("DOMContentLoaded", () => {
-      // 顶部按钮
       $("#btnManual").addEventListener("click", () => openModal($("#manualModal")));
       $("#footerManual").addEventListener("click", () => openModal($("#manualModal")));
       $("#btnLogs").addEventListener("click", openLogs);
@@ -2441,7 +1761,6 @@ https://example.com/proxyip-list.txt
         }
       });
 
-      // 筛选
       $("#searchInput").addEventListener("input", (e) => {
         FILTERS.search = e.target.value.trim();
         renderTable();
@@ -2489,14 +1808,8 @@ https://example.com/proxyip-list.txt
 
       $("#btnResetFilters").addEventListener("click", () => {
         FILTERS = {
-          search: "",
-          kind: "all",
-          maxLatency: "",
-          minQual: "",
-          minSuccess: "",
-          colo: "",
-          loc: "",
-          onlyQuality: false
+          search: "", kind: "all", maxLatency: "", minQual: "", minSuccess: "",
+          colo: "", loc: "", onlyQuality: false
         };
         $("#searchInput").value = "";
         $("#kindFilter").value = "all";
@@ -2509,12 +1822,10 @@ https://example.com/proxyip-list.txt
         renderTable();
       });
 
-      // 复制筛选节点
       els.btnCopyFiltered.addEventListener("click", () => {
         copyItems(currentFiltered);
       });
 
-      // 全选
       els.selectAll.addEventListener("change", (e) => {
         const checked = e.target.checked;
         currentFiltered.forEach(item => {
@@ -2524,12 +1835,10 @@ https://example.com/proxyip-list.txt
         renderTable();
       });
 
-      // 删除所选
       els.btnDeleteSelected.addEventListener("click", () => {
         removeIds(Array.from(SELECTED));
       });
 
-      // 表格事件
       els.tbody.addEventListener("change", (e) => {
         const cb = e.target.closest("input[data-id]");
         if (!cb) return;
@@ -2557,7 +1866,6 @@ https://example.com/proxyip-list.txt
         }
       });
 
-      // tooltip
       els.tbody.addEventListener("mouseover", (e) => {
         const bar = e.target.closest(".bar");
         if (!bar) return;
@@ -2576,7 +1884,6 @@ https://example.com/proxyip-list.txt
         hideTooltip();
       });
 
-      // modal close
       document.querySelectorAll(".modal").forEach(m => {
         m.addEventListener("mousedown", (e) => {
           if (e.target === m) closeModal(m);
@@ -2597,7 +1904,6 @@ https://example.com/proxyip-list.txt
         }
       });
 
-      // 确认框
       $("#confirmOkBtn").addEventListener("click", () => {
         const r = confirmResolve;
         confirmResolve = null;
@@ -2612,7 +1918,6 @@ https://example.com/proxyip-list.txt
         if (r) r(false);
       });
 
-      // 手册导航
       $$(".manual-nav a").forEach(a => {
         a.addEventListener("click", (e) => {
           e.preventDefault();
@@ -2621,7 +1926,6 @@ https://example.com/proxyip-list.txt
         });
       });
 
-      // 设置：探针增删
       $("#btnAddProbe").addEventListener("click", () => addProbeRow());
       $("#customProbesWrap").addEventListener("click", (e) => {
         if (!e.target.closest(".probe-remove")) return;
@@ -2632,7 +1936,6 @@ https://example.com/proxyip-list.txt
         }
       });
 
-      // 设置保存
       $("#btnSaveConfig").addEventListener("click", async () => {
         const btn = $("#btnSaveConfig");
         setBtnLoading(btn, true);
@@ -2653,9 +1956,7 @@ https://example.com/proxyip-list.txt
         try {
           await api("/api/config", "POST", collectSettings());
           await api("/api/ipfile", "POST", { content: $("#ipContent").value });
-          try {
-            await api("/api/reload", "POST");
-          } catch (e) { }
+          try { await api("/api/reload", "POST"); } catch (e) { }
           toast("配置与节点列表已保存，重载已触发", "success");
           refreshState();
         } catch (e) {
@@ -2665,7 +1966,6 @@ https://example.com/proxyip-list.txt
         }
       });
 
-      // 清空屏蔽记录
       $("#btnClearGraveyard").addEventListener("click", async () => {
         const ok = await showConfirm(
           "清空记录",
@@ -2684,7 +1984,6 @@ https://example.com/proxyip-list.txt
         }
       });
 
-      // 启动
       refreshState();
     });
   </script>
