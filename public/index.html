@@ -1,443 +1,459 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Proxy Monitor v32</title>
-    <style>
-        :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-tertiary: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --border: #475569;
-            --radius: 8px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proxy Monitor</title>
+<style>
+    :root { --bg: #1e1e1e; --card: #2d2d2d; --border: #444; --text: #e0e0e0; --accent: #4caf50; --warn: #ff9800; --err: #f44336; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; line-height: 1.5; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    h1 { margin: 0; font-size: 24px; color: var(--accent); }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; background: #444; color: white; transition: 0.2s; }
+    .btn:hover { background: #555; }
+    .btn-primary { background: var(--accent); }
+    .btn-danger { background: var(--err); }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    
+    .filters { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; background: var(--card); padding: 15px; border-radius: 8px; }
+    .filters label { font-size: 13px; color: #aaa; }
+    .filters select, .filters input { background: #333; border: 1px solid var(--border); color: white; padding: 5px 8px; border-radius: 4px; }
+    
+    table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; }
+    th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+    th { background: #333; font-weight: 600; position: sticky; top: 0; }
+    tr:hover { background: #383838; }
+    
+    .bar-container { display: flex; align-items: flex-end; height: 40px; gap: 2px; }
+    .bar { width: 6px; border-radius: 2px 2px 0 0; transition: 0.2s; cursor: pointer; }
+    .bar:hover { opacity: 0.8; transform: scaleY(1.1); }
+    
+    /* 🌟 延迟拆解网格样式 */
+    .delay-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 12px; line-height: 1.4; }
+    .delay-stats .stat-item { display: flex; justify-content: space-between; color: #aaa; }
+    .delay-stats .stat-item .label { font-weight: bold; color: #888; min-width: 30px; }
+    .delay-stats .stat-item.total { grid-column: 1 / -1; border-top: 1px dashed #555; padding-top: 4px; margin-top: 4px; font-weight: bold; color: var(--accent); font-size: 13px; }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; min-height: 100vh; }
-        
-        /* Layout */
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
-        .logo { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 700; }
-        .logo-icon { width: 40px; height: 40px; background: var(--accent); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        
-        .actions { display: flex; gap: 12px; flex-wrap: wrap; }
-        
-        /* Buttons */
-        .btn { padding: 8px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
-        .btn:hover { background: var(--bg-tertiary); border-color: var(--text-secondary); }
-        .btn-primary { background: var(--accent); border-color: var(--accent); }
-        .btn-primary:hover { background: var(--accent-hover); }
-        .btn-danger { background: var(--danger); border-color: var(--danger); }
-        .btn-danger:hover { background: #dc2626; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    .badge-cf { background: #f57c00; color: white; }
+    .badge-proxy { background: #1976d2; color: white; }
+    .badge-ok { background: var(--accent); color: white; }
+    .badge-off { background: #666; color: white; }
 
-        /* Stats Cards */
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .stat-card { background: var(--bg-secondary); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); }
-        .stat-label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
-        .stat-value { font-size: 28px; font-weight: 700; }
-        .stat-value.online { color: var(--success); }
-        .stat-value.quality { color: var(--accent); }
-        .stat-value.offline { color: var(--danger); }
+    /* 弹窗 */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; }
+    .modal.active { display: flex; }
+    .modal-content { background: var(--card); padding: 25px; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; position: relative; }
+    .modal-close { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #aaa; }
+    
+    /* 🌟 自定义 Tooltip */
+    #tooltip { display: none; position: absolute; background: #111; border: 1px solid #555; padding: 10px; border-radius: 6px; font-size: 12px; z-index: 1000; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 300px; }
+    #tooltip hr { margin: 6px 0; border: 0; border-top: 1px solid #444; }
 
-        /* Toolbar */
-        .toolbar { background: var(--bg-secondary); padding: 16px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-        .toolbar select, .toolbar input { padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-primary); font-size: 14px; }
-        .toolbar input { flex: 1; min-width: 200px; }
-
-        /* Table */
-        .table-wrapper { background: var(--bg-secondary); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-        th { background: var(--bg-tertiary); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; position: sticky; top: 0; }
-        tr:hover { background: rgba(59, 130, 246, 0.05); }
-        tr.selected { background: rgba(59, 130, 246, 0.15); }
-        
-        .badge { padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; }
-        .badge-cf { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-        .badge-proxy { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-        .badge-success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-        .badge-fail { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-
-        /* Chart */
-        .chart-container { display: flex; align-items: flex-end; gap: 2px; height: 30px; width: 120px; }
-        .chart-bar { flex: 1; min-width: 3px; border-radius: 2px 2px 0 0; transition: height 0.3s; }
-        .chart-bar.ok { background: var(--success); }
-        .chart-bar.slow { background: var(--warning); }
-        .chart-bar.fail { background: var(--danger); }
-
-        /* Modal */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
-        .modal-overlay.active { display: flex; }
-        .modal { background: var(--bg-secondary); border-radius: var(--radius); border: 1px solid var(--border); width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: var(--shadow); }
-        .modal-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .modal-header h3 { font-size: 18px; }
-        .modal-close { background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; }
-        .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
-        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; }
-
-        /* Form */
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--text-secondary); }
-        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-primary); font-size: 14px; }
-        .form-group textarea { min-height: 100px; resize: vertical; font-family: monospace; }
-
-        /* Toast */
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 10px; }
-        .toast { padding: 12px 20px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); animation: slideIn 0.3s ease; }
-        .toast.success { border-left: 4px solid var(--success); }
-        .toast.error { border-left: 4px solid var(--danger); }
-        .toast.info { border-left: 4px solid var(--accent); }
-
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* Loading */
-        .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.8); display: none; justify-content: center; align-items: center; z-index: 10; }
-        .loading-overlay.active { display: flex; }
-        .spinner { width: 40px; height: 40px; border: 4px solid var(--bg-tertiary); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg-primary); }
-        ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
-    </style>
+    .log-box { background: #111; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 12px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #ccc; }
+    .form-group input, .form-group textarea { width: 100%; padding: 8px; background: #333; border: 1px solid var(--border); color: white; border-radius: 4px; box-sizing: border-box; }
+    .probe-item { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+    .probe-item input { flex: 1; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="logo">
-                <div class="logo-icon">📡</div>
-                <div>
-                    <div>Proxy Monitor</div>
-                    <div style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">延迟自洽四段拆解 · 双探针分组</div>
-                </div>
-            </div>
-            <div class="actions">
-                <button class="btn" onclick="openModal('manual')">📖 手册</button>
-                <button class="btn" onclick="openModal('logs')">📜 日志</button>
-                <button class="btn" onclick="openModal('settings')">⚙️ 设置</button>
-                <button class="btn btn-danger" id="btnAbort" onclick="abortCheck()" style="display:none;">⏹ 中断</button>
-                <button class="btn btn-primary" id="btnCheck" onclick="startCheck()">⚡ 立即检测</button>
-                <button class="btn" onclick="uploadGithub()">📤 上传优质节点</button>
-            </div>
-        </header>
-
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-label">总节点</div>
-                <div class="stat-value" id="statTotal">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">在线节点</div>
-                <div class="stat-value online" id="statOnline">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">优质节点</div>
-                <div class="stat-value quality" id="statQuality">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">离线节点</div>
-                <div class="stat-value offline" id="statOffline">0</div>
-            </div>
+<div class="container">
+    <header>
+        <h1>📡 Proxy Monitor <span id="version" style="font-size:14px; color:#888;"></span></h1>
+        <div class="btn-group">
+            <button class="btn" onclick="showModal('manual')">📖 手册</button>
+            <button class="btn" onclick="showModal('logs')">📜 日志</button>
+            <button class="btn" onclick="showModal('settings')">⚙️ 设置</button>
+            <button class="btn btn-danger" onclick="apiPost('/api/abort')">⏹ 中断</button>
+            <button class="btn btn-primary" onclick="apiPost('/api/check')">⚡ 立即检测</button>
+            <button class="btn btn-primary" onclick="apiPost('/api/upload')">📤 上传优质节点</button>
+            <button class="btn btn-danger" onclick="removeSelected()">🗑️ 删除所选 (<span id="sel-count">0</span>)</button>
+            <button class="btn" onclick="copyFiltered()">📋 复制筛选节点</button>
         </div>
+    </header>
 
-        <div class="toolbar">
-            <input type="text" id="searchInput" placeholder="搜索 IP / 域名..." oninput="renderTable()">
-            <select id="filterKind" onchange="renderTable()">
-                <option value="">全部身份</option>
-                <option value="cf">CloudflareIP</option>
-                <option value="proxy">ProxyIP</option>
+    <div class="filters">
+        <div><label>身份:</label>
+            <select id="f-kind" onchange="renderTable()">
+                <option value="">全部</option><option value="cf">CloudflareIP</option><option value="proxy">ProxyIP</option>
             </select>
-            <select id="sortBy" onchange="renderTable()">
-                <option value="totalAsc">总延迟升序</option>
-                <option value="totalDesc">总延迟降序</option>
-                <option value="rateDesc">成功率降序</option>
-            </select>
-            <button class="btn" onclick="toggleSelectAll()">全选/反选</button>
-            <button class="btn btn-danger" onclick="removeSelected()">🗑️ 删除所选 (<span id="selectedCount">0</span>)</button>
         </div>
-
-        <div class="table-wrapper" style="position: relative;">
-            <div class="loading-overlay" id="tableLoading">
-                <div class="spinner"></div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 40px;"><input type="checkbox" id="checkAll" onchange="toggleSelectAll()"></th>
-                        <th>节点 (IP)</th>
-                        <th>身份</th>
-                        <th>近 N 次延迟柱</th>
-                        <th>总延迟</th>
-                        <th>成功率</th>
-                        <th>状态</th>
-                    </tr>
-                </thead>
-                <tbody id="nodeTableBody">
-                    <!-- Dynamic content -->
-                </tbody>
-            </table>
+        <div><label>总延迟 ≤</label><input type="number" id="f-max" placeholder="ms" style="width:70px" oninput="renderTable()"></div>
+        <div><label>成功率 ≥</label><input type="number" id="f-rate" placeholder="0-100" style="width:70px" oninput="renderTable()"></div>
+        <div><label>地区:</label><input type="text" id="f-loc" placeholder="如 us, sg" style="width:100px" oninput="renderTable()"></div>
+        <button class="btn" onclick="resetFilters()">重置</button>
+        <div style="margin-left:auto; color:#888; font-size:13px;">
+            在线: <span id="sum-online" style="color:var(--accent)">0</span> | 
+            优质: <span id="sum-quality" style="color:var(--warn)">0</span> | 
+            总数: <span id="sum-total">0</span>
         </div>
     </div>
 
-    <!-- Modals -->
-    <div class="modal-overlay" id="modalManual">
-        <div class="modal">
-            <div class="modal-header"><h3>📖 使用手册</h3><button class="modal-close" onclick="closeModal('manual')">&times;</button></div>
-            <div class="modal-body">
-                <h4 style="margin-bottom:12px; color:var(--accent);">一、延迟自洽（v32）</h4>
-                <p style="margin-bottom:16px; color:var(--text-secondary);">官方探针与自定义探针各自在同一次请求内测全 TCP/TLS/源站/总，组内恒等：总 = TCP + TLS + 源站。所有指标在优质窗口内取平均，双组分别展示，可直接相加验证。</p>
-                <h4 style="margin-bottom:12px; color:var(--accent);">二、延迟柱状图</h4>
-                <p style="margin-bottom:16px; color:var(--text-secondary);">近 N 次状态条高度随延迟变化（越高越慢），颜色=达标/超标/失败，悬浮看该次四段明细。</p>
-                <h4 style="margin-bottom:12px; color:var(--accent);">三、探针分工</h4>
-                <p style="margin-bottom:16px; color:var(--text-secondary);">官方探针：TCP/TLS 握手 + 元数据 + 初步筛选。<br>自定义探针(多个)：真实回源延迟 + 真伪闸门，取成功探针平均。</p>
-            </div>
-        </div>
+    <table>
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
+                <th>节点 (IP)</th>
+                <th>近 N 次延迟柱</th>
+                <th>延迟拆解(平均) <span title="优先显示自定义源站平均，若无则显示官方探针" style="cursor:help; color:#888;">(?)</span></th>
+                <th>成功率</th>
+                <th>状态</th>
+            </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+    </table>
+</div>
+
+<!-- 弹窗：手册 -->
+<div id="modal-manual" class="modal">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeModal('manual')">&times;</span>
+        <h2>📖 使用手册</h2>
+        <p><b>一、延迟自洽（v32）</b><br>官方与自定义探针各自在同一次请求内测全 TCP/TLS/源站/总，组内恒等：总 = TCP + TLS + 源站。</p>
+        <p><b>二、延迟拆解列</b><br>展示窗口期内的平均 TCP、TLS、HTTP(源站) 和 总延迟。帮助精准定位网络瓶颈。</p>
+        <p><b>三、柱状图悬浮</b><br>鼠标悬浮在柱子上，可查看该次请求中<b>每一个自定义源站</b>的单独四段延迟明细。</p>
     </div>
+</div>
 
-    <div class="modal-overlay" id="modalLogs">
-        <div class="modal">
-            <div class="modal-header"><h3>📜 运行日志</h3><button class="modal-close" onclick="closeModal('logs')">&times;</button></div>
-            <div class="modal-body">
-                <pre id="logContent" style="font-family: monospace; font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all;"></pre>
-            </div>
-        </div>
+<!-- 弹窗：日志 -->
+<div id="modal-logs" class="modal">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeModal('logs')">&times;</span>
+        <h2>📜 运行日志</h2>
+        <div id="log-box" class="log-box">加载中...</div>
     </div>
+</div>
 
-    <div class="modal-overlay" id="modalSettings">
-        <div class="modal">
-            <div class="modal-header"><h3>⚙️ 设置</h3><button class="modal-close" onclick="closeModal('settings')">&times;</button></div>
-            <div class="modal-body">
-                <div class="form-group"><label>监测间隔(秒)</label><input type="number" id="cfgInterval" min="5"></div>
-                <div class="form-group"><label>单次超时(秒)</label><input type="number" id="cfgTimeout" min="1"></div>
-                <div class="form-group"><label>并发数</label><input type="number" id="cfgConcurrency" min="1"></div>
-                <div class="form-group"><label>🌟 优质总延迟上限(ms, 0=不限)</label><input type="number" id="cfgMaxTotal" min="0"></div>
-                <div class="form-group"><label>官方探针 URL</label><input type="text" id="cfgProbeUrl"></div>
-                <div class="form-group"><label>优质判定窗口(次)</label><input type="number" id="cfgQualityWindow" min="1"></div>
-                <div class="form-group"><label>达标率阈值(0-1)</label><input type="number" id="cfgQualityRate" min="0" max="1" step="0.1"></div>
-                <div class="form-group"><label>🗑️ 自动清理离线节点(天, 0=关闭)</label><input type="number" id="cfgAutoClean" min="0"></div>
-                <hr style="border-color: var(--border); margin: 20px 0;">
-                <div class="form-group"><label>节点列表 (ip.txt)</label><textarea id="cfgIpList"></textarea></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn" onclick="closeModal('settings')">取消</button>
-                <button class="btn btn-primary" onclick="saveSettings()">💾 保存配置</button>
-            </div>
-        </div>
+<!-- 弹窗：设置 -->
+<div id="modal-settings" class="modal">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeModal('settings')">&times;</span>
+        <h2>⚙️ 设置</h2>
+        <div id="settings-form"></div>
+        <button class="btn btn-primary" onclick="saveSettings()" style="margin-top:15px;">💾 保存配置</button>
     </div>
+</div>
 
-    <div class="toast-container" id="toastContainer"></div>
+<!-- 🌟 自定义 Tooltip -->
+<div id="tooltip"></div>
 
-    <script>
-        let appState = { items: [], selected: new Set(), checking: false };
+<script>
+let state = {};
+let config = {};
+let selectedIds = new Set();
 
-        // API Helpers
-        async function api(url, method = 'GET', body = null) {
-            const opts = { method, headers: { 'Content-Type': 'application/json' } };
-            if (body) opts.body = JSON.stringify(body);
-            const res = await fetch(url, opts);
-            return res.json();
-        }
+async function fetchState() {
+    try {
+        const res = await fetch('/api/state');
+        state = await res.json();
+        config = state.config;
+        document.getElementById('version').textContent = state.version;
+        document.getElementById('sum-online').textContent = state.summary.online;
+        document.getElementById('sum-quality').textContent = state.summary.quality;
+        document.getElementById('sum-total').textContent = state.summary.total;
+        renderTable();
+    } catch (e) { console.error(e); }
+}
 
-        // Toast
-        function showToast(msg, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.textContent = msg;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
+function renderTable() {
+    const tbody = document.getElementById('table-body');
+    tbody.innerHTML = '';
+    
+    const fKind = document.getElementById('f-kind').value;
+    const fMax = parseFloat(document.getElementById('f-max').value) || 99999;
+    const fRate = (parseFloat(document.getElementById('f-rate').value) || 0) / 100;
+    const fLoc = document.getElementById('f-loc').value.toLowerCase();
 
-        // Modal
-        function openModal(name) {
-            document.getElementById(`modal${name.charAt(0).toUpperCase() + name.slice(1)}`).classList.add('active');
-            if (name === 'logs') fetchLogs();
-            if (name === 'settings') loadSettings();
-        }
-        function closeModal(name) {
-            document.getElementById(`modal${name.charAt(0).toUpperCase() + name.slice(1)}`).classList.remove('active');
-        }
+    let filtered = state.items.filter(i => {
+        if (fKind && i.ipKind !== fKind) return false;
+        const avgTotal = i.quality.avgTotal || 99999;
+        if (avgTotal > fMax) return false;
+        if (i.quality.rate < fRate) return false;
+        if (fLoc && !(i.loc || '').toLowerCase().includes(fLoc) && !(i.colo || '').toLowerCase().includes(fLoc)) return false;
+        return true;
+    });
 
-        // Data Fetching
-        async function fetchState() {
-            try {
-                const data = await api('/api/state');
-                appState.items = data.items || [];
-                appState.checking = data.checking;
-                
-                document.getElementById('statTotal').textContent = data.summary.total;
-                document.getElementById('statOnline').textContent = data.summary.online;
-                document.getElementById('statQuality').textContent = data.summary.quality;
-                document.getElementById('statOffline').textContent = data.summary.offline;
-                
-                document.getElementById('btnAbort').style.display = data.checking ? 'inline-flex' : 'none';
-                document.getElementById('btnCheck').disabled = data.checking;
-                
-                renderTable();
-            } catch (e) {
-                console.error('Fetch state error:', e);
-            }
-        }
+    // 排序：优质优先，然后按总延迟升序
+    filtered.sort((a, b) => {
+        if (a.quality.quality !== b.quality.quality) return b.quality.quality - a.quality.quality;
+        return (a.quality.avgTotal || 99999) - (b.quality.avgTotal || 99999);
+    });
 
-        async function fetchLogs() {
-            const data = await api('/api/logs');
-            document.getElementById('logContent').textContent = data.logs.map(l => `[${new Date(l.t).toLocaleTimeString()}] ${l.m}`).join('\n');
-        }
+    filtered.forEach(item => {
+        const tr = document.createElement('tr');
+        
+        // 1. Checkbox
+        const tdCheck = document.createElement('td');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = selectedIds.has(item.id);
+        cb.onchange = () => {
+            if (cb.checked) selectedIds.add(item.id); else selectedIds.delete(item.id);
+            document.getElementById('sel-count').textContent = selectedIds.size;
+        };
+        tdCheck.appendChild(cb);
+        tr.appendChild(tdCheck);
 
-        async function loadSettings() {
-            const cfg = await api('/api/config');
-            document.getElementById('cfgInterval').value = cfg.intervalSec;
-            document.getElementById('cfgTimeout').value = cfg.timeoutSec;
-            document.getElementById('cfgConcurrency').value = cfg.concurrency;
-            document.getElementById('cfgMaxTotal').value = cfg.maxTotalMs;
-            document.getElementById('cfgProbeUrl').value = cfg.probeUrl;
-            document.getElementById('cfgQualityWindow').value = cfg.qualityWindow;
-            document.getElementById('cfgQualityRate').value = cfg.qualityRate;
-            document.getElementById('cfgAutoClean').value = cfg.autoCleanDays;
-            
-            const ipData = await api('/api/ipfile');
-            document.getElementById('cfgIpList').value = ipData.content;
-        }
+        // 2. 节点信息
+        const tdNode = document.createElement('td');
+        const kindBadge = item.ipKind === 'cf' ? '<span class="badge badge-cf">CF</span>' : '<span class="badge badge-proxy">Proxy</span>';
+        tdNode.innerHTML = `<b>${item.ip}:${item.port}</b> ${kindBadge}<br><span style="color:#888; font-size:12px;">${item.srcName || ''} | ${item.loc || item.colo || 'Unknown'}</span>`;
+        tr.appendChild(tdNode);
 
-        // Actions
-        async function startCheck() {
-            await api('/api/check', 'POST');
-            showToast('检测任务已启动', 'success');
-            fetchState();
-        }
+        // 3. 柱状图
+        const tdBar = document.createElement('td');
+        const barContainer = document.createElement('div');
+        barContainer.className = 'bar-container';
+        
+        const maxMs = config.maxTotalMs || 500;
+        item.recent.forEach((p, idx) => {
+            const height = p.ok ? Math.min(100, (p.total / maxMs) * 100) : 100;
+            const color = !p.ok ? '#f44336' : (p.total <= maxMs ? '#4caf50' : '#ff9800');
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            bar.style.height = `${height}%`;
+            bar.style.background = color;
+            bar.dataset.idx = idx;
+            bar.dataset.itemid = item.id;
+            barContainer.appendChild(bar);
+        });
+        tdBar.appendChild(barContainer);
+        tr.appendChild(tdBar);
 
-        async function abortCheck() {
-            await api('/api/abort', 'POST');
-            showToast('已发送中断信号', 'info');
-        }
+        // 4. 🌟 延迟拆解(平均)
+        const tdDelay = document.createElement('td');
+        const avg = item.quality.avgCus || item.quality.avgOff || {};
+        const tcp = avg.tcp != null ? avg.tcp + 'ms' : '-';
+        const tls = avg.tls != null ? avg.tls + 'ms' : '-';
+        const http = avg.src != null ? avg.src + 'ms' : '-';
+        const total = avg.total != null ? avg.total + 'ms' : '-';
+        
+        tdDelay.innerHTML = `
+            <div class="delay-stats">
+                <div class="stat-item"><span class="label">TCP</span><span>${tcp}</span></div>
+                <div class="stat-item"><span class="label">TLS</span><span>${tls}</span></div>
+                <div class="stat-item"><span class="label">HTTP</span><span>${http}</span></div>
+                <div class="stat-item total"><span class="label">总延迟</span><span>${total}</span></div>
+            </div>
+        `;
+        tr.appendChild(tdDelay);
 
-        async function saveSettings() {
-            const config = {
-                intervalSec: +document.getElementById('cfgInterval').value,
-                timeoutSec: +document.getElementById('cfgTimeout').value,
-                concurrency: +document.getElementById('cfgConcurrency').value,
-                maxTotalMs: +document.getElementById('cfgMaxTotal').value,
-                probeUrl: document.getElementById('cfgProbeUrl').value,
-                qualityWindow: +document.getElementById('cfgQualityWindow').value,
-                qualityRate: +document.getElementById('cfgQualityRate').value,
-                autoCleanDays: +document.getElementById('cfgAutoClean').value
-            };
-            await api('/api/config', 'POST', config);
-            await api('/api/ipfile', 'POST', { content: document.getElementById('cfgIpList').value });
-            showToast('配置已保存并重载', 'success');
-            closeModal('settings');
-            fetchState();
-        }
+        // 5. 成功率
+        const tdRate = document.createElement('td');
+        tdRate.textContent = (item.quality.rate * 100).toFixed(0) + '%';
+        tr.appendChild(tdRate);
 
-        async function uploadGithub() {
-            showToast('正在上传到 GitHub...', 'info');
-            const res = await api('/api/upload', 'POST');
-            if (res.ok) showToast(`成功上传 ${res.count} 个节点`, 'success');
-            else showToast('上传失败: ' + res.error, 'error');
-        }
+        // 6. 状态
+        const tdStatus = document.createElement('td');
+        tdStatus.innerHTML = item.quality.quality ? '<span class="badge badge-ok">优质</span>' : (item.latest && item.latest.ok ? '<span class="badge badge-ok">在线</span>' : '<span class="badge badge-off">离线</span>');
+        tr.appendChild(tdStatus);
 
-        async function removeSelected() {
-            if (appState.selected.size === 0) return showToast('请先选择节点', 'error');
-            if (!confirm(`确定要删除选中的 ${appState.selected.size} 个节点吗？`)) return;
-            
-            const res = await api('/api/remove', 'POST', { ids: Array.from(appState.selected) });
-            if (res.ok) {
-                showToast(`成功删除 ${res.count} 个节点`, 'success');
-                appState.selected.clear();
-                fetchState();
-            }
-        }
+        tbody.appendChild(tr);
+    });
+}
 
-        // Table Rendering
-        function renderTable() {
-            const tbody = document.getElementById('nodeTableBody');
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            const kindFilter = document.getElementById('filterKind').value;
-            const sortBy = document.getElementById('sortBy').value;
-
-            let items = appState.items.filter(item => {
-                if (search && !item.id.toLowerCase().includes(search)) return false;
-                if (kindFilter && item.ipKind !== kindFilter) return false;
-                return true;
+// 🌟 柱状图悬浮提示 (事件委托)
+document.getElementById('table-body').addEventListener('mouseenter', function(e) {
+    if (e.target.classList.contains('bar')) {
+        const bar = e.target;
+        const idx = parseInt(bar.dataset.idx);
+        const itemId = bar.dataset.itemid;
+        const item = state.items.find(i => i.id === itemId);
+        if (!item) return;
+        
+        const p = item.recent[idx];
+        let tipHtml = `<div style="text-align:left;">`;
+        tipHtml += `<div><b>时间:</b> ${new Date(p.t).toLocaleString()}</div>`;
+        tipHtml += `<div><b>状态:</b> ${p.ok ? '✅ 成功' : '❌ 失败'}</div>`;
+        
+        if (p.customResults && p.customResults.length > 0) {
+            p.customResults.forEach((cr, i) => {
+                tipHtml += `<hr><div style="font-weight:bold; color:#2196f3;">源站 ${i + 1}: ${cr.host}</div>`;
+                if (cr.ok && cr.segs) {
+                    tipHtml += `<div>TCP: ${cr.segs.tcp}ms | TLS: ${cr.segs.tls}ms</div>`;
+                    tipHtml += `<div>HTTP: ${cr.segs.src}ms | 总: ${cr.segs.total}ms</div>`;
+                } else {
+                    tipHtml += `<div style="color:#f44336;">失败: ${cr.failReason || '未知'}</div>`;
+                }
             });
-
-            items.sort((a, b) => {
-                const aTotal = a.quality.avgTotal || 99999;
-                const bTotal = b.quality.avgTotal || 99999;
-                const aRate = a.quality.rate || 0;
-                const bRate = b.quality.rate || 0;
-                
-                if (sortBy === 'totalAsc') return aTotal - bTotal;
-                if (sortBy === 'totalDesc') return bTotal - aTotal;
-                if (sortBy === 'rateDesc') return bRate - aRate;
-                return 0;
-            });
-
-            tbody.innerHTML = items.map(item => {
-                const isSelected = appState.selected.has(item.id);
-                const kindBadge = item.ipKind === 'cf' ? '<span class="badge badge-cf">CF</span>' : '<span class="badge badge-proxy">Proxy</span>';
-                const statusBadge = item.latest && item.latest.ok ? '<span class="badge badge-success">在线</span>' : '<span class="badge badge-fail">离线</span>';
-                
-                const totalMs = item.quality.avgTotal ? `${item.quality.avgTotal}ms` : '-';
-                const rate = item.quality.rate ? `${(item.quality.rate * 100).toFixed(0)}%` : '-';
-
-                // Chart
-                const recent = item.recent || [];
-                const maxDelay = Math.max(...recent.map(r => r.total || 0), 500);
-                const chartBars = recent.slice(-20).map(r => {
-                    if (!r.ok) return `<div class="chart-bar fail" style="height: 100%;" title="失败"></div>`;
-                    const h = Math.max(10, (r.total / maxDelay) * 100);
-                    const cls = r.total <= 200 ? 'ok' : 'slow';
-                    return `<div class="chart-bar ${cls}" style="height: ${h}%;" title="${r.total}ms"></div>`;
-                }).join('');
-
-                return `
-                    <tr class="${isSelected ? 'selected' : ''}" onclick="toggleSelect('${item.id}', event)">
-                        <td><input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelect('${item.id}')"></td>
-                        <td><strong>${item.id}</strong></td>
-                        <td>${kindBadge}</td>
-                        <td><div class="chart-container">${chartBars}</div></td>
-                        <td>${totalMs}</td>
-                        <td>${rate}</td>
-                        <td>${statusBadge}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            document.getElementById('selectedCount').textContent = appState.selected.size;
+        } else if (p.off) {
+            tipHtml += `<hr><div style="font-weight:bold; color:#9c27b0;">官方探针</div>`;
+            tipHtml += `<div>TCP: ${p.off.tcp}ms | TLS: ${p.off.tls}ms</div>`;
+            tipHtml += `<div>总延迟: ${p.off.total}ms</div>`;
         }
+        tipHtml += `</div>`;
+        
+        const tip = document.getElementById('tooltip');
+        tip.innerHTML = tipHtml;
+        tip.style.display = 'block';
+        
+        const rect = tip.getBoundingClientRect();
+        let x = e.pageX + 15;
+        let y = e.pageY + 15;
+        if (x + rect.width > window.innerWidth) x = e.pageX - rect.width - 15;
+        if (y + rect.height > window.innerHeight) y = e.pageY - rect.height - 15;
+        tip.style.left = x + 'px';
+        tip.style.top = y + 'px';
+    }
+}, true);
 
-        function toggleSelect(id, event) {
-            if (appState.selected.has(id)) appState.selected.delete(id);
-            else appState.selected.add(id);
-            renderTable();
-        }
+document.getElementById('table-body').addEventListener('mouseleave', function(e) {
+    if (e.target.classList.contains('bar')) {
+        document.getElementById('tooltip').style.display = 'none';
+    }
+}, true);
 
-        function toggleSelectAll() {
-            const allIds = appState.items.map(i => i.id);
-            if (appState.selected.size === allIds.length) {
-                appState.selected.clear();
-            } else {
-                appState.selected = new Set(allIds);
-            }
-            renderTable();
-        }
+// 交互功能
+function showModal(type) {
+    document.getElementById(`modal-${type}`).classList.add('active');
+    if (type === 'logs') fetchLogs();
+    if (type === 'settings') renderSettings();
+}
+function closeModal(type) { document.getElementById(`modal-${type}`).classList.remove('active'); }
 
-        // Init
-        fetchState();
-        setInterval(fetchState, 10000); // Poll every 10s
-    </script>
+async function fetchLogs() {
+    const res = await fetch('/api/logs');
+    const data = await res.json();
+    document.getElementById('log-box').textContent = data.logs.map(l => `[${new Date(l.t).toLocaleTimeString()}] ${l.m}`).join('\n');
+    const box = document.getElementById('log-box');
+    box.scrollTop = box.scrollHeight;
+}
+
+function renderSettings() {
+    const form = document.getElementById('settings-form');
+    let probesHtml = config.customProbes.map((p, i) => `
+        <div class="probe-item">
+            <input type="text" value="${p.url}" placeholder="https://..." data-idx="${i}" class="probe-url">
+            <input type="text" value="${p.expect}" placeholder="200" style="width:60px" data-idx="${i}" class="probe-expect">
+            <button class="btn btn-danger" onclick="removeProbe(${i})">X</button>
+        </div>
+    `).join('');
+
+    form.innerHTML = `
+        <div class="form-group"><label>监测间隔(秒)</label><input type="number" id="s-interval" value="${config.intervalSec}"></div>
+        <div class="form-group"><label>单次超时(秒)</label><input type="number" id="s-timeout" value="${config.timeoutSec}"></div>
+        <div class="form-group"><label>并发数</label><input type="number" id="s-concurrency" value="${config.concurrency}"></div>
+        <div class="form-group"><label>优质总延迟上限(ms, 0=不限)</label><input type="number" id="s-maxTotal" value="${config.maxTotalMs}"></div>
+        <div class="form-group"><label>官方探针 URL</label><input type="text" id="s-probeUrl" value="${config.probeUrl}"></div>
+        <div class="form-group"><label>自动清理离线节点(天, 0=关闭)</label><input type="number" id="s-cleanDays" value="${config.autoCleanDays}"></div>
+        <div class="form-group"><label>优质判定窗口(次)</label><input type="number" id="s-window" value="${config.qualityWindow}"></div>
+        <div class="form-group"><label>达标率阈值(0-1)</label><input type="number" step="0.1" id="s-rate" value="${config.qualityRate}"></div>
+        <div class="form-group">
+            <label>自定义源站探针 (测延迟+闸门)</label>
+            <div id="probes-list">${probesHtml}</div>
+            <button class="btn" onclick="addProbe()">+ 添加探针</button>
+        </div>
+    `;
+}
+
+function addProbe() {
+    config.customProbes.push({ url: '', expect: '200' });
+    renderSettings();
+}
+function removeProbe(idx) {
+    config.customProbes.splice(idx, 1);
+    renderSettings();
+}
+
+async function saveSettings() {
+    const newConfig = {
+        intervalSec: document.getElementById('s-interval').value,
+        timeoutSec: document.getElementById('s-timeout').value,
+        concurrency: document.getElementById('s-concurrency').value,
+        maxTotalMs: document.getElementById('s-maxTotal').value,
+        probeUrl: document.getElementById('s-probeUrl').value,
+        autoCleanDays: document.getElementById('s-cleanDays').value,
+        qualityWindow: document.getElementById('s-window').value,
+        qualityRate: document.getElementById('s-rate').value,
+        customProbes: Array.from(document.querySelectorAll('.probe-url')).map((el, i) => ({
+            url: el.value,
+            expect: document.querySelectorAll('.probe-expect')[i].value
+        }))
+    };
+    
+    await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConfig)
+    });
+    alert('配置已保存，正在重启检测...');
+    closeModal('settings');
+    fetchState();
+}
+
+async function apiPost(url) {
+    await fetch(url, { method: 'POST' });
+    setTimeout(fetchState, 500);
+}
+
+function toggleAll(cb) {
+    const checks = document.querySelectorAll('#table-body input[type="checkbox"]');
+    checks.forEach(c => {
+        c.checked = cb.checked;
+        const id = c.closest('tr').querySelector('td:nth-child(2) b').textContent.split(':')[0] + ':' + c.closest('tr').querySelector('td:nth-child(2) b').textContent.split(':')[1].split(' ')[0];
+        // 简化处理，实际应从 data 获取
+    });
+    // 重新计算 selectedIds (简化版)
+    selectedIds.clear();
+    if(cb.checked) {
+        document.querySelectorAll('#table-body tr').forEach(tr => {
+            const text = tr.querySelector('td:nth-child(2) b').textContent;
+            selectedIds.add(text);
+        });
+    }
+    document.getElementById('sel-count').textContent = selectedIds.size;
+}
+
+async function removeSelected() {
+    if (!selectedIds.size) return alert('请先选择节点');
+    if (!confirm(`确定删除并屏蔽 ${selectedIds.size} 个节点吗？`)) return;
+    await fetch('/api/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) })
+    });
+    selectedIds.clear();
+    document.getElementById('sel-count').textContent = 0;
+    fetchState();
+}
+
+function copyFiltered() {
+    const fKind = document.getElementById('f-kind').value;
+    const fMax = parseFloat(document.getElementById('f-max').value) || 99999;
+    const fRate = (parseFloat(document.getElementById('f-rate').value) || 0) / 100;
+    const fLoc = document.getElementById('f-loc').value.toLowerCase();
+
+    const lines = state.items.filter(i => {
+        if (fKind && i.ipKind !== fKind) return false;
+        if ((i.quality.avgTotal || 99999) > fMax) return false;
+        if (i.quality.rate < fRate) return false;
+        if (fLoc && !(i.loc || '').toLowerCase().includes(fLoc) && !(i.colo || '').toLowerCase().includes(fLoc)) return false;
+        return true;
+    }).map(i => {
+        const total = i.quality.avgTotal != null ? i.quality.avgTotal + 'ms' : '?ms';
+        const region = i.loc || i.colo || 'Unknown';
+        return `${i.ip}:${i.port}#${region} | ${total}`;
+    });
+
+    if (!lines.length) return alert('没有符合条件的节点');
+    navigator.clipboard.writeText(lines.join('\n')).then(() => alert(`已复制 ${lines.length} 个节点`));
+}
+
+function resetFilters() {
+    document.getElementById('f-kind').value = '';
+    document.getElementById('f-max').value = '';
+    document.getElementById('f-rate').value = '';
+    document.getElementById('f-loc').value = '';
+    renderTable();
+}
+
+// 初始化
+fetchState();
+setInterval(fetchState, 5000); // 5秒刷新一次
+</script>
 </body>
 </html>
