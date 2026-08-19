@@ -434,7 +434,7 @@
         </div>
 
         <div class="filters">
-          <input id="searchInput" class="input" style="min-width:220px" placeholder="搜索 IP / 地区 / 数据中心 / 来源" />
+          <input id="searchInput" class="input" style="min-width:220px" placeholder="搜索 IP / 地区 / 数据中心 / 出口IP / 来源" />
           <select id="kindFilter" class="input" title="身份筛选">
             <option value="all">身份: 全部</option>
             <option value="cf">CloudflareIP</option>
@@ -533,6 +533,7 @@
               <li>支持将优质节点自动或手动上传到 GitHub 仓库。</li>
               <li>支持删除、屏蔽、自动清理长期离线节点。</li>
               <li>每次检测的失败原因会随样本持久化，任意一次离线都可回溯原因。</li>
+              <li>离线节点的地区 / 数据中心 / 出口IP 会自动用最近一次成功样本补齐。</li>
             </ul>
           </section>
 
@@ -638,8 +639,8 @@ https://example.com/proxyip-list.txt
               <li><code>状态</code>：全部 / 优质 / 达标 / 在线 / 离线，与“状态”列徽章一一对应（互斥分类）。例如选“离线”可快速排查故障节点。</li>
               <li><code>总延迟 ≤</code>：按平均总延迟过滤（ms）。</li>
               <li><code>达标率 ≥ / 成功率 ≥</code>：支持百分数或 0-1 小数，例如 90 或 0.9。</li>
-              <li><code>数据中心 / 地区</code>：按最近一次检测的 colo / loc 过滤。</li>
-              <li><code>只看优质</code>：快捷勾选，等价于状态=优质的快捷方式，可与状态筛选叠加。</li>
+              <li><code>数据中心 / 地区</code>：按 colo / loc 过滤；离线节点会使用历史样本补齐后的值参与筛选，不会“消失”。</li>
+              <li><code>只看优质</code>：快捷勾选，可与状态筛选叠加。</li>
               <li><code>排序</code>：总延迟升序 / 成功率降序 / 达标率降序。</li>
               <li><code>📋 复制筛选节点</code>：复制当前筛选 + 排序后的列表；想只复制优质节点，先选状态=优质（或勾选只看优质）。</li>
             </ul>
@@ -647,6 +648,7 @@ https://example.com/proxyip-list.txt
             <h3>表格列</h3>
             <ul>
               <li><code>节点 (IP)</code>：IP、端口、身份、地区（国旗）、数据中心、出口IP、最近检测时间与首次来源（纯IP / 域名 / 列表）。</li>
+              <li>当本次检测离线、拿不到元数据时，地区 / 数据中心 / 出口IP 会自动使用最近一次成功检测的历史样本补齐，悬浮 title 会标注“历史样本补齐”；从未成功过则统一显示 <code>-</code> 占位（三项显示风格一致）。</li>
               <li><code>优质窗口延迟统计图</code>：最近 N 次检测结果柱状图。</li>
               <li><code>平均总延迟 / TCP / TLS / HTTP</code>：优质窗口内在线样本的平均值。</li>
               <li><code>达标率 / 成功率</code>：优质窗口内的两个核心比例。</li>
@@ -662,7 +664,7 @@ https://example.com/proxyip-list.txt
                 <code>不具备反代CF能力 (超时)</code>、<code>官方探针返回非 CF 内容 (不具备反代能力)</code>、
                 <code>自定义探针失败: https://xxx (预期200实际502)</code>、<code>检测异常: ...</code>。</li>
               <li>失败原因与检测样本一起持久化在 history.json，因此历史红柱同样可回溯原因，无需依赖日志。</li>
-              <li>悬浮同时展示该次各探针的 总 / TCP / TLS / HTTP 明细。</li>
+              <li>悬浮同时展示该次各探针的 总 / TCP / TLS / HTTP 明细，以及地区 / 数据中心 / 出口IP。</li>
             </ul>
 
             <h3>复制格式</h3>
@@ -746,6 +748,12 @@ https://example.com/proxyip-list.txt
               该分类与状态列徽章完全一致。
             </p>
 
+            <h3>为什么离线节点还能显示地区 / 数据中心 / 出口IP？</h3>
+            <p>
+              本次检测失败拿不到元数据时，前端会自动回退到最近一次成功检测的历史样本（recent 中携带 colo/loc/exitIp），
+              并在悬浮 title 标注“历史样本补齐”。若该节点从未成功过，则三项统一显示 <code>-</code>。
+            </p>
+
             <h3>为什么显示“官方探针返回非 CF 内容”？</h3>
             <p>
               通常表示该 IP:端口 当前没有返回 Cloudflare trace，可能不是有效的 CloudflareIP，
@@ -788,7 +796,7 @@ https://example.com/proxyip-list.txt
             <h2>11. API 说明</h2>
             <table class="table-mini">
               <tr><th>接口</th><th>方法</th><th>用途</th></tr>
-              <tr><td><code>/api/state</code></td><td>GET</td><td>获取当前节点、质量、进度、配置摘要；recent 样本含 failReason。</td></tr>
+              <tr><td><code>/api/state</code></td><td>GET</td><td>获取当前节点、质量、进度、配置摘要；recent 样本含 failReason / colo / loc / exitIp。</td></tr>
               <tr><td><code>/api/logs</code></td><td>GET</td><td>获取运行日志。</td></tr>
               <tr><td><code>/api/check</code></td><td>POST</td><td>手动触发检测。</td></tr>
               <tr><td><code>/api/abort</code></td><td>POST</td><td>中断当前检测。</td></tr>
@@ -1039,7 +1047,7 @@ https://example.com/proxyip-list.txt
       catch (e) { return "-"; }
     }
 
-    // 国家/地区代码 → 国旗 emoji（如 HK → 🇭🇰, SG → 🇸🇬）
+    // 国家/地区代码 → 国旗 emoji（如 HK → 🇭🇰, SG → 🇸）
     function flagEmoji(code) {
       if (!code) return "🌍";
       const c = String(code).trim().toUpperCase();
@@ -1071,6 +1079,21 @@ https://example.com/proxyip-list.txt
       return DATA.state?.config?.qualityWindow || 10;
     }
 
+    // 元数据补齐：本次样本拿不到 loc/colo/exitIp 时，回退到最近一次成功的历史样本
+    function effectiveMeta(item) {
+      const latest = item.latest || {};
+      const recent = item.recent || [];
+      const pick = (field) => {
+        if (latest[field]) return { v: latest[field], hist: false };
+        for (let i = recent.length - 1; i >= 0; i--) {
+          const p = recent[i];
+          if (p && p[field]) return { v: p[field], hist: true };
+        }
+        return { v: null, hist: false };
+      };
+      return { loc: pick("loc"), colo: pick("colo"), exitIp: pick("exitIp") };
+    }
+
     function latencyClass(v) {
       if (v == null || !isFinite(v)) return "";
       const limit = DATA.state?.config?.maxTotalMs || 0;
@@ -1100,7 +1123,7 @@ https://example.com/proxyip-list.txt
       return "offline";
     }
 
-    // 失败原因：直接读取样本自带的 failReason（后端 v33-fix8 起 recent 已透出，历史数据同样有效）
+    // 失败原因：直接读取样本自带的 failReason（后端 recent 已透出，历史数据同样有效）
     function failReasonFor(p) {
       if (p && p.failReason) return p.failReason;
       if (p && p.off) return "官方探针成功，但自定义源站探针未全部通过";
@@ -1161,7 +1184,7 @@ https://example.com/proxyip-list.txt
       const kindTxt = kind === "cf" ? "CloudflareIP" : kind === "proxy" ? "ProxyIP" : "未知";
       const recentCount = (item.recent || []).slice(-win).length;
 
-      const loc = latest.loc || null;
+      const m = effectiveMeta(item);
 
       const qualRateCell = hasSamples ? fmtPct(q.qualRate) : fmtPct(null);
       const successRateCell = hasSamples ? fmtPct(q.rate) : fmtPct(null);
@@ -1175,9 +1198,9 @@ https://example.com/proxyip-list.txt
             <div class="ip">${escapeHtml(item.ip)}:${item.port}</div>
             <div class="meta">
               <span class="tag ${kindCls}">${kindTxt}</span>
-              <span title="地区">${flagEmoji(loc)} ${escapeHtml(loc || "-")}</span>
-              <span title="数据中心">🏢 ${escapeHtml(latest.colo || "-")}</span>
-              ${latest.exitIp ? `<span title="出口IP">🌐 ${escapeHtml(latest.exitIp)}</span>` : ""}
+              <span title="${m.loc.hist ? "地区（历史样本补齐）" : "地区"}">${flagEmoji(m.loc.v)} ${escapeHtml(m.loc.v || "-")}</span>
+              <span title="${m.colo.hist ? "数据中心（历史样本补齐）" : "数据中心"}">🏢 ${escapeHtml(m.colo.v || "-")}</span>
+              <span title="${m.exitIp.hist ? "出口IP（历史样本补齐）" : "出口IP"}">🌐 ${escapeHtml(m.exitIp.v || "-")}</span>
               ${latest.t ? `<span title="最近检测">🕒 ${escapeHtml(fmtTime(latest.t))}</span>` : ""}
               <span title="首次来源">📥 ${escapeHtml(srcLabelOf(item))}</span>
             </div>
@@ -1214,7 +1237,8 @@ https://example.com/proxyip-list.txt
       if (f.search) {
         const s = f.search.toLowerCase();
         arr = arr.filter(i => {
-          return [i.id, i.ip, i.srcName, i.latest?.loc, i.latest?.colo]
+          const m = effectiveMeta(i);
+          return [i.id, i.ip, i.srcName, m.loc.v, m.colo.v, m.exitIp.v]
             .filter(Boolean)
             .some(v => String(v).toLowerCase().includes(s));
         });
@@ -1235,8 +1259,8 @@ https://example.com/proxyip-list.txt
       const minSuccess = parseRatioInput(f.minSuccess);
       if (minSuccess != null) arr = arr.filter(i => (i.quality?.rate ?? 0) >= minSuccess);
 
-      if (f.colo) arr = arr.filter(i => i.latest?.colo === f.colo);
-      if (f.loc) arr = arr.filter(i => i.latest?.loc === f.loc);
+      if (f.colo) arr = arr.filter(i => effectiveMeta(i).colo.v === f.colo);
+      if (f.loc) arr = arr.filter(i => effectiveMeta(i).loc.v === f.loc);
 
       const totalVal = (i) => i.quality?.avgTotal ?? Infinity;
       const successVal = (i) => i.quality?.rate ?? -1;
@@ -1315,8 +1339,8 @@ https://example.com/proxyip-list.txt
 
     function renderFilterOptions() {
       if (!DATA.state || !Array.isArray(DATA.state.items)) return;
-      const colos = [...new Set(DATA.state.items.map(i => i.latest?.colo).filter(Boolean))].sort();
-      const locs = [...new Set(DATA.state.items.map(i => i.latest?.loc).filter(Boolean))].sort();
+      const colos = [...new Set(DATA.state.items.map(i => effectiveMeta(i).colo.v).filter(Boolean))].sort();
+      const locs = [...new Set(DATA.state.items.map(i => effectiveMeta(i).loc.v).filter(Boolean))].sort();
 
       setSelectOptions($("#coloFilter"), colos, "数据中心: 全部");
       setSelectOptions($("#locFilter"), locs, "地区: 全部", v => `${flagEmoji(v)} ${v}`);
@@ -1393,7 +1417,8 @@ https://example.com/proxyip-list.txt
     function formatItemLine(item) {
       const q = item.quality || {};
       const latest = item.latest || {};
-      const region = latest.loc || latest.colo || "Unknown";
+      const m = effectiveMeta(item);
+      const region = m.loc.v || m.colo.v || "Unknown";
 
       const ms = (qv, lv) => {
         if (qv != null && isFinite(qv)) return `${Math.round(qv)}ms`;
@@ -1658,11 +1683,11 @@ https://example.com/proxyip-list.txt
     }
 
     function buildTooltipHtml(p, item) {
-      const latest = item.latest || {};
+      const m = effectiveMeta(item);
       const status = p.ok ? '<span class="good">成功</span>' : '<span class="bad">失败</span>';
 
       let html = `
-        <h4>${flagEmoji(latest.loc)} ${escapeHtml(item.ip)}:${item.port} · ${escapeHtml(fmtTime(p.t))}</h4>
+        <h4>${flagEmoji(m.loc.v)} ${escapeHtml(item.ip)}:${item.port} · ${escapeHtml(fmtTime(p.t))}</h4>
         <div class="grid">
           <span>状态</span><span>${status}</span>
       `;
@@ -1671,6 +1696,9 @@ https://example.com/proxyip-list.txt
       if (p.avgTcp != null) html += `<span>平均TCP</span><span>${Math.round(p.avgTcp)} ms</span>`;
       if (p.avgTls != null) html += `<span>平均TLS</span><span>${Math.round(p.avgTls)} ms</span>`;
       if (p.avgHttp != null) html += `<span>平均HTTP</span><span>${Math.round(p.avgHttp)} ms</span>`;
+      html += `<span>地区</span><span>${escapeHtml(m.loc.v || "-")}</span>`;
+      html += `<span>数据中心</span><span>${escapeHtml(m.colo.v || "-")}</span>`;
+      html += `<span>出口IP</span><span>${escapeHtml(m.exitIp.v || "-")}</span>`;
       html += `</div>`;
 
       if (!p.ok) {

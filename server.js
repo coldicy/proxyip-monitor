@@ -1,7 +1,6 @@
 /**
-Proxy Monitor v33-fix8 (历史失败原因透出)
-- /api/state 的 recent 样本新增 failReason 字段
-- 前端悬浮离线红柱 / 离线徽章可直接显示每次检测的具体失败原因，无需解析日志
+Proxy Monitor v33-fix9 
+- recent 样本补齐 colo/loc/exitIp 数据
 */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +8,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33-fix8';
+const VERSION = 'v33-fix9';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -457,7 +456,8 @@ function buildState(){
         colo:latest?latest.colo:null,loc:latest?latest.loc:null,exitIp:latest?latest.exitIp:null,
         latest,quality:computeQuality(hist),
         recent:hist.slice(-40).map(p=>({t:p.t,ok:!!p.ok,total:p.total,off:p.off,cus:p.cus,probes:p.probes||[],
-          avgTcp:p.avgTcp,avgTls:p.avgTls,avgHttp:p.avgHttp,failReason:p.failReason||null})) }; });
+          avgTcp:p.avgTcp,avgTls:p.avgTls,avgHttp:p.avgHttp,failReason:p.failReason||null,
+          colo:p.colo||null,loc:p.loc||null,exitIp:p.exitIp||null})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
       config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,
