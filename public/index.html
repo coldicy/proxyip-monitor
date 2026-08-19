@@ -7,7 +7,6 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
-/* 列宽：选择框 | 节点 | 统计图 | 总 | TCP | TLS | HTTP | 达标率 | 成功率 | 状态 | 复制按钮(右) */
 --cols:36px minmax(0,0.8fr) 150px 60px 60px 60px 60px 52px 52px 56px 34px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
@@ -59,8 +58,11 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .list{display:flex;flex-direction:column;gap:10px}
 .row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;transition:border-color .15s,transform .15s}
 .row:hover{border-color:var(--line2);transform:translateY(-1px)}
-.row.quality{border-color:rgba(61,220,151,.4);box-shadow:inset 3px 0 0 var(--ok)}
-.row.offline{opacity:.75}
+/* ★★★ 状态边框特效 ★★★ */
+.row.quality{border-color:rgba(61,220,151,.5);box-shadow:inset 3px 0 0 var(--ok)}
+.row.online{border-color:rgba(90,209,240,.5);box-shadow:inset 3px 0 0 var(--accent)}
+.row.offline{border-color:rgba(255,107,129,.5);box-shadow:inset 3px 0 0 var(--err);opacity:.75}
+.row.quality:hover,.row.online:hover,.row.offline:hover{border-color:var(--line2)}
 .sel{display:flex;align-items:center;justify-content:center}
 .sel input{appearance:none;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);background:transparent;cursor:pointer;opacity:0;transition:.15s;margin:0;flex:none}
 .sel input:hover{border-color:var(--accent)}
@@ -72,9 +74,11 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .row:hover .op .iconbtn{opacity:1}
 .op .iconbtn:hover{color:var(--text);border-color:rgba(90,209,240,.5)}
 .main{display:flex;align-items:flex-start;gap:12px;min-width:0}
+/* ★★★ 状态点 ★★★ */
 .dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:6px}
-.dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
-.dot.off{background:var(--err)}
+.dot.quality{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 2s infinite}
+.dot.online{background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 2s infinite}
+.dot.offline{background:var(--err)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(61,220,151,.5)}50%{box-shadow:0 0 0 6px rgba(61,220,151,0)}}
 .who{min-width:0;flex:1}
 .who>b{display:inline;font-size:.9rem}
@@ -98,7 +102,6 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
 .srcval{color:#c9f3ff;font-weight:700;max-width:36ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* 统计图：固定容器宽度，柱子自适应 */
 .bars-wrap{width:100%;display:flex;align-items:flex-end;height:24px;justify-content:flex-start}
 .bars{display:flex;align-items:flex-end;gap:2px;width:100%;height:100%;max-width:100%}
 .bars i{flex:1;min-width:2px;border-radius:2px;cursor:pointer;transition:.15s}
@@ -397,7 +400,20 @@ function render(){
   if(!LAST_VIEW.length){el('list').innerHTML='<div class="empty">没有符合筛选条件的节点，等待检测或放宽筛选...</div>';updateRemoveBtn();return;}
   el('list').innerHTML=LAST_VIEW.map(function(i,idx){
     var on=i.latest&&i.latest.ok;
-    var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
+    // ★★★ 状态类与点 ★★★
+    var rowClass = 'row';
+    var dotClass = 'dot';
+    if (i.quality.quality) {
+      rowClass += ' quality';
+      dotClass += ' quality';
+    } else if (on) {
+      rowClass += ' online';
+      dotClass += ' online';
+    } else {
+      rowClass += ' offline';
+      dotClass += ' offline';
+    }
+    var badge = i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var sv=srcText(i);
     var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
       '<span class="kv"><em>引入</em><b class="time">'+fmtDT(i.firstSeen)+'</b></span></div>';
@@ -412,9 +428,9 @@ function render(){
     var qualPct=Math.round(i.quality.qualRate*100);
     var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
     var qualCls=qualPct>=80?'g':(qualPct>=50?'w':'r');
-    return '<div class="row'+(i.quality.quality?' quality':'')+(on?'':' offline')+'">'+
+    return '<div class="'+rowClass+'">'+
       '<span class="sel"><input type="checkbox" data-sel="'+esc(i.id)+'"'+(SELECTED.has(i.id)?' checked':'')+'></span>'+
-      '<div class="main"><span class="dot '+(on?'on':'off')+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
+      '<div class="main"><span class="'+dotClass+'"></span><div class="who"><b>'+esc(i.label)+'</b>'+kindCapsule(i.ipKind)+'<div class="subline">'+lines+'</div></div></div>'+
       '<div>'+barsHtml(i.recent)+'</div>'+
       '<div class="num">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'<i>ms</i>':'--')+'</div>'+
       '<div class="num">'+(i.quality.avgTcp!=null?i.quality.avgTcp+'<i>ms</i>':'--')+'</div>'+
