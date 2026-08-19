@@ -1,7 +1,8 @@
 /**
- * Proxy Monitor v33 (探针平均 + 多探针明细)
+ * Proxy Monitor v33-fix2 (探针平均 + 多探针明细)
  * 总延迟 = 官方 + 所有自定义探针的总延迟平均值
  * 任一探针失败则该次离线；柱状图悬浮显示每个探针的四段明细
+ * v33-fix2: computeQuality 中 avgTotal 由 avgTcp+avgTls+avgHttp 重新计算，确保自洽
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +10,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33';
+const VERSION = 'v33-fix2';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -93,12 +94,16 @@ function curlFailText(code){ if(code===28)return '超时'; if(code===7)return '�
 function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{return JSON.parse(l[l.length-1]);}catch(e){return null;}}
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
-/* 🌟 从 curl -w 原始值构建自洽四段 */
+/* 从 curl -w 原始值构建自洽四段，确保 total = tcp + tls + src */
 function buildSegs(w){ if(!w)return null;
-  const tcp=Math.max(0,Math.round((w.tcp||0)*1000));
-  const tls=Math.max(0,Math.round(((w.tls||0)-(w.tcp||0))*1000));
-  const total=Math.max(0,Math.round((w.ttfb||0)*1000));
-  return {tcp,tls,total,src:Math.max(0,total-tcp-tls)}; }
+  const tcp=Math.round((w.tcp||0)*1000);
+  const tls=Math.round(((w.tls||0)-(w.tcp||0))*1000);
+  const total=Math.round((w.ttfb||0)*1000);
+  let src=total - tcp - tls;
+  if(src<0)src=0;
+  const adjTotal = tcp + tls + src;
+  return {tcp, tls, total: adjTotal, src};
+}
 function ensureIpFile(){ try{ fs.mkdirSync(path.dirname(CONFIG.ipFile),{recursive:true});
   let st=null; try{st=fs.statSync(CONFIG.ipFile);}catch(e){}
   if(st&&st.isDirectory()){ try{fs.rmdirSync(CONFIG.ipFile);}catch(e){return false;} }
@@ -233,14 +238,14 @@ async function probeCustoms(u){
   return results;
 }
 
-// ==================== 辅助：计算多个探针的平均值 ====================
+// ==================== 辅助：计算多个探针的平均值 (自洽) ====================
 function averageProbes(probes){
   if(!probes.length)return null;
-  const total=Math.round(probes.reduce((s,p)=>s+p.total,0)/probes.length);
-  const tcp=Math.round(probes.reduce((s,p)=>s+p.tcp,0)/probes.length);
-  const tls=Math.round(probes.reduce((s,p)=>s+p.tls,0)/probes.length);
-  const src=Math.round(probes.reduce((s,p)=>s+p.src,0)/probes.length);
-  return {total,tcp,tls,src};
+  const tcp = Math.round(probes.reduce((s,p)=>s+p.tcp,0)/probes.length);
+  const tls = Math.round(probes.reduce((s,p)=>s+p.tls,0)/probes.length);
+  const src = Math.round(probes.reduce((s,p)=>s+p.src,0)/probes.length);
+  const total = tcp + tls + src;
+  return {total, tcp, tls, src};
 }
 
 function pushHistory(id,point){ if(!state.history[id])state.history[id]=[];
@@ -268,14 +273,14 @@ async function runCycle(){
           if(lat.ok){
             // 官方探针
             const offSeg=lat.off;
-            allProbes.push({name:'official',...offSeg});
+            allProbes.push({name:'official', ...offSeg});
             // 自定义探针
             let customOk=true;
             if(CONFIG.customProbes.length){
               const customResults=await probeCustoms(u);
               for(const r of customResults){
                 if(r.ok && r.segs){
-                  allProbes.push({name:r.url,...r.segs});
+                  allProbes.push({name:r.url, ...r.segs});
                 }else{
                   customOk=false;
                   point.failReason='自定义探针失败: '+r.url+(r.failReason?' ('+r.failReason+')':'');
@@ -292,7 +297,7 @@ async function runCycle(){
                 point.avgHttp=avg.src;
                 point.probes=allProbes;
                 point.ok=true;
-                point.cus=avg; // 为了兼容旧字段，但已无意义
+                point.cus=avg;
               }else{
                 point.failReason='无法计算平均延迟';
               }
@@ -318,20 +323,42 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== 质量判定(综合平均) ====================
+// ==================== ★★★ 核心修复：质量判定（avgTotal 由分量重新计算，确保自洽）★★★ ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
   if(!recent.length)return{quality:false,rate:0,avgTotal:null,avgTcp:null,avgTls:null,avgHttp:null,samples:0};
   const oks=recent.filter(p=>p.ok);
   const rate=oks.length/recent.length;
-  const avgOf = (field) => {
-    const vals=oks.map(p=>p[field]).filter(v=>v!=null&&isFinite(v));
-    return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):null;
-  };
-  const avgTotal=avgOf('total');
-  const avgTcp=avgOf('avgTcp');
-  const avgTls=avgOf('avgTls');
-  const avgHttp=avgOf('avgHttp');
+
+  // 优先使用同时包含三个分量的点来计算平均值，确保 total = tcp + tls + src
+  const valid = oks.filter(p =>
+    p.avgTcp != null && isFinite(p.avgTcp) &&
+    p.avgTls != null && isFinite(p.avgTls) &&
+    p.avgHttp != null && isFinite(p.avgHttp)
+  );
+
+  let avgTcp=null, avgTls=null, avgHttp=null, avgTotal=null;
+  if (valid.length > 0) {
+    avgTcp = Math.round(valid.reduce((s,p)=>s+p.avgTcp,0)/valid.length);
+    avgTls = Math.round(valid.reduce((s,p)=>s+p.avgTls,0)/valid.length);
+    avgHttp = Math.round(valid.reduce((s,p)=>s+p.avgHttp,0)/valid.length);
+    // ★ 重新计算总延迟，保证自洽
+    avgTotal = avgTcp + avgTls + avgHttp;
+  } else {
+    // 降级方案：对于旧数据（没有分量字段），直接平均 total
+    const totals = oks.map(p=>p.total).filter(v=>v!=null&&isFinite(v));
+    if (totals.length > 0) {
+      avgTotal = Math.round(totals.reduce((a,b)=>a+b,0)/totals.length);
+    }
+    // 尝试单独平均各分量（可能来自不同的样本集，但作为降级可以接受）
+    const tcps = oks.map(p=>p.avgTcp).filter(v=>v!=null&&isFinite(v));
+    const tlss = oks.map(p=>p.avgTls).filter(v=>v!=null&&isFinite(v));
+    const https = oks.map(p=>p.avgHttp).filter(v=>v!=null&&isFinite(v));
+    if (tcps.length) avgTcp = Math.round(tcps.reduce((a,b)=>a+b,0)/tcps.length);
+    if (tlss.length) avgTls = Math.round(tlss.reduce((a,b)=>a+b,0)/tlss.length);
+    if (https.length) avgHttp = Math.round(https.reduce((a,b)=>a+b,0)/https.length);
+  }
+
   const enough=recent.length>=CONFIG.qualityWindow;
   const latOk=CONFIG.maxTotalMs<=0||(avgTotal!=null&&avgTotal<=CONFIG.maxTotalMs);
   return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgTotal,avgTcp,avgTls,avgHttp,samples:recent.length};

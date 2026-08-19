@@ -84,7 +84,6 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
-/* 延迟柱状图 */
 .bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
 .bars i{width:6px;border-radius:2px;cursor:pointer;transition:.15s;min-height:3px}
 .bars i:hover{filter:brightness(1.4)}
@@ -290,7 +289,6 @@ function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.
 function pointGood(p){ var M=cfgNum('maxTotalMs',0);
   if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
 
-/* 延迟柱状图：悬浮显示每个探针的明细 */
 function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
   if(!rec.length)return '<span style="color:var(--muted)">--</span>';
   var totals=rec.filter(function(p){return p.ok&&p.total!=null;}).map(function(p){return p.total;});
@@ -379,7 +377,6 @@ function render(){
     if(i.loc)l2+='<span class="kv"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp)l2+='<span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(l2)lines+='<div class="sline">'+l2+'</div>';
-    // 综合平均行
     lines+='<div class="sline"><em class="llabel">综合平均</em><span class="kv"><b class="hi">'+(i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'--')+'</b></span>'+
       '<span class="kv"><em>= TCP</em><b>'+(i.quality.avgTcp!=null?i.quality.avgTcp:'--')+'</b><em>+ TLS</em><b>'+(i.quality.avgTls!=null?i.quality.avgTls:'--')+'</b><em>+ 源站</em><b>'+(i.quality.avgHttp!=null?i.quality.avgHttp:'--')+'</b></span></div>';
     if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近检测</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
