@@ -139,7 +139,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="top">
     <div class="brand">
       <div class="logo">📡</div>
-      <div><h1>Proxy <em>Monitor</em></h1><p>探针平均 · 达标率+成功率 双维优质 · GitHub 同步</p></div>
+      <div><h1>Proxy <em>Monitor</em></h1><p>探针平均 · 独立阈值 · 达标率+成功率双维优质 · GitHub 同步</p></div>
     </div>
     <div class="acts">
       <span class="pill" id="cycleInfo">--</span>
@@ -242,7 +242,8 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
         <label>官方探针 URL <input id="cProbe" type="text"></label>
         <label>🗑️ 自动清理离线节点(天, 0=关闭)<input id="cAutoClean" type="number" step="0.5"></label>
         <label>优质判定窗口(次)<input id="cWindow" type="number"></label>
-        <label>优质阈值(达标率 &amp; 成功率, 0-1)<input id="cRate" type="number" step="0.05"></label>
+        <label>✅ 成功率阈值 (0-1)<input id="cSuccessThreshold" type="number" step="0.05"></label>
+        <label>📊 达标率阈值 (0-1)<input id="cQualThreshold" type="number" step="0.05"></label>
       </div>
       <div style="margin-top:16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
         <label style="font-weight:800; color:var(--accent); font-size:.86rem;">🌟 自定义源站探针</label>
@@ -362,8 +363,9 @@ function render(){
     el('cycleInfo').textContent='⏳ 检测中 '+s.progress.tested+'/'+s.progress.total+'（'+pct+'%）'; el('cycleInfo').className='pill busy';
   }else{ el('pwrap').classList.add('hidden'); el('btnCheck').disabled=false; el('btnCheck').innerText='⚡ 立即检测';
     el('cycleInfo').textContent='上次 '+fmtT(s.lastCycle)+' · 每'+s.intervalSec+'s'; el('cycleInfo').className='pill'; }
-  var need=Math.round(s.config.qualityRate*100);
-  el('cfgInfo').textContent='窗口='+win+' 优质阈值(达标&成功)='+need+'%'+(s.config.maxTotalMs>0?' 上限='+s.config.maxTotalMs+'ms':' 无上限')+' · 并发 '+s.config.concurrency;
+  var successTh = s.config.successThreshold !== undefined ? s.config.successThreshold : 1;
+  var qualTh = s.config.qualThreshold !== undefined ? s.config.qualThreshold : 1;
+  el('cfgInfo').textContent='窗口='+win+' 成功率≥'+(Math.round(successTh*100))+'% 达标率≥'+(Math.round(qualTh*100))+'%'+(s.config.maxTotalMs>0?' 上限='+s.config.maxTotalMs+'ms':' 无上限')+' · 并发 '+s.config.concurrency;
   el('cards').innerHTML=
     '<div class="card"><div class="ic b">📦</div><div><b>'+s.summary.total+'</b><span>节点总数(IP)</span></div></div>'+
     '<div class="card ok"><div class="ic g">🟢</div><div><b>'+s.summary.online+'</b><span>当前在线</span></div></div>'+
@@ -498,7 +500,9 @@ el('saveCfg').onclick=function(){
   var body={intervalSec:+el('cInterval').value,timeoutSec:+el('cTimeout').value,concurrency:+el('cConcurrency').value,
     maxTotalMs:+el('cMaxTotal').value,autoCleanDays:+el('cAutoClean').value,
     probeUrl:el('cProbe').value, customProbes: EDIT_PROBES,
-    qualityWindow:+el('cWindow').value,qualityRate:+el('cRate').value,
+    qualityWindow:+el('cWindow').value,
+    successThreshold:+el('cSuccessThreshold').value,
+    qualThreshold:+el('cQualThreshold').value,
     github:{token:el('cGhToken').value,repo:el('cGhRepo').value,path:el('cGhPath').value,branch:el('cGhBranch').value,auto:el('cGhAuto').checked,uploadIntervalMin:+el('cGhInterval').value}};
   fetch('/api/config',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(r){
     if(r.ok)toast('✅ 配置已保存并生效，已触发检测');else toast(r.error||'保存失败',true); load(); }).catch(function(e){toast(e.message,true);}); };
@@ -521,7 +525,9 @@ function openModal(){ el('modal').classList.remove('hidden');
     el('cProbe').value=c.probeUrl;
     EDIT_PROBES = (c.customProbes && c.customProbes.length) ? JSON.parse(JSON.stringify(c.customProbes)) : [{url: '', expect: '204'}];
     renderProbesList();
-    el('cWindow').value=c.qualityWindow;el('cRate').value=c.qualityRate;
+    el('cWindow').value=c.qualityWindow;
+    el('cSuccessThreshold').value=c.successThreshold !== undefined ? c.successThreshold : 1;
+    el('cQualThreshold').value=c.qualThreshold !== undefined ? c.qualThreshold : 1;
     el('cGhToken').value=c.github.token;el('cGhRepo').value=c.github.repo;el('cGhPath').value=c.github.path;el('cGhBranch').value=c.github.branch;
     el('cGhAuto').checked=!!c.github.auto;el('cGhInterval').value=c.github.uploadIntervalMin||0;
     el('ipText').value=ipf.content||''; }).catch(function(e){toast('打开设置失败: '+e.message,true);}); }

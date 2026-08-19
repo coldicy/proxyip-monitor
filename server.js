@@ -1,9 +1,7 @@
 /**
- * Proxy Monitor v33-fix5 (达标率 + 成功率 双维优质判定)
- * 达标 = 在线 && 平均总延迟 ≤ maxTotalMs
- * 达标率 = 窗口内达标次数 / 窗口大小
- * 成功率 = 窗口内在线次数 / 窗口大小
- * 优质 = 样本充足 && 达标率≥阈值 && 成功率≥阈值
+ * Proxy Monitor v33-fix6 (达标率 + 成功率 独立阈值)
+ * 优质 = 样本充足 && 成功率≥阈值 && 达标率≥阈值
+ * 达标率自动限制 ≤ 成功率（离线不计达标）
  */
 const http = require('http');
 const fs = require('fs');
@@ -11,7 +9,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33-fix5';
+const VERSION = 'v33-fix6';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -25,7 +23,10 @@ const CONFIG = {
   autoCleanDays: parseFloat(process.env.AUTO_CLEAN_DAYS || '7'),
   maxTotalMs: parseFloat(process.env.MAX_TOTAL_MS || '0'),
   qualityWindow: parseInt(process.env.QUALITY_WINDOW || '10', 10),
-  qualityRate: parseFloat(process.env.QUALITY_RATE || '1'),
+  // 成功率阈值 (原 qualityRate)
+  successThreshold: parseFloat(process.env.QUALITY_RATE || '1'),
+  // 达标率阈值 (新增)
+  qualThreshold: parseFloat(process.env.QUAL_THRESHOLD || '1'),
   github: { token: process.env.GITHUB_TOKEN || '', repo: process.env.GITHUB_REPO || '',
     path: process.env.GITHUB_PATH || 'proxyip', branch: process.env.GITHUB_BRANCH || 'main',
     auto: process.env.GITHUB_AUTO_UPLOAD === 'true',
@@ -52,7 +53,20 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
   if(o.maxTotalMs!=null)CONFIG.maxTotalMs=num(o.maxTotalMs,0);
   if(o.probeUrl)CONFIG.probeUrl=String(o.probeUrl);
   if(o.qualityWindow!=null)CONFIG.qualityWindow=Math.max(1,Math.round(num(o.qualityWindow,CONFIG.qualityWindow)));
-  if(o.qualityRate!=null)CONFIG.qualityRate=Math.min(1,Math.max(0,num(o.qualityRate,CONFIG.qualityRate)));
+  // 成功率阈值
+  if(o.successThreshold != null) CONFIG.successThreshold = Math.min(1, Math.max(0, num(o.successThreshold, CONFIG.successThreshold)));
+  // 达标率阈值
+  if(o.qualThreshold != null) CONFIG.qualThreshold = Math.min(1, Math.max(0, num(o.qualThreshold, CONFIG.qualThreshold)));
+  // 兼容旧配置：如果只传了 qualityRate，则同时设置 successThreshold 和 qualThreshold
+  if(o.qualityRate != null && o.successThreshold == null && o.qualThreshold == null) {
+    CONFIG.successThreshold = Math.min(1, Math.max(0, num(o.qualityRate, 1)));
+    CONFIG.qualThreshold = CONFIG.successThreshold;
+  }
+  // 达标率不能高于成功率（物理约束）
+  if (CONFIG.qualThreshold > CONFIG.successThreshold) {
+    log(`⚠️ 达标率阈值 ${CONFIG.qualThreshold} 高于成功率阈值 ${CONFIG.successThreshold}，已自动调整为 ${CONFIG.successThreshold}`);
+    CONFIG.qualThreshold = CONFIG.successThreshold;
+  }
   if(o.customProbes && Array.isArray(o.customProbes)){
     CONFIG.customProbes = o.customProbes.filter(p => p && p.url).map(p => ({url: String(p.url), expect: String(p.expect || '200')}));
   } else if(o.customProbeUrl != null) {
@@ -66,7 +80,8 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
   restartGithubTimer(); }
 function publicConfig(){ return { intervalSec:CONFIG.intervalSec, timeoutSec:CONFIG.timeoutSec, concurrency:CONFIG.concurrency,
   autoCleanDays:CONFIG.autoCleanDays, maxTotalMs:CONFIG.maxTotalMs, probeUrl:CONFIG.probeUrl, customProbes:CONFIG.customProbes,
-  qualityWindow:CONFIG.qualityWindow, qualityRate:CONFIG.qualityRate, github:{...CONFIG.github} }; }
+  qualityWindow:CONFIG.qualityWindow, successThreshold:CONFIG.successThreshold, qualThreshold:CONFIG.qualThreshold,
+  github:{...CONFIG.github} }; }
 function persistConfig(){ try{fs.mkdirSync(CONFIG.dataDir,{recursive:true});fs.writeFileSync(CONFIG.configFile,JSON.stringify(publicConfig(),null,2));}catch(e){} }
 function restartTimer(){ if(cycleTimer)clearInterval(cycleTimer); cycleTimer=setInterval(runCycle,CONFIG.intervalSec*1000); }
 function restartGithubTimer(){ if(githubTimer)clearInterval(githubTimer);
@@ -322,7 +337,7 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== ★★★ 核心：达标率 + 成功率 双维优质判定 ★★★ ====================
+// ==================== ★★★ 核心：独立阈值优质判定 ★★★ ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
   if(!recent.length)return {
@@ -366,7 +381,7 @@ function computeQuality(points){
 
   const enough = recent.length >= CONFIG.qualityWindow;
   // ★★★ 优质 = 样本充足 && 成功率≥阈值 && 达标率≥阈值 ★★★
-  const quality = enough && rate >= CONFIG.qualityRate && qualRate >= CONFIG.qualityRate;
+  const quality = enough && rate >= CONFIG.successThreshold && qualRate >= CONFIG.qualThreshold;
 
   return { quality, rate, qualRate, avgTotal, avgTcp, avgTls, avgHttp, samples: recent.length };
 }
@@ -448,11 +463,13 @@ function buildState(){
           avgTcp:p.avgTcp,avgTls:p.avgTls,avgHttp:p.avgHttp})) }; });
     const online=items.filter(i=>i.latest&&i.latest.ok).length; const quality=items.filter(i=>i.quality.quality).length;
     return{ version:VERSION, checking:state.checking,progress:{...state.progress},lastCycle:state.lastCycle,intervalSec:CONFIG.intervalSec,
-      config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,qualityRate:CONFIG.qualityRate,autoCleanDays:CONFIG.autoCleanDays,customProbes:CONFIG.customProbes,concurrency:CONFIG.concurrency},
+      config:{maxTotalMs:CONFIG.maxTotalMs,qualityWindow:CONFIG.qualityWindow,
+        successThreshold:CONFIG.successThreshold, qualThreshold:CONFIG.qualThreshold,
+        autoCleanDays:CONFIG.autoCleanDays,customProbes:CONFIG.customProbes,concurrency:CONFIG.concurrency},
       github:{configured:!!(CONFIG.github.token&&CONFIG.github.repo),auto:CONFIG.github.auto,lastUpload:state.github.lastUpload,lastError:state.github.lastError,uploadIntervalMin:CONFIG.github.uploadIntervalMin},
       summary:{total:items.length,online,quality,offline:items.length-online},items };
   }catch(e){ return{version:VERSION,checking:false,progress:{tested:0,total:0},lastCycle:null,intervalSec:CONFIG.intervalSec,
-    config:{maxTotalMs:0,qualityWindow:10,qualityRate:1,autoCleanDays:7,customProbes:[],concurrency:50},
+    config:{maxTotalMs:0,qualityWindow:10,successThreshold:1,qualThreshold:1,autoCleanDays:7,customProbes:[],concurrency:50},
     github:{configured:false,auto:false,lastUpload:null,lastError:e.message,uploadIntervalMin:0},
     summary:{total:0,online:0,quality:0,offline:0},items:[]}; }
 }
@@ -487,7 +504,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 达标率+成功率 双维优质)`);
+  log(`🚀 服务启动 (${VERSION} 独立阈值)`);
   await refreshCfCidrs(true);
   await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
