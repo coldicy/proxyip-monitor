@@ -1,8 +1,9 @@
 /**
- * Proxy Monitor v33-fix2 (探针平均 + 多探针明细)
- * 总延迟 = 官方 + 所有自定义探针的总延迟平均值
- * 任一探针失败则该次离线；柱状图悬浮显示每个探针的四段明细
- * v33-fix2: computeQuality 中 avgTotal 由 avgTcp+avgTls+avgHttp 重新计算，确保自洽
+ * Proxy Monitor v33-fix5 (达标率 + 成功率 双维优质判定)
+ * 达标 = 在线 && 平均总延迟 ≤ maxTotalMs
+ * 达标率 = 窗口内达标次数 / 窗口大小
+ * 成功率 = 窗口内在线次数 / 窗口大小
+ * 优质 = 样本充足 && 达标率≥阈值 && 成功率≥阈值
  */
 const http = require('http');
 const fs = require('fs');
@@ -10,7 +11,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33-fix2';
+const VERSION = 'v33-fix5';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -271,10 +272,8 @@ async function runCycle(){
             colo:lat.colo,loc:lat.loc,exitIp:lat.exitIp,failReason:lat.failReason,probes:[]};
           let allProbes=[];
           if(lat.ok){
-            // 官方探针
             const offSeg=lat.off;
             allProbes.push({name:'official', ...offSeg});
-            // 自定义探针
             let customOk=true;
             if(CONFIG.customProbes.length){
               const customResults=await probeCustoms(u);
@@ -323,34 +322,40 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== ★★★ 核心修复：质量判定（avgTotal 由分量重新计算，确保自洽）★★★ ====================
+// ==================== ★★★ 核心：达标率 + 成功率 双维优质判定 ★★★ ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
-  if(!recent.length)return{quality:false,rate:0,avgTotal:null,avgTcp:null,avgTls:null,avgHttp:null,samples:0};
-  const oks=recent.filter(p=>p.ok);
-  const rate=oks.length/recent.length;
+  if(!recent.length)return {
+    quality: false, rate: 0, qualRate: 0,
+    avgTotal: null, avgTcp: null, avgTls: null, avgHttp: null, samples: 0
+  };
 
-  // 优先使用同时包含三个分量的点来计算平均值，确保 total = tcp + tls + src
+  // 计算成功率：窗口内在线的比例
+  const oks = recent.filter(p => p.ok);
+  const rate = oks.length / recent.length;
+
+  // 计算达标率：窗口内"在线且总延迟≤上限"的比例
+  let qualRate = rate;
+  if (CONFIG.maxTotalMs > 0) {
+    const qualified = oks.filter(p => p.total != null && p.total <= CONFIG.maxTotalMs);
+    qualRate = qualified.length / recent.length;
+  }
+
+  // 计算平均 TCP/TLS/HTTP（使用同时包含三个分量的点）
   const valid = oks.filter(p =>
     p.avgTcp != null && isFinite(p.avgTcp) &&
     p.avgTls != null && isFinite(p.avgTls) &&
     p.avgHttp != null && isFinite(p.avgHttp)
   );
-
-  let avgTcp=null, avgTls=null, avgHttp=null, avgTotal=null;
+  let avgTcp = null, avgTls = null, avgHttp = null, avgTotal = null;
   if (valid.length > 0) {
     avgTcp = Math.round(valid.reduce((s,p)=>s+p.avgTcp,0)/valid.length);
     avgTls = Math.round(valid.reduce((s,p)=>s+p.avgTls,0)/valid.length);
     avgHttp = Math.round(valid.reduce((s,p)=>s+p.avgHttp,0)/valid.length);
-    // ★ 重新计算总延迟，保证自洽
     avgTotal = avgTcp + avgTls + avgHttp;
   } else {
-    // 降级方案：对于旧数据（没有分量字段），直接平均 total
     const totals = oks.map(p=>p.total).filter(v=>v!=null&&isFinite(v));
-    if (totals.length > 0) {
-      avgTotal = Math.round(totals.reduce((a,b)=>a+b,0)/totals.length);
-    }
-    // 尝试单独平均各分量（可能来自不同的样本集，但作为降级可以接受）
+    if (totals.length > 0) avgTotal = Math.round(totals.reduce((a,b)=>a+b,0)/totals.length);
     const tcps = oks.map(p=>p.avgTcp).filter(v=>v!=null&&isFinite(v));
     const tlss = oks.map(p=>p.avgTls).filter(v=>v!=null&&isFinite(v));
     const https = oks.map(p=>p.avgHttp).filter(v=>v!=null&&isFinite(v));
@@ -359,9 +364,11 @@ function computeQuality(points){
     if (https.length) avgHttp = Math.round(https.reduce((a,b)=>a+b,0)/https.length);
   }
 
-  const enough=recent.length>=CONFIG.qualityWindow;
-  const latOk=CONFIG.maxTotalMs<=0||(avgTotal!=null&&avgTotal<=CONFIG.maxTotalMs);
-  return{quality:enough&&rate>=CONFIG.qualityRate&&latOk,rate,avgTotal,avgTcp,avgTls,avgHttp,samples:recent.length};
+  const enough = recent.length >= CONFIG.qualityWindow;
+  // ★★★ 优质 = 样本充足 && 成功率≥阈值 && 达标率≥阈值 ★★★
+  const quality = enough && rate >= CONFIG.qualityRate && qualRate >= CONFIG.qualityRate;
+
+  return { quality, rate, qualRate, avgTotal, avgTcp, avgTls, avgHttp, samples: recent.length };
 }
 
 // ==================== 清理 ====================
@@ -480,7 +487,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 探针平均+明细)`);
+  log(`🚀 服务启动 (${VERSION} 达标率+成功率 双维优质)`);
   await refreshCfCidrs(true);
   await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
