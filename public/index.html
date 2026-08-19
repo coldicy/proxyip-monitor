@@ -7,12 +7,12 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
-/* 列宽：选择框 | 节点(弹性) | 统计图 | 总 | TCP | TLS | HTTP | 达标率 | 成功率 | 状态 | 操作(右) */
---cols:36px minmax(0,0.6fr) 160px 68px 68px 68px 68px 56px 56px 58px 36px}
+/* ★ 列宽：复选框 | 节点(弹性) | 统计图 | 总/TCP/TLS/HTTP/状态(均匀) | 达标率 | 成功率 | 操作 */
+--cols:32px minmax(100px,0.9fr) 145px repeat(4,1fr) 52px 52px 32px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
-.shell{max-width:1440px;margin:0 auto;padding:26px 22px 60px}
+.shell{max-width:1440px;margin:0 auto;padding:26px 18px 60px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .brand{display:flex;align-items:center;gap:14px}
 .logo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:linear-gradient(135deg,rgba(90,209,240,.22),rgba(45,212,191,.16));border:1px solid rgba(90,209,240,.35)}
@@ -51,18 +51,17 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .in:focus{border-color:rgba(90,209,240,.5)}
 #fSearch{width:200px}
 .flabel{color:var(--muted);font-size:.76rem;font-weight:700}
-.listhead,.row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center}
-.listhead{padding:0 8px 8px 8px;color:var(--muted);font-size:.62rem;font-weight:800;letter-spacing:.04em}
+.listhead,.row{display:grid;grid-template-columns:var(--cols);gap:8px;align-items:center}
+.listhead{padding:0 6px 8px 6px;color:var(--muted);font-size:.6rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .listhead .r,.num{text-align:right}
 .listhead .sel{text-align:center}
-.listhead .op{text-align:center;font-size:.7rem}
+.listhead .op{text-align:center}
 .list{display:flex;flex-direction:column;gap:10px}
-.row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 8px;transition:border-color .15s,transform .15s}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 6px;transition:border-color .15s,transform .15s}
 .row:hover{border-color:var(--line2);transform:translateY(-1px)}
 .row.quality{border-color:rgba(61,220,151,.5);box-shadow:inset 3px 0 0 var(--ok)}
 .row.online{border-color:rgba(90,209,240,.5);box-shadow:inset 3px 0 0 var(--accent)}
 .row.offline{border-color:rgba(255,107,129,.5);box-shadow:inset 3px 0 0 var(--err);opacity:.75}
-.row.quality:hover,.row.online:hover,.row.offline:hover{border-color:var(--line2)}
 .sel{display:flex;align-items:center;justify-content:center}
 .sel input{appearance:none;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);background:transparent;cursor:pointer;opacity:0;transition:.15s;margin:0;flex:none}
 .sel input:hover{border-color:var(--accent)}
@@ -100,7 +99,8 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
-.srcval{color:#c9f3ff;font-weight:700;max-width:34ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srcval{color:#c9f3ff;font-weight:700;max-width:32ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ★ 统计图：左对齐，柱子自适应 */
 .bars-wrap{width:100%;display:flex;align-items:flex-end;height:24px;justify-content:flex-start}
 .bars{display:flex;align-items:flex-end;gap:2px;width:100%;height:100%;max-width:100%}
 .bars i{flex:1;min-width:2px;border-radius:2px;cursor:pointer;transition:.15s}
@@ -146,7 +146,7 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
 .help th{color:var(--text)}
 #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:var(--panel2);border:1px solid rgba(90,209,240,.35);border-radius:999px;padding:12px 18px;font-weight:700;transition:.25s;z-index:99}
 #toast.show{opacity:1;transform:translate(-50%,0)}#toast.err{border-color:rgba(255,107,129,.4);color:#ffd3da}
-@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.listhead{display:none}.row{grid-template-columns:36px 1fr 1fr;gap:8px}}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.listhead{display:none}.row{grid-template-columns:32px 1fr 1fr;gap:8px}}
 </style>
 </head>
 <body>
@@ -315,7 +315,7 @@ function pointGood(p){ var M=cfgNum('maxTotalMs',0);
   if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
 
 function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
-  if(!rec.length)return '<span style="color:var(--muted);font-size:.68rem">--</span>';
+  if(!rec.length)return '<span style="color:var(--muted);font-size:.65rem">--</span>';
   var totals=rec.filter(function(p){return p.ok&&p.total!=null;}).map(function(p){return p.total;});
   var max=Math.max(100, totals.length?Math.max.apply(null,totals):100);
   return '<div class="bars-wrap"><div class="bars">'+rec.map(function(p){ var h,cls,tipParts=[];
