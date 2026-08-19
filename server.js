@@ -1,7 +1,9 @@
 /**
- * Proxy Monitor v33-fix6 (达标率 + 成功率 独立阈值)
- * 优质 = 样本充足 && 成功率≥阈值 && 达标率≥阈值
- * 达标率自动限制 ≤ 成功率（离线不计达标）
+ * Proxy Monitor v33-fix7 (界面优化 + 复制/上传格式简化)
+ * 1. 减小来源/最近标签与值的间距
+ * 2. 列名更明确：平均总延迟、平均TCP、平均TLS、平均HTTP
+ * 3. 延迟柱 → 优质窗口延迟统计图
+ * 4. 复制/上传格式简化为：IP#地区 | 总延迟 | TCP | TLS | HTTP
  */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +11,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v33-fix6';
+const VERSION = 'v33-fix7';
 
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -23,9 +25,7 @@ const CONFIG = {
   autoCleanDays: parseFloat(process.env.AUTO_CLEAN_DAYS || '7'),
   maxTotalMs: parseFloat(process.env.MAX_TOTAL_MS || '0'),
   qualityWindow: parseInt(process.env.QUALITY_WINDOW || '10', 10),
-  // 成功率阈值 (原 qualityRate)
-  successThreshold: parseFloat(process.env.QUALITY_RATE || '1'),
-  // 达标率阈值 (新增)
+  successThreshold: parseFloat(process.env.SUCCESS_THRESHOLD || '1'),
   qualThreshold: parseFloat(process.env.QUAL_THRESHOLD || '1'),
   github: { token: process.env.GITHUB_TOKEN || '', repo: process.env.GITHUB_REPO || '',
     path: process.env.GITHUB_PATH || 'proxyip', branch: process.env.GITHUB_BRANCH || 'main',
@@ -53,16 +53,12 @@ function setConfig(o){ if(!o)return; const num=(v,d)=>{const n=parseFloat(v);ret
   if(o.maxTotalMs!=null)CONFIG.maxTotalMs=num(o.maxTotalMs,0);
   if(o.probeUrl)CONFIG.probeUrl=String(o.probeUrl);
   if(o.qualityWindow!=null)CONFIG.qualityWindow=Math.max(1,Math.round(num(o.qualityWindow,CONFIG.qualityWindow)));
-  // 成功率阈值
   if(o.successThreshold != null) CONFIG.successThreshold = Math.min(1, Math.max(0, num(o.successThreshold, CONFIG.successThreshold)));
-  // 达标率阈值
   if(o.qualThreshold != null) CONFIG.qualThreshold = Math.min(1, Math.max(0, num(o.qualThreshold, CONFIG.qualThreshold)));
-  // 兼容旧配置：如果只传了 qualityRate，则同时设置 successThreshold 和 qualThreshold
   if(o.qualityRate != null && o.successThreshold == null && o.qualThreshold == null) {
     CONFIG.successThreshold = Math.min(1, Math.max(0, num(o.qualityRate, 1)));
     CONFIG.qualThreshold = CONFIG.successThreshold;
   }
-  // 达标率不能高于成功率（物理约束）
   if (CONFIG.qualThreshold > CONFIG.successThreshold) {
     log(`⚠️ 达标率阈值 ${CONFIG.qualThreshold} 高于成功率阈值 ${CONFIG.successThreshold}，已自动调整为 ${CONFIG.successThreshold}`);
     CONFIG.qualThreshold = CONFIG.successThreshold;
@@ -110,7 +106,6 @@ function curlFailText(code){ if(code===28)return '超时'; if(code===7)return '�
 function parseCurlJson(o){if(!o)return null;const l=o.trim().split('\n');try{return JSON.parse(l[l.length-1]);}catch(e){return null;}}
 function parseTrace(t){const p={};String(t||'').replace(/\r/g,'').split('\n').forEach(l=>{const i=l.indexOf('=');if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim();});return p;}
 function readBody(q){return new Promise(r=>{let d='';q.on('data',c=>d+=c);q.on('end',()=>r(d));});}
-/* 从 curl -w 原始值构建自洽四段，确保 total = tcp + tls + src */
 function buildSegs(w){ if(!w)return null;
   const tcp=Math.round((w.tcp||0)*1000);
   const tls=Math.round(((w.tls||0)-(w.tcp||0))*1000);
@@ -215,7 +210,7 @@ async function discover(){
   return added;
 }
 
-// ==================== 官方探针(自洽四段+元数据) ====================
+// ==================== 官方探针 ====================
 async function probeLatency(u){
   const point={t:Date.now(),ok:false,off:null,colo:null,loc:null,exitIp:null,failReason:null};
   if(!u.ip){ point.failReason='无有效IP'; return point; }
@@ -233,7 +228,7 @@ async function probeLatency(u){
   return point;
 }
 
-// ==================== 自定义探针(各自自洽四段) ====================
+// ==================== 自定义探针 ====================
 async function probeCustoms(u){
   const results=[]; const ms=CONFIG.timeoutSec*1000;
   for(const p of CONFIG.customProbes){
@@ -254,7 +249,7 @@ async function probeCustoms(u){
   return results;
 }
 
-// ==================== 辅助：计算多个探针的平均值 (自洽) ====================
+// ==================== 辅助：计算多个探针的平均值 ====================
 function averageProbes(probes){
   if(!probes.length)return null;
   const tcp = Math.round(probes.reduce((s,p)=>s+p.tcp,0)/probes.length);
@@ -337,26 +332,20 @@ async function runCycle(){
   }finally{ state.checking=false; state.abort=false; }
 }
 
-// ==================== ★★★ 核心：独立阈值优质判定 ★★★ ====================
+// ==================== 优质判定 ====================
 function computeQuality(points){
   const recent=(points||[]).slice(-CONFIG.qualityWindow);
   if(!recent.length)return {
     quality: false, rate: 0, qualRate: 0,
     avgTotal: null, avgTcp: null, avgTls: null, avgHttp: null, samples: 0
   };
-
-  // 计算成功率：窗口内在线的比例
   const oks = recent.filter(p => p.ok);
   const rate = oks.length / recent.length;
-
-  // 计算达标率：窗口内"在线且总延迟≤上限"的比例
   let qualRate = rate;
   if (CONFIG.maxTotalMs > 0) {
     const qualified = oks.filter(p => p.total != null && p.total <= CONFIG.maxTotalMs);
     qualRate = qualified.length / recent.length;
   }
-
-  // 计算平均 TCP/TLS/HTTP（使用同时包含三个分量的点）
   const valid = oks.filter(p =>
     p.avgTcp != null && isFinite(p.avgTcp) &&
     p.avgTls != null && isFinite(p.avgTls) &&
@@ -378,11 +367,8 @@ function computeQuality(points){
     if (tlss.length) avgTls = Math.round(tlss.reduce((a,b)=>a+b,0)/tlss.length);
     if (https.length) avgHttp = Math.round(https.reduce((a,b)=>a+b,0)/https.length);
   }
-
   const enough = recent.length >= CONFIG.qualityWindow;
-  // ★★★ 优质 = 样本充足 && 成功率≥阈值 && 达标率≥阈值 ★★★
   const quality = enough && rate >= CONFIG.successThreshold && qualRate >= CONFIG.qualThreshold;
-
   return { quality, rate, qualRate, avgTotal, avgTcp, avgTls, avgHttp, samples: recent.length };
 }
 
@@ -405,14 +391,22 @@ async function removeUnits(ids){
   return removed;
 }
 
-// ==================== GitHub ====================
-function formatNodeLine(ipPort,region,q){
-  const total=q.avgTotal!=null?q.avgTotal+'ms':'?ms';
-  const tcp=q.avgTcp!=null?q.avgTcp+'ms':'?ms';
-  const tls=q.avgTls!=null?q.avgTls+'ms':'?ms';
-  const http=q.avgHttp!=null?q.avgHttp+'ms':'?ms';
-  return `${ipPort}#${region} | avg_total=${total} | avg_tcp=${tcp} | avg_tls=${tls} | avg_http=${http}`;
+// ==================== ★★★ 格式简化（复制 & GitHub 上传）★★★ ====================
+// 新格式：IP#地区 | 总延迟 | TCP | TLS | HTTP
+function formatNodeLine(ipPort, region, q){
+  const total = q.avgTotal != null ? q.avgTotal + 'ms' : '?ms';
+  const tcp   = q.avgTcp != null ? q.avgTcp + 'ms' : '?ms';
+  const tls   = q.avgTls != null ? q.avgTls + 'ms' : '?ms';
+  const http  = q.avgHttp != null ? q.avgHttp + 'ms' : '?ms';
+  return `${ipPort}#${region} | ${total} | ${tcp} | ${tls} | ${http}`;
 }
+// 复制节点格式（同上传）
+function lineOf(i){
+  const ipPort = i.ip + ':' + i.port;
+  const region = i.loc || i.colo || 'Unknown';
+  return formatNodeLine(ipPort, region, i.quality);
+}
+
 function buildUploadData(){
   const seen=new Map();
   state.units.filter(u=>u.ip).forEach(u=>{ const hist=state.history[u.id]||[]; const latest=hist.length?hist[hist.length-1]:null;
@@ -504,7 +498,7 @@ try{setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile,'utf8')));}catch(e){}
 ensureIpFile(); loadData();
 server.listen(CONFIG.port,async()=>{
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 独立阈值)`);
+  log(`🚀 服务启动 (${VERSION} 界面优化)`);
   await refreshCfCidrs(true);
   await discover(); state.units=Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });

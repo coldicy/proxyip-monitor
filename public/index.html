@@ -75,8 +75,8 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .capsule.cf{background:rgba(255,165,0,.15);color:#ffc46b;border:1px solid rgba(255,165,0,.35)}
 .capsule.proxy{background:rgba(61,220,151,.14);color:#b8f5da;border:1px solid rgba(61,220,151,.3)}
 .subline{display:flex;flex-direction:column;gap:3px;margin-top:4px}
-.sline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.llabel{font-style:normal;color:var(--muted);font-size:.62rem;letter-spacing:.03em;flex:none;min-width:48px}
+.sline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.llabel{font-style:normal;color:var(--muted);font-size:.62rem;letter-spacing:.03em;flex:none;min-width:auto}
 .kv{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;min-width:0}
 .kv em{font-style:normal;color:var(--muted);font-size:.62rem;letter-spacing:.03em;flex:none}
 .kv b{color:#d9edfb;font-size:.72rem;font-weight:700;font-variant-numeric:tabular-nums}
@@ -84,6 +84,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
 .kv b.err{color:var(--err) !important;font-weight:800}
+.srcval{color:#c9f3ff;font-size:.72rem;font-weight:700;max-width:40ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
 .bars i{width:6px;border-radius:2px;cursor:pointer;transition:.15s;min-height:3px}
 .bars i:hover{filter:brightness(1.4)}
@@ -183,11 +184,11 @@ textarea#ipText{width:100%;min-height:260px;background:var(--panel);border:1px s
   <div class="listhead">
     <span class="sel"><input type="checkbox" id="selectAll" title="全选/取消"></span>
     <span>节点 (IP)</span>
-    <span>延迟柱</span>
-    <span class="r">总</span>
-    <span class="r">TCP</span>
-    <span class="r">TLS</span>
-    <span class="r">HTTP</span>
+    <span>优质窗口延迟统计图</span>
+    <span class="r">平均总延迟</span>
+    <span class="r">平均TCP</span>
+    <span class="r">平均TLS</span>
+    <span class="r">平均HTTP</span>
     <span class="r">达标率</span>
     <span class="r">成功率</span>
     <span class="r">状态</span>
@@ -341,12 +342,13 @@ function getView(){
     if(s==='qualRate')return b.quality.qualRate-a.quality.qualRate;
     return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
   return items; }
+// ★★★ 复制格式已简化（调用 server 端的 formatNodeLine 逻辑一致，但前端直接实现以保持一致） ★★★
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
   var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
   var tcp=i.quality.avgTcp!=null?i.quality.avgTcp+'ms':'?ms';
   var tls=i.quality.avgTls!=null?i.quality.avgTls+'ms':'?ms';
   var http=i.quality.avgHttp!=null?i.quality.avgHttp+'ms':'?ms';
-  return ipPort+'#'+region+' | avg_total='+total+' | avg_tcp='+tcp+' | avg_tls='+tls+' | avg_http='+http; }
+  return ipPort+'#'+region+' | '+total+' | '+tcp+' | '+tls+' | '+http; }
 function updateRemoveBtn(){ var b=el('btnRemove');
   if(SELECTED.size>0){b.style.display='';b.innerText='🗑️ 删除所选 ('+SELECTED.size+')';} else b.style.display='none';
   el('list').classList.toggle('selecting',SELECTED.size>0); }
@@ -385,7 +387,7 @@ function render(){
     var on=i.latest&&i.latest.ok;
     var badge=i.quality.quality?'<span class="badge q">优质</span>':(on?'<span class="badge on">在线</span>':'<span class="badge off">离线</span>');
     var sv=srcText(i);
-    var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" style="color:#c9f3ff;font-size:.72rem;font-weight:700;max-width:40ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
+    var lines='<div class="sline"><em class="llabel">来源</em><b class="srcval" title="'+esc(sv)+'">'+esc(sv)+'</b>'+
       '<span class="kv"><em>引入</em><b class="time">'+fmtDT(i.firstSeen)+'</b></span></div>';
     var l2='';
     if(i.colo)l2+='<span class="kv"><em>数据中心</em><b class="colo">'+esc(i.colo)+'</b></span>';
