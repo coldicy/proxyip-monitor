@@ -7,7 +7,6 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
-/* 列宽：选择框 节点 统计图(固定) 总 TCP TLS HTTP 达标率 成功率 状态 */
 --cols:36px minmax(0,1.3fr) 120px 62px 62px 62px 62px 56px 56px 56px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
@@ -77,15 +76,23 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .capsule.proxy{background:rgba(61,220,151,.14);color:#b8f5da;border:1px solid rgba(61,220,151,.3)}
 .subline{display:flex;flex-direction:column;gap:3px;margin-top:4px}
 .sline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.llabel{font-style:normal;color:var(--muted);font-size:.62rem;letter-spacing:.03em;flex:none;min-width:auto}
+/* ★★★ 统一字号：所有标签和值均使用 0.7rem ★★★ */
+.sline .llabel,
+.sline .kv b,
+.sline .srcval,
+.sline b.time,
+.sline b.err {
+  font-size: 0.7rem;
+}
+.llabel{font-style:normal;color:var(--muted);letter-spacing:.03em;flex:none;min-width:auto}
 .kv{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;min-width:0}
 .kv em{font-style:normal;color:var(--muted);font-size:.62rem;letter-spacing:.03em;flex:none}
-.kv b{color:#d9edfb;font-size:.72rem;font-weight:700;font-variant-numeric:tabular-nums}
-/* ★ 统一最近检测时间和淘汰原因的字号 ★ */
-.kv b.time{color:var(--muted);font-weight:600;font-size:.68rem}
-.kv b.err{color:var(--err) !important;font-weight:800;font-size:.68rem}
-.srcval{color:#c9f3ff;font-size:.72rem;font-weight:700;max-width:38ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* ★ 优质窗口统计图：固定宽度，柱子自适应 ★ */
+.kv b{color:#d9edfb;font-weight:700;font-variant-numeric:tabular-nums}
+/* 特殊颜色保留 */
+.kv b.colo{color:var(--accent)}
+.kv b.time{color:var(--muted);font-weight:600}
+.kv b.err{color:var(--err) !important;font-weight:800}
+.srcval{color:#c9f3ff;font-weight:700;max-width:38ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bars-wrap{width:100%;display:flex;align-items:flex-end;height:24px}
 .bars{display:flex;align-items:flex-end;gap:2px;width:100%;height:100%}
 .bars i{flex:1;min-width:2px;border-radius:2px;cursor:pointer;transition:.15s}
@@ -301,7 +308,6 @@ function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.
 function pointGood(p){ var M=cfgNum('maxTotalMs',0);
   if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
 
-/* ★ 优化：统计图柱子自适应，固定容器宽度 ★ */
 function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
   if(!rec.length)return '<span style="color:var(--muted);font-size:.72rem">--</span>';
   var totals=rec.filter(function(p){return p.ok&&p.total!=null;}).map(function(p){return p.total;});
@@ -396,7 +402,6 @@ function render(){
     if(i.loc)l2+='<span class="kv"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp)l2+='<span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(l2)lines+='<div class="sline">'+l2+'</div>';
-    // ★ 修改标签为“最近检测时间” ★
     if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近检测时间</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
     if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><em class="llabel">淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></div>';
     var ratePct=Math.round(i.quality.rate*100);
