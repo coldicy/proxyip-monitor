@@ -7,7 +7,8 @@
 <style>
 :root{--bg:#050b13;--panel:rgba(13,27,42,.72);--panel2:rgba(9,20,32,.88);--line:rgba(148,184,220,.14);--line2:rgba(148,184,220,.24);
 --text:#eaf6ff;--muted:#7f97ac;--accent:#5ad1f0;--accent2:#2dd4bf;--ok:#3ddc97;--err:#ff6b81;--warn:#ffc46b;--r:18px;--gap:14px;
---cols:36px minmax(0,1.6fr) minmax(90px,1fr) 52px 52px 52px 52px 56px 56px 60px}
+/* 列宽：选择框 节点 统计图(固定) 总 TCP TLS HTTP 达标率 成功率 状态 */
+--cols:36px minmax(0,1.3fr) 120px 62px 62px 62px 62px 56px 56px 56px}
 *{box-sizing:border-box;margin:0}html,body{height:100%}
 body{font-family:Inter,'PingFang SC','Microsoft YaHei',system-ui,sans-serif;color:var(--text);background:var(--bg);
 background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),transparent 60%),radial-gradient(900px 460px at -10% 110%,rgba(45,212,191,.07),transparent 60%);font-size:14px}
@@ -51,7 +52,7 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 #fSearch{width:200px}
 .flabel{color:var(--muted);font-size:.76rem;font-weight:700}
 .listhead,.row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center}
-.listhead{padding:0 18px 8px;color:var(--muted);font-size:.65rem;font-weight:800;letter-spacing:.05em}
+.listhead{padding:0 18px 8px;color:var(--muted);font-size:.65rem;font-weight:800;letter-spacing:.04em}
 .listhead .r,.num{text-align:right}
 .list{display:flex;flex-direction:column;gap:10px}
 .row{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 18px;transition:border-color .15s,transform .15s}
@@ -80,13 +81,14 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;min-width:0}
 .kv em{font-style:normal;color:var(--muted);font-size:.62rem;letter-spacing:.03em;flex:none}
 .kv b{color:#d9edfb;font-size:.72rem;font-weight:700;font-variant-numeric:tabular-nums}
-.kv b.hi{color:var(--accent);font-size:.76rem}
-.kv b.colo{color:var(--accent)}
-.kv b.time{color:var(--muted);font-weight:600}
-.kv b.err{color:var(--err) !important;font-weight:800}
-.srcval{color:#c9f3ff;font-size:.72rem;font-weight:700;max-width:40ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
-.bars i{width:6px;border-radius:2px;cursor:pointer;transition:.15s;min-height:3px}
+/* ★ 统一最近检测时间和淘汰原因的字号 ★ */
+.kv b.time{color:var(--muted);font-weight:600;font-size:.68rem}
+.kv b.err{color:var(--err) !important;font-weight:800;font-size:.68rem}
+.srcval{color:#c9f3ff;font-size:.72rem;font-weight:700;max-width:38ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ★ 优质窗口统计图：固定宽度，柱子自适应 ★ */
+.bars-wrap{width:100%;display:flex;align-items:flex-end;height:24px}
+.bars{display:flex;align-items:flex-end;gap:2px;width:100%;height:100%}
+.bars i{flex:1;min-width:2px;border-radius:2px;cursor:pointer;transition:.15s}
 .bars i:hover{filter:brightness(1.4)}
 .bars i.g{background:var(--ok)}.bars i.r{background:var(--err)}.bars i.f{background:rgba(148,184,220,.25)}
 .num{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
@@ -299,13 +301,14 @@ function cfgNum(k,d){ return (STATE&&STATE.config&&STATE.config[k]!=null)?STATE.
 function pointGood(p){ var M=cfgNum('maxTotalMs',0);
   if(!p.ok)return false; if(M>0&&(p.total==null||p.total>M))return false; return true; }
 
+/* ★ 优化：统计图柱子自适应，固定容器宽度 ★ */
 function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]).slice(-N);
-  if(!rec.length)return '<span style="color:var(--muted)">--</span>';
+  if(!rec.length)return '<span style="color:var(--muted);font-size:.72rem">--</span>';
   var totals=rec.filter(function(p){return p.ok&&p.total!=null;}).map(function(p){return p.total;});
   var max=Math.max(100, totals.length?Math.max.apply(null,totals):100);
-  return '<span class="bars">'+rec.map(function(p){ var h,cls,tipParts=[];
+  return '<div class="bars-wrap"><div class="bars">'+rec.map(function(p){ var h,cls,tipParts=[];
     if(!p.ok){ h=4; cls='f'; tipParts.push('❌ 失败'); }
-    else { var t=p.total!=null?p.total:0; h=Math.max(4,Math.round(t/max*22)); cls=pointGood(p)?'g':'r';
+    else { var t=p.total!=null?p.total:0; h=Math.max(3,Math.round(t/max*22)); cls=pointGood(p)?'g':'r';
       tipParts.push('平均总='+t+'ms');
       if(p.probes && p.probes.length){
         p.probes.forEach(function(probe){
@@ -315,7 +318,7 @@ function barsHtml(recent){ var N=cfgNum('qualityWindow',10); var rec=(recent||[]
     }
     var tip=tipParts.join('\n');
     return '<i class="'+cls+'" style="height:'+h+'px" data-tip="'+esc(tip)+'"></i>';
-  }).join('')+'</span>'; }
+  }).join('')+'</div></div>'; }
 
 function srcText(i){ if(i.srcKind==='dom')return i.srcName||''; if(i.srcKind==='url')return i.srcName||''; return '配置文件IP'; }
 function kindCapsule(k){ if(k==='cf')return '<span class="capsule cf">CloudflareIP</span>';
@@ -342,7 +345,6 @@ function getView(){
     if(s==='qualRate')return b.quality.qualRate-a.quality.qualRate;
     return (a.quality.avgTotal!=null?a.quality.avgTotal:99999)-(b.quality.avgTotal!=null?b.quality.avgTotal:99999); });
   return items; }
-// ★★★ 复制格式已简化（调用 server 端的 formatNodeLine 逻辑一致，但前端直接实现以保持一致） ★★★
 function lineOf(i){ var ipPort=i.ip+':'+i.port; var region=i.loc||i.colo||'Unknown';
   var total=i.quality.avgTotal!=null?i.quality.avgTotal+'ms':'?ms';
   var tcp=i.quality.avgTcp!=null?i.quality.avgTcp+'ms':'?ms';
@@ -394,7 +396,8 @@ function render(){
     if(i.loc)l2+='<span class="kv"><em>地区</em><b>'+flag(i.loc)+' '+esc(i.loc)+'</b></span>';
     if(i.exitIp)l2+='<span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(l2)lines+='<div class="sline">'+l2+'</div>';
-    if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
+    // ★ 修改标签为“最近检测时间” ★
+    if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近检测时间</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
     if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><em class="llabel">淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></div>';
     var ratePct=Math.round(i.quality.rate*100);
     var qualPct=Math.round(i.quality.qualRate*100);
