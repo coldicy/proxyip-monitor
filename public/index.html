@@ -98,7 +98,17 @@ background-image:radial-gradient(1100px 500px at 85% -10%,rgba(90,209,240,.09),t
 .kv b{color:#d9edfb;font-weight:700;font-variant-numeric:tabular-nums}
 .kv b.colo{color:var(--accent)}
 .kv b.time{color:var(--muted);font-weight:600}
-.kv b.err{color:var(--err) !important;font-weight:800}
+/* ★★★ 淘汰原因长文本省略 ★★★ */
+.kv b.err {
+  color: var(--err) !important;
+  font-weight: 800;
+  max-width: 32ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: bottom;
+}
 .srcval{color:#c9f3ff;font-weight:700;max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 统计图 */
 .bars-wrap{width:100%;display:flex;align-items:flex-end;height:24px;justify-content:flex-start}
@@ -421,7 +431,7 @@ function render(){
     if(i.exitIp)l2+='<span class="kv"><em>出口</em><b>'+esc(i.exitIp)+'</b></span>';
     if(l2)lines+='<div class="sline">'+l2+'</div>';
     if(i.latest&&i.latest.t)lines+='<div class="sline"><em class="llabel">最近检测时间</em><b class="time">'+fmtDT(i.latest.t)+'</b></div>';
-    if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><em class="llabel">淘汰原因</em><b class="err">'+esc(i.latest.failReason)+'</b></div>';
+    if(!on&&i.latest&&i.latest.failReason)lines+='<div class="sline"><em class="llabel">淘汰原因</em><b class="err" title="'+esc(i.latest.failReason)+'">'+esc(i.latest.failReason)+'</b></div>';
     var ratePct=Math.round(i.quality.rate*100);
     var qualPct=Math.round(i.quality.qualRate*100);
     var rateCls=ratePct>=80?'g':(ratePct>=50?'w':'r');
