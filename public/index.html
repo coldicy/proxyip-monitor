@@ -52,8 +52,10 @@ tbody tr{transition:background .15s ease}
 tbody tr:hover{background:rgba(56,189,248,.055)}
 tbody tr.selected{background:rgba(56,189,248,.09)}
 .ip{font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;letter-spacing:.2px}
-.meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px;color:var(--muted);font-size:11px;align-items:center}
-.meta span{white-space:nowrap}
+.ip-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.meta-col{display:grid;gap:3px;margin-top:6px}
+.meta-line{display:flex;flex-wrap:wrap;gap:7px;color:var(--muted);font-size:11px;align-items:center}
+.meta-line span{white-space:nowrap}
 .tag{padding:2px 7px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:700;white-space:nowrap}
 .tag.cf{color:#7dd3fc;border-color:rgba(125,211,252,.35);background:rgba(14,165,233,.12)}
 .tag.proxy{color:#a7f3d0;border-color:rgba(52,211,153,.35);background:rgba(16,185,129,.12)}
@@ -216,26 +218,19 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
       <ul><li>节点来源：纯 IP / 域名 / URL 列表源。</li><li>优质 = 样本充足 &amp; 成功率 ≥ 阈值 &amp; 达标率 ≥ 阈值 &amp; 测速 ≥ 速度下限。</li><li>每次失败原因随样本持久化，任意一次离线可回溯。</li><li>离线节点的地区/数据中心/出口IP 用最近一次成功样本补齐。</li></ul></section>
       <section id="m2"><h2>2 快速开始</h2><ol><li>⚙️ 设置 → 填写 ip.txt。</li><li>需要真实回源验证时添加自定义源站探针。</li><li>设置延迟上限、速度下限、成功率/达标率阈值。</li><li>💾 保存并重载节点，等待检测与一次性测速完成。</li><li>使用筛选/复制/上传。</li></ol>
       <div class="callout"><p>优质需要样本充足：窗口为 10 时至少 10 次样本后才判定；测速在首次在线时自动完成。</p></div></section>
-      <section id="m3">
-        <h2>3 节点列表格式</h2>
-        <p>在 ⚙️ 设置的 <code>节点列表 ip.txt</code> 中，每行可以写一个节点来源：</p>
-        <pre><code># 这是注释，不会被解析
+      <section id="m3"><h2>3 节点列表格式</h2>
+      <p>在 ⚙️ 设置的 <code>节点列表 ip.txt</code> 中，每行可以写一个节点来源：</p>
+      <pre><code># 这是注释，不会被解析
 1.2.3.4
 1.2.3.4:8443
 example.com
 example.com:443
 https://example.com/proxyip-list.txt</code></pre>
-        <ul>
-          <li>不写端口时，默认使用 <code>443</code>。</li>
-          <li>支持 <code>#</code> 注释；IPv6 不会进入主列表。</li>
-        </ul>
-        <h3>解析与保留机制（重要）</h3>
-        <ul>
-          <li><b>动态解析</b>：每一轮检测开始前，系统都会重新读取该列表。对域名重新做 DNS 解析，对 URL 列表源重新拉取最新内容。</li>
-          <li><b>只增不减</b>：如果域名解析出了新 IP，或列表源增加了新 IP，它们会自动加入监控；<b>如果旧 IP 在最新的解析结果中消失了，它依然会保留在监控列表中继续被检测</b>。</li>
-          <li><b>如何彻底移除</b>：未被解析到的旧 IP，只有在“长期离线触发自动清理”或“在面板中手动删除”时，才会真正从系统中移除并进入屏蔽名单。</li>
-        </ul>
-      </section>
+      <ul><li>不写端口时，默认使用 <code>443</code>。</li><li>支持 <code>#</code> 注释；IPv6 不会进入主列表。</li></ul>
+      <h3>解析与保留机制（重要）</h3>
+      <ul><li><b>动态解析</b>：每一轮检测开始前，系统都会重新读取该列表。对域名重新做 DNS 解析，对 URL 列表源重新拉取最新内容。</li>
+      <li><b>只增不减</b>：如果域名解析出了新 IP，或列表源增加了新 IP，它们会自动加入监控；如果旧 IP 在最新的解析结果中消失了，它依然会保留在监控列表中继续被检测。</li>
+      <li><b>如何彻底移除</b>：未被解析到的旧 IP，只有在“长期离线触发自动清理”或“在面板中手动删除”时，才会真正从系统中移除并进入屏蔽名单。</li></ul></section>
       <section id="m4"><h2>4 核心指标</h2><table class="table-mini">
       <tr><th>指标</th><th>含义</th></tr>
       <tr><td>平均总延迟</td><td>窗口内在线样本总延迟平均 = 官方+自定义探针平均（TCP/TLS/HTTP 同理）。</td></tr>
@@ -247,7 +242,7 @@ https://example.com/proxyip-list.txt</code></pre>
       <li>原理：--resolve 走被测 IP 下载测速 URL（默认 speed.cloudflare.com 20MB 上限），--max-time 10s 时间上限；速度 = 已下载字节 / 耗时，超时截断也得到有效平均速度。</li>
       <li>两阶段执行：延迟阶段（高并发小请求）结束后，再对“本轮在线且需要测速”的节点跑测速阶段。</li>
       <li>独立低并发（默认 1，可配 1-3）+ 每周期配额（默认 20），避免本地带宽争抢；配额外的顺延后续周期。</li>
-      <li>只测一次：成功记录永不自动复测；失败记录仅在本轮在线且间隔 &gt;10 分钟时重试；<b>离线节点完全不测</b>，不浪费性能。</li>
+      <li>只测一次：成功记录永不自动复测；失败记录仅在本轮在线且间隔 &gt;10 分钟时重试；离线节点完全不测，不浪费性能。</li>
       <li>结果持久化在节点上，重启不丢、不重复测。</li>
       <li>优质门槛：速度下限 &gt;0 时，测速不达标或未测速成功的节点不评为优质/不上传。</li>
       <li>手动复测：行内 ⚡ 按钮（用户主动，不受“不复测”限制）。</li></ul>
@@ -258,40 +253,27 @@ https://example.com/proxyip-list.txt</code></pre>
       <li>状态：全部/优质/达标/在线/离线（与徽章一一对应）；速度 ≥（MB/s）；其余同前。</li>
       <li>排序新增“下载速度降序”。</li></ul>
       <h3>表格</h3><ul>
+      <li>节点信息：IP:端口 同行显示身份标签（CloudflareIP/ProxyIP）；下方三行依次为 ① 首次引入时间 + 来源；② 地区(国旗) + 数据中心 + 出口IP（离线时历史补齐）；③ 最近检测时间。</li>
       <li>下载速度列：绿=达标或未设下限；红=低于下限；<code>-</code>=未测速/失败（悬浮看原因与时间）。</li>
       <li>操作：复制 / ⚡复测 / 删除。</li>
-      <li>节点 meta：地区(国旗)/数据中心/出口IP(离线时历史补齐)/最近检测/来源。</li>
       <li>延迟柱：绿=在线达标，黄=在线超上限，红=失败；悬浮红柱看该次精确失败原因。</li></ul>
       <h3>复制格式</h3><pre><code>IP:端口#地区 | 总延迟 | TCP | TLS | HTTP</code></pre>
       <p>📋 复制筛选节点 = 当前筛选+排序结果；只复制优质先选状态=优质或勾选只看优质。</p></section>
-      <section id="m8">
-        <h2>8 设置说明</h2>
-        <table class="table-mini">
-          <tr><th>配置项</th><th>说明</th></tr>
-          <tr><td>启用节点测速</td><td>关闭后不自动测速，且优质判定忽略速度下限。</td></tr>
-          <tr><td>优质下载速度下限 (MB/s)</td><td>0=不限；&gt;0 时测速达标才计入优质/上传。</td></tr>
-          <tr><td>测速并发 (1-3)</td><td>独立于延迟并发，默认 1，避免本地带宽争抢。</td></tr>
-          <tr><td>每周期测速配额</td><td>默认 20；新节点多时顺延后续周期消化。</td></tr>
-          <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
-          <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
-          <tr><td>达标率阈值 / 成功率阈值</td><td>达标率不能高于成功率，否则后端会自动将其拉平。</td></tr>
-          <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/探针/GitHub 同前。</td></tr>
-        </table>
-        <h3>底部两个保存按钮的区别</h3>
-        <table class="table-mini">
-          <tr><th>按钮</th><th>作用范围</th><th>适用场景</th></tr>
-          <tr>
-            <td><b>💾 保存配置</b></td>
-            <td>仅保存上方的<b>运行参数</b>（间隔、阈值、测速、GitHub等）。</td>
-            <td>只想调整运行参数，不修改下方 <code>ip.txt</code> 节点列表时使用。</td>
-          </tr>
-          <tr>
-            <td><b>💾 保存并重载节点</b></td>
-            <td>保存<b>运行参数</b> + 保存下方<b>节点列表</b>，并立刻触发一次节点发现。</td>
-            <td>当你新增、修改或删除了下方 <code>ip.txt</code> 中的 IP/域名/URL 时，<b>必须点此按钮</b>才能让新节点立刻生效。</td>
-          </tr>
-        </table>
-      </section>
+      <section id="m8"><h2>8 设置说明</h2><table class="table-mini">
+      <tr><th>配置项</th><th>说明</th></tr>
+      <tr><td>启用节点测速</td><td>关闭后不自动测速，且优质判定忽略速度下限。</td></tr>
+      <tr><td>优质下载速度下限 (MB/s)</td><td>0=不限；&gt;0 时测速达标才计入优质/上传。</td></tr>
+      <tr><td>测速并发 (1-3)</td><td>独立于延迟并发，默认 1，避免本地带宽争抢。</td></tr>
+      <tr><td>每周期测速配额</td><td>默认 20；新节点多时顺延后续周期消化。</td></tr>
+      <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
+      <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
+      <tr><td>达标率阈值 / 成功率阈值</td><td>达标率不能高于成功率，否则后端会自动将其拉平。</td></tr>
+      <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/探针/GitHub 同前。</td></tr></table>
+      <h3>底部两个保存按钮的区别</h3>
+      <table class="table-mini">
+      <tr><th>按钮</th><th>作用范围</th><th>适用场景</th></tr>
+      <tr><td><b>💾 保存配置</b></td><td>仅保存上方的<b>运行参数</b>（间隔、阈值、测速、GitHub等）。</td><td>只想调整运行参数，不修改下方 <code>ip.txt</code> 节点列表时使用。</td></tr>
+      <tr><td><b>💾 保存并重载节点</b></td><td>保存<b>运行参数</b> + 保存下方<b>节点列表</b>，并立刻触发一次节点发现。</td><td>当你新增、修改或删除了下方 <code>ip.txt</code> 中的 IP/域名/URL 时，<b>必须点此按钮</b>才能让新节点立刻生效。</td></tr></table></section>
       <section id="m9"><h2>9 GitHub 同步</h2><p>上传 <code>前缀_all.txt</code> 与按地区拆分文件；行格式同复制格式；支持手动/变化自动/定时上传。</p></section>
       <section id="m10"><h2>10 删除与屏蔽</h2><p>手动删除/自动清理均进屏蔽记录；清空记录 = 解除全部屏蔽。</p></section>
       <section id="m11"><h2>11 常见问题</h2>
@@ -352,7 +334,7 @@ https://example.com/proxyip-list.txt</code></pre>
     <div class="field"><label class="check" style="padding-top:8px;"><input id="cfg_github_auto" type="checkbox" /> 优质列表变化时自动上传</label></div>
   </div>
   <div class="section-title">节点列表 ip.txt</div>
-  <p class="muted" style="margin-bottom: 8px;">支持纯IP、域名、URL列表源。系统每轮会重新解析，且历史解析出的IP会保留（只增不减）。修改后请点击下方「保存并重载节点」。</p>
+  <p class="muted" style="margin-bottom:8px;">支持纯IP、域名、URL列表源。系统每轮会重新解析，且历史解析出的IP会保留（只增不减）。修改后请点击下方「保存并重载节点」。</p>
   <textarea id="ipContent" class="code-area" spellcheck="false" placeholder="# 每行: 纯IP / IP:端口 / 域名 / 域名:端口 / http(s)列表源"></textarea>
   <div class="modal-foot">
     <button id="btnSaveConfig" class="btn">💾 保存配置</button>
@@ -408,19 +390,20 @@ return `<td class="metric muted" title="尚未测速（首次在线时自动一�
 
 function barsHtml(item){const win=qualityWindow();const recent=(item.recent||[]).slice(-win);if(!recent.length)return '<span class="chart-empty">暂无</span>';const totals=recent.filter(p=>p.ok&&p.total!=null).map(p=>p.total);const limit=DATA.state?.config?.maxTotalMs||0;const max=Math.max(100,limit,...totals);return recent.map((p,idx)=>{let cls="bar";let h=7;if(p.ok&&p.total!=null){h=Math.max(8,Math.min(42,Math.round((p.total/max)*42)));if(limit>0&&p.total<=limit)cls+=" ok";else cls+=" warn";}else{cls+=" fail";h=8;}return `<span class="${cls}" style="height:${h}px" data-id="${escapeHtml(item.id)}" data-idx="${idx}"></span>`;}).join("");}
 
-function rowHtml(item){const q=item.quality||{};const latest=item.latest||{};const win=qualityWindow();const hasSamples=(q.samples||0)>0;const kind=item.ipKind||"unknown";const kindCls=kind==="cf"?"cf":kind==="proxy"?"proxy":"unknown";const kindTxt=kind==="cf"?"CloudflareIP":kind==="proxy"?"ProxyIP":"未知";const recentCount=(item.recent||[]).slice(-win).length;const m=effectiveMeta(item);
+function rowHtml(item){const q=item.quality||{};const latest=item.latest||{};const hasSamples=(q.samples||0)>0;const kind=item.ipKind||"unknown";const kindCls=kind==="cf"?"cf":kind==="proxy"?"proxy":"unknown";const kindTxt=kind==="cf"?"CloudflareIP":kind==="proxy"?"ProxyIP":"未知";const m=effectiveMeta(item);
 const qualCell=hasSamples?fmtPct(q.qualRate):fmtPct(null);const sucCell=hasSamples?fmtPct(q.rate):fmtPct(null);
 const qualCls=hasSamples?rateClass(q.qualRate,DATA.state?.config?.qualThreshold):"";const sucCls=hasSamples?rateClass(q.rate,DATA.state?.config?.successThreshold):"";
 return `<tr class="${SELECTED.has(item.id)?"selected":""}" data-row-id="${escapeHtml(item.id)}">
 <td><input type="checkbox" data-id="${escapeHtml(item.id)}" ${SELECTED.has(item.id)?"checked":""} /></td>
-<td><div class="ip">${escapeHtml(item.ip)}:${item.port}</div><div class="meta">
-<span class="tag ${kindCls}">${kindTxt}</span>
-<span title="${m.loc.hist?"地区（历史样本补齐）":"地区"}">${flagEmoji(m.loc.v)} ${escapeHtml(m.loc.v||"-")}</span>
-<span title="${m.colo.hist?"数据中心（历史样本补齐）":"数据中心"}">🏢 ${escapeHtml(m.colo.v||"-")}</span>
-<span title="${m.exitIp.hist?"出口IP（历史样本补齐）":"出口IP"}">🌐 ${escapeHtml(m.exitIp.v||"-")}</span>
-${latest.t?`<span title="最近检测">🕒 ${escapeHtml(fmtTime(latest.t))}</span>`:""}
-<span title="首次来源">📥 ${escapeHtml(srcLabelOf(item))}</span></div></td>
-<td><div class="bars">${barsHtml(item)}</div><div class="sub">近 ${recentCount}/${win} 次</div></td>
+<td>
+<div class="ip-row"><span class="ip">${escapeHtml(item.ip)}:${item.port}</span><span class="tag ${kindCls}">${kindTxt}</span></div>
+<div class="meta-col">
+<div class="meta-line"><span title="首次引入时间">🆙 ${escapeHtml(fmtTime(item.firstSeen))}</span><span title="首次来源">📥 ${escapeHtml(srcLabelOf(item))}</span></div>
+<div class="meta-line"><span title="${m.loc.hist?"地区（历史样本补齐）":"地区"}">${flagEmoji(m.loc.v)} ${escapeHtml(m.loc.v||"-")}</span><span title="${m.colo.hist?"数据中心（历史样本补齐）":"数据中心"}">🏢 ${escapeHtml(m.colo.v||"-")}</span><span title="${m.exitIp.hist?"出口IP（历史样本补齐）":"出口IP"}">🌐 ${escapeHtml(m.exitIp.v||"-")}</span></div>
+<div class="meta-line"><span title="最近检测">🕒 ${escapeHtml(latest.t?fmtTime(latest.t):"-")}</span></div>
+</div>
+</td>
+<td><div class="bars">${barsHtml(item)}</div></td>
 <td class="metric ${latencyClass(q.avgTotal)}">${fmtCellMs(q.avgTotal)}</td>
 <td class="metric ${latencyClass(q.avgTcp)}">${fmtCellMs(q.avgTcp)}</td>
 <td class="metric ${latencyClass(q.avgTls)}">${fmtCellMs(q.avgTls)}</td>
@@ -428,7 +411,7 @@ ${latest.t?`<span title="最近检测">🕒 ${escapeHtml(fmtTime(latest.t))}</sp
 ${speedCellHtml(item)}
 <td class="metric ${qualCls}">${qualCell}</td>
 <td class="metric ${sucCls}">${sucCell}</td>
-<td>${statusHtml(item)}<div class="sub">样本 ${q.samples||0}/${win}</div></td>
+<td>${statusHtml(item)}</td>
 <td><div class="ops">
 <button class="mini-btn" data-op="copy" data-id="${escapeHtml(item.id)}">复制</button>
 <button class="mini-btn" data-op="speed" data-id="${escapeHtml(item.id)}" title="手动复测速度">⚡</button>
