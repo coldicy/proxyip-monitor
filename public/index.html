@@ -257,7 +257,7 @@ https://example.com/proxyip-list.txt</code></pre>
       <li>下载速度列：绿=达标或未设下限；红=低于下限；<code>-</code>=未测速/失败（悬浮看原因与时间）。</li>
       <li>操作：复制 / ⚡复测 / 删除。</li>
       <li>延迟柱：绿=在线达标，黄=在线超上限，红=失败；悬浮红柱看该次精确失败原因。</li></ul>
-      <h3>复制格式</h3><pre><code>IP:端口#地区 | 总延迟 | TCP | TLS | HTTP</code></pre>
+      <h3>复制格式</h3><pre><code>IP:端口#地区 | 数据中心 | 总延迟 | TCP | TLS | HTTP | 下载速度</code></pre>
       <p>📋 复制筛选节点 = 当前筛选+排序结果；只复制优质先选状态=优质或勾选只看优质。</p></section>
       <section id="m8"><h2>8 设置说明</h2><table class="table-mini">
       <tr><th>配置项</th><th>说明</th></tr>
@@ -468,9 +468,10 @@ function renderAll(){if(!DATA.state)return;const ids=new Set(DATA.state.items.ma
 function schedulePoll(){clearTimeout(pollTimer);pollTimer=setTimeout(refreshState,DATA.state&&DATA.state.checking?2500:8000);}
 async function refreshState(){try{DATA.state=await api("/api/state");stateErrorShown=false;renderAll();}catch(e){if(!stateErrorShown){toast("状态加载失败: "+e.message,"error");stateErrorShown=true;}}finally{schedulePoll();}}
 
-function formatItemLine(item){const q=item.quality||{};const latest=item.latest||{};const m=effectiveMeta(item);const region=m.loc.v||m.colo.v||"Unknown";
+function formatItemLine(item){const q=item.quality||{};const latest=item.latest||{};const m=effectiveMeta(item);const region=m.loc.v||m.colo.v||"Unknown";const dc=m.colo.v||"Unknown";
 const ms=(qv,lv)=>{if(qv!=null&&isFinite(qv))return `${Math.round(qv)}ms`;if(lv!=null&&isFinite(lv))return `${Math.round(lv)}ms`;return "?ms";};
-return `${item.ip}:${item.port}#${region} | ${ms(q.avgTotal,latest.total)} | ${ms(q.avgTcp,latest.avgTcp)} | ${ms(q.avgTls,latest.avgTls)} | ${ms(q.avgHttp,latest.avgHttp)}`;}
+const sp=speedOf(item);const spd=sp!=null?sp.toFixed(2)+"MB/s":"?MB/s";
+return `${item.ip}:${item.port}#${region} | ${dc} | ${ms(q.avgTotal,latest.total)} | ${ms(q.avgTcp,latest.avgTcp)} | ${ms(q.avgTls,latest.avgTls)} | ${ms(q.avgHttp,latest.avgHttp)} | ${spd}`;}
 
 async function copyText(text){try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);toast("已复制到剪贴板","success");return;}throw 0;}catch(e){const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("已复制到剪贴板","success");}catch(err){toast("复制失败，请手动复制","error");}ta.remove();}}
 function copyItems(items){if(!items.length){toast("没有可复制的节点","warn");return;}copyText(items.map(formatItemLine).join("\n"));}

@@ -1,6 +1,6 @@
 /**
 Proxy Monitor v34-speed (一次性测速 + 优质速度下限)
-- 测速方式: 100MB 字节上限 + speedTimeoutSec 时间上限, speed=size/time (超时截断也算有效值)
+- 测速方式: 20MB 字节上限 + speedTimeoutSec 时间上限, speed=size/time (超时截断也算有效值)
 - 两阶段执行: 延迟阶段(高并发小请求)结束后, 再对"本轮在线且需要测速"的节点跑测速阶段
 - 独立测速并发 speedConcurrency(默认1) + 每周期配额 speedPerCycle(默认20), 避免本地带宽争抢
 - 只测一次: 成功记录永不自动复测; 失败记录仅在本轮在线且间隔>10分钟时重试; 离线节点完全不测
@@ -347,10 +347,7 @@ async function probeCustoms(u) {
 }
 
 // ==================== 一次性下载测速 ====================
-// 100MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
-// ==================== 一次性下载测速 ====================
-// ==================== 一次性下载测速 ====================
-// ==================== 一次性下载测速 ====================
+// 20MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
 const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量
 async function probeSpeed(u) {
   const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
@@ -544,27 +541,38 @@ async function removeUnits(ids) {
 }
 
 // ==================== 格式（复制 & GitHub 上传） ====================
-function formatNodeLine(ipPort, region, q) {
+// 新格式: IP:端口#地区 | 数据中心 | 总延迟 | TCP | TLS | HTTP | 下载速度
+function formatNodeLine(ipPort, region, colo, q, speedMbps) {
   const total = q.avgTotal != null ? q.avgTotal + 'ms' : '?ms';
   const tcp = q.avgTcp != null ? q.avgTcp + 'ms' : '?ms';
   const tls = q.avgTls != null ? q.avgTls + 'ms' : '?ms';
   const http = q.avgHttp != null ? q.avgHttp + 'ms' : '?ms';
-  return `${ipPort}#${region} | ${total} | ${tcp} | ${tls} | ${http}`;
+  const spd = (speedMbps != null && isFinite(speedMbps)) ? speedMbps.toFixed(2) + 'MB/s' : '?MB/s';
+  return `${ipPort}#${region} | ${colo || 'Unknown'} | ${total} | ${tcp} | ${tls} | ${http} | ${spd}`;
 }
 function buildUploadData() {
   const seen = new Map();
   state.units.filter(u => u.ip).forEach(u => {
-    const hist = state.history[u.id] || []; const latest = hist.length ? hist[hist.length - 1] : null;
+    const hist = state.history[u.id] || [];
     const q = computeQuality(hist, u.speed); if (!q.quality) return;
     const k = u.ip + ':' + u.port; const cur = seen.get(k);
-    if (!cur || (q.avgTotal ?? 99999) < (cur.q.avgTotal ?? 99999)) seen.set(k, { u, q, latest });
+    if (!cur || (q.avgTotal ?? 99999) < (cur.q.avgTotal ?? 99999)) seen.set(k, { u, q, hist });
   });
   const nodes = [...seen.values()].sort((a, b) => (a.q.avgTotal ?? 99999) - (b.q.avgTotal ?? 99999));
   const bodies = { 'all.txt': [] };
-  nodes.forEach(({ u, q, latest }) => {
+  nodes.forEach(({ u, q, hist }) => {
+    // 地区/数据中心 逐字段历史补齐（与前端 effectiveMeta 逻辑一致）
+    let loc = null, colo = null;
+    for (let i = hist.length - 1; i >= 0; i--) {
+      const p = hist[i]; if (!p) continue;
+      if (!loc && p.loc) loc = p.loc;
+      if (!colo && p.colo) colo = p.colo;
+      if (loc && colo) break;
+    }
     const ipPort = `${u.ip}:${u.port}`;
-    const region = latest ? (latest.loc || latest.colo || 'Unknown') : 'Unknown';
-    const line = formatNodeLine(ipPort, region, q);
+    const region = loc || colo || 'Unknown';
+    const speedMbps = (u.speed && u.speed.ok && u.speed.mbps != null) ? u.speed.mbps : null;
+    const line = formatNodeLine(ipPort, region, colo, q, speedMbps);
     bodies['all.txt'].push(line);
     const safe = region.toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'unknown';
     if (!bodies[safe + '.txt']) bodies[safe + '.txt'] = [];
