@@ -1,0 +1,7 @@
+.git
+.gitignore
+data
+config
+*.md
+.env
+.env.*
