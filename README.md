@@ -1,22 +1,117 @@
+# Proxy Monitor 📡
 
-#### ⚙️ ip.txt
+一个轻量、高性能的 Cloudflare 反代 IP (ProxyIP) 长期监控、多维筛选与 GitHub 自动同步工具。
+
+## ✨ 核心特性
+
+- **多维优质判定**：综合「样本充足度 + 成功率 + 达标率（延迟上限）+ 下载速度下限」进行四维严格筛选。
+- **两阶段智能探测**：
+  - **延迟阶段**：高并发执行小请求，计算 TCP/TLS/HTTP 平均延迟。
+  - **测速阶段**：独立低并发执行 20MB 真实下载，避免本地带宽争抢。
+- **一次性测速机制**：节点首次在线时自动测速，成功记录永久有效；失败仅在线时重试；**离线节点绝对不测**，极致节省性能与节点带宽。
+- **动态节点发现**：支持纯 IP、域名（动态解析，历史 IP 只增不减）、URL 列表源。
+- **GitHub 自动同步**：优质节点自动按地区拆分文件，支持手动/变化自动/定时上传至 GitHub 仓库。
+- **安全**：GitHub Token 加密落盘（600 权限），URL 消毒防命令注入，请求体限流防 DoS。
+- **零依赖后端**：纯 Node.js 内置模块开发，无需 `npm install`，Docker 镜像体积极小。
+- **开箱即用的面板**：单文件 HTML 前端，提供延迟统计图、失败原因回溯、手动复测等丰富交互。
+
+---
+
+## 🚀 快速开始 (Docker 部署)
+
+推荐使用 Docker Compose 进行部署，数据完全持久化，升级无缝衔接。
+
+```bash
+services:
+  proxy-monitor:
+    image: coldicy7/proxyip-monitor
+    container_name: proxy-monitor
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./proxy-monitor/config:/app/config # 配置文件目录
+      - ./proxy-monitor/data:/app/data # 数据目录
+```
+
+访问 `http://你的服务器IP:8787` 即可打开监控面板。同时监控面板提供了详尽的手册，方便使用本应用
+
+本项目也提供了 `Dockerfile` 可自行进行构建
+
+---
+
+## 📝 节点列表格式
+
+在 Web 面板的 **⚙️ 设置 -> 节点列表 ip.txt** 中配置，每行一个来源：
 
 ```text
-# 支持 ip:port / 域名:port / 裸ip(默认443) / 裸域名(默认443) / [IPv6]:port
-38.22.93.183:443
-43.154.124.136:26666
-cdn.2x.nz
-149.104.8.95:23333
-[2606:4700::1]:443
+# 纯 IP (默认 443 端口)
+1.2.3.4
+1.2.3.4:8443
+
+# 域名 (每轮动态解析，历史 IP 只增不减)
+example.com
+example.com:443
+
+# URL 列表源 (自动拉取并逐行解析)
+https://example.com/proxyip-list.txt
+```
+> **注意**：修改节点列表后，请务必点击底部的 **「💾 保存并重载节点」** 按钮使其立即生效。
+
+---
+
+## ⚙️ 核心配置说明
+
+所有配置均可在 Web 面板的 **⚙️ 设置** 中动态修改并持久化至 `data/config.json`。
+
+| 配置项 | 说明 |
+|---|---|
+| **优质总延迟上限** | 超过此延迟的在线样本不计入达标率 (0=不限)。 |
+| **优质下载速度下限** | 测速低于此速度的节点不评为优质 (0=不限)。 |
+| **成功率/达标率阈值** | 优质窗口内的最低通过比例 (0~1)。 |
+| **测速并发 (1-3)** | 独立于延迟探测，默认 1，防止打满本地带宽。 |
+| **测速 URL** | 默认 Cloudflare 20MB 下载端点，可自定义。 |
+
+---
+
+## 📤 复制与 GitHub 上传格式
+
+优质节点在面板中复制或自动上传至 GitHub 时，采用以下标准格式，方便下游脚本解析：
+
+```text
+IP:端口#地区 | 数据中心 | 总延迟 | TCP | TLS | HTTP | 下载速度
+172.64.xx.xx:443#JP | NRT | 334ms | 116ms | 102ms | 116ms | 14.80MB/s
 ```
 
-#### 🚀 部署步骤
+---
 
-```
-mkdir -p proxy-monitor/config proxy-monitor/public
-cd proxy-monitor
-# 把上面 4 个文件放好（server.js、public/index.html、Dockerfile、docker-compose.yml）
-# 编辑 config/ip.txt 和 docker-compose.yml 的环境变量
-docker compose up -d --build
-# 打开 http://你的iStoreOS_IP:8787
-```
+## 🔒 安全机制
+
+1. **Token 保护**：GitHub Token 绝不以明文写入 `config.json`，而是加密存储于 `data/github.secret`（权限 600）。Web 接口仅返回打码值（如 `abcd****wxyz`），防止泄露。
+2. **防命令注入**：所有探针 URL 在保存时均经过严格消毒（剥离引号/反斜杠等），杜绝 Shell 注入风险。
+3. **防 DoS**：API 请求体限制 5MB，防止恶意大文件上传耗尽内存。
+
+---
+
+## 🛠️ API 接口
+
+| 路由 | 方法 | 说明 |
+|---|---|---|
+| `/api/state` | GET | 获取全量节点状态、质量、进度与配置 |
+| `/api/config` | POST | 更新运行配置 |
+| `/api/ipfile` | POST | 更新 `ip.txt` 节点列表 |
+| `/api/check` | POST | 手动触发一轮完整检测 |
+| `/api/speedtest` | POST | 手动复测指定节点速度 `{ids: ["ip:port"]}` |
+| `/api/upload` | POST | 手动触发 GitHub 上传 |
+
+---
+
+## 💡 最佳实践
+
+- **网络环境**：监控机最好具备独立的公网 IPv4 出口，以保证延迟和测速的准确性。
+- **自定义探针**：如果是为了自己的业务筛选 ProxyIP，强烈建议在设置中添加**自定义源站探针**，以验证真实的业务回源能力。
+- **速度下限**：建议从低到高（如 1 → 5 → 10 MB/s）逐步调整速度下限，观察优质节点的数量变化。测速结果受限于 `min(节点能力, 监控机本地带宽 ÷ 测速并发)`。
+- **安全暴露**：生产环境请勿直接将 8787 端口暴露至公网，建议配合 Nginx 反向代理并添加 Basic Auth 或 IP 白名单。
+
+---
+
