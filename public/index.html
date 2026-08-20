@@ -216,12 +216,26 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
       <ul><li>节点来源：纯 IP / 域名 / URL 列表源。</li><li>优质 = 样本充足 &amp; 成功率 ≥ 阈值 &amp; 达标率 ≥ 阈值 &amp; 测速 ≥ 速度下限。</li><li>每次失败原因随样本持久化，任意一次离线可回溯。</li><li>离线节点的地区/数据中心/出口IP 用最近一次成功样本补齐。</li></ul></section>
       <section id="m2"><h2>2 快速开始</h2><ol><li>⚙️ 设置 → 填写 ip.txt。</li><li>需要真实回源验证时添加自定义源站探针。</li><li>设置延迟上限、速度下限、成功率/达标率阈值。</li><li>💾 保存并重载节点，等待检测与一次性测速完成。</li><li>使用筛选/复制/上传。</li></ol>
       <div class="callout"><p>优质需要样本充足：窗口为 10 时至少 10 次样本后才判定；测速在首次在线时自动完成。</p></div></section>
-      <section id="m3"><h2>3 节点列表格式</h2><pre><code># 注释
+      <section id="m3">
+        <h2>3 节点列表格式</h2>
+        <p>在 ⚙️ 设置的 <code>节点列表 ip.txt</code> 中，每行可以写一个节点来源：</p>
+        <pre><code># 这是注释，不会被解析
 1.2.3.4
 1.2.3.4:8443
+example.com
 example.com:443
-https://example.com/list.txt</code></pre>
-      <ul><li>不写端口默认 443；域名解析为 IPv4；列表源逐行解析；IPv6 不入列。</li></ul></section>
+https://example.com/proxyip-list.txt</code></pre>
+        <ul>
+          <li>不写端口时，默认使用 <code>443</code>。</li>
+          <li>支持 <code>#</code> 注释；IPv6 不会进入主列表。</li>
+        </ul>
+        <h3>解析与保留机制（重要）</h3>
+        <ul>
+          <li><b>动态解析</b>：每一轮检测开始前，系统都会重新读取该列表。对域名重新做 DNS 解析，对 URL 列表源重新拉取最新内容。</li>
+          <li><b>只增不减</b>：如果域名解析出了新 IP，或列表源增加了新 IP，它们会自动加入监控；<b>如果旧 IP 在最新的解析结果中消失了，它依然会保留在监控列表中继续被检测</b>。</li>
+          <li><b>如何彻底移除</b>：未被解析到的旧 IP，只有在“长期离线触发自动清理”或“在面板中手动删除”时，才会真正从系统中移除并进入屏蔽名单。</li>
+        </ul>
+      </section>
       <section id="m4"><h2>4 核心指标</h2><table class="table-mini">
       <tr><th>指标</th><th>含义</th></tr>
       <tr><td>平均总延迟</td><td>窗口内在线样本总延迟平均 = 官方+自定义探针平均（TCP/TLS/HTTP 同理）。</td></tr>
@@ -250,16 +264,34 @@ https://example.com/list.txt</code></pre>
       <li>延迟柱：绿=在线达标，黄=在线超上限，红=失败；悬浮红柱看该次精确失败原因。</li></ul>
       <h3>复制格式</h3><pre><code>IP:端口#地区 | 总延迟 | TCP | TLS | HTTP</code></pre>
       <p>📋 复制筛选节点 = 当前筛选+排序结果；只复制优质先选状态=优质或勾选只看优质。</p></section>
-      <section id="m8"><h2>8 设置说明</h2><table class="table-mini">
-      <tr><th>配置</th><th>说明</th></tr>
-      <tr><td>启用节点测速</td><td>关闭后不自动测速，且优质判定忽略速度下限。</td></tr>
-      <tr><td>优质下载速度下限 (MB/s)</td><td>0=不限；&gt;0 时测速达标才计入优质/上传。</td></tr>
-      <tr><td>测速并发 (1-3)</td><td>独立于延迟并发，默认 1，避免本地带宽争抢。</td></tr>
-      <tr><td>每周期测速配额</td><td>默认 20；新节点多时顺延后续周期消化。</td></tr>
-      <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
-      <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
-      <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/阈值/探针/GitHub 同前。</td></tr></table>
-      <div class="callout warn"><p>达标率阈值不能高于成功率阈值，后端会自动调整。</p></div></section>
+      <section id="m8">
+        <h2>8 设置说明</h2>
+        <table class="table-mini">
+          <tr><th>配置项</th><th>说明</th></tr>
+          <tr><td>启用节点测速</td><td>关闭后不自动测速，且优质判定忽略速度下限。</td></tr>
+          <tr><td>优质下载速度下限 (MB/s)</td><td>0=不限；&gt;0 时测速达标才计入优质/上传。</td></tr>
+          <tr><td>测速并发 (1-3)</td><td>独立于延迟并发，默认 1，避免本地带宽争抢。</td></tr>
+          <tr><td>每周期测速配额</td><td>默认 20；新节点多时顺延后续周期消化。</td></tr>
+          <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
+          <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
+          <tr><td>达标率阈值 / 成功率阈值</td><td>达标率不能高于成功率，否则后端会自动将其拉平。</td></tr>
+          <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/探针/GitHub 同前。</td></tr>
+        </table>
+        <h3>底部两个保存按钮的区别</h3>
+        <table class="table-mini">
+          <tr><th>按钮</th><th>作用范围</th><th>适用场景</th></tr>
+          <tr>
+            <td><b>💾 保存配置</b></td>
+            <td>仅保存上方的<b>运行参数</b>（间隔、阈值、测速、GitHub等）。</td>
+            <td>只想调整运行参数，不修改下方 <code>ip.txt</code> 节点列表时使用。</td>
+          </tr>
+          <tr>
+            <td><b>💾 保存并重载节点</b></td>
+            <td>保存<b>运行参数</b> + 保存下方<b>节点列表</b>，并立刻触发一次节点发现。</td>
+            <td>当你新增、修改或删除了下方 <code>ip.txt</code> 中的 IP/域名/URL 时，<b>必须点此按钮</b>才能让新节点立刻生效。</td>
+          </tr>
+        </table>
+      </section>
       <section id="m9"><h2>9 GitHub 同步</h2><p>上传 <code>前缀_all.txt</code> 与按地区拆分文件；行格式同复制格式；支持手动/变化自动/定时上传。</p></section>
       <section id="m10"><h2>10 删除与屏蔽</h2><p>手动删除/自动清理均进屏蔽记录；清空记录 = 解除全部屏蔽。</p></section>
       <section id="m11"><h2>11 常见问题</h2>
@@ -320,6 +352,7 @@ https://example.com/list.txt</code></pre>
     <div class="field"><label class="check" style="padding-top:8px;"><input id="cfg_github_auto" type="checkbox" /> 优质列表变化时自动上传</label></div>
   </div>
   <div class="section-title">节点列表 ip.txt</div>
+  <p class="muted" style="margin-bottom: 8px;">支持纯IP、域名、URL列表源。系统每轮会重新解析，且历史解析出的IP会保留（只增不减）。修改后请点击下方「保存并重载节点」。</p>
   <textarea id="ipContent" class="code-area" spellcheck="false" placeholder="# 每行: 纯IP / IP:端口 / 域名 / 域名:端口 / http(s)列表源"></textarea>
   <div class="modal-foot">
     <button id="btnSaveConfig" class="btn">💾 保存配置</button>
