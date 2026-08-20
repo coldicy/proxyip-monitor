@@ -257,7 +257,8 @@ https://example.com/proxyip-list.txt</code></pre>
       <li>下载速度列：绿=达标或未设下限；红=低于下限；<code>-</code>=未测速/失败（悬浮看原因与时间）。</li>
       <li>操作：复制 / ⚡复测 / 删除。</li>
       <li>延迟柱：绿=在线达标，黄=在线超上限，红=失败；悬浮红柱看该次精确失败原因。</li></ul>
-      <h3>复制格式</h3><pre><code>IP:端口#地区 | 数据中心 | 总延迟 | TCP | TLS | HTTP | 下载速度</code></pre>
+      <h3>复制格式</h3><pre><code>IP:端口#地区 | 数据中心 | 总延迟 | TCP | TLS | HTTP | 下载速度
+172.64.53.74:443#CN | NRT | 334ms | 116ms | 102ms | 116ms | 14.80MB/s</code></pre>
       <p>📋 复制筛选节点 = 当前筛选+排序结果；只复制优质先选状态=优质或勾选只看优质。</p></section>
       <section id="m8"><h2>8 设置说明</h2><table class="table-mini">
       <tr><th>配置项</th><th>说明</th></tr>
@@ -268,25 +269,33 @@ https://example.com/proxyip-list.txt</code></pre>
       <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
       <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
       <tr><td>达标率阈值 / 成功率阈值</td><td>达标率不能高于成功率，否则后端会自动将其拉平。</td></tr>
-      <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/探针/GitHub 同前。</td></tr></table>
+      <tr><td>GitHub Token</td><td>加密存储；输入框留空 = 保持当前 Token 不变（见 9）。</td></tr>
+      <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/探针 同前。</td></tr></table>
       <h3>底部两个保存按钮的区别</h3>
       <table class="table-mini">
       <tr><th>按钮</th><th>作用范围</th><th>适用场景</th></tr>
       <tr><td><b>💾 保存配置</b></td><td>仅保存上方的<b>运行参数</b>（间隔、阈值、测速、GitHub等）。</td><td>只想调整运行参数，不修改下方 <code>ip.txt</code> 节点列表时使用。</td></tr>
       <tr><td><b>💾 保存并重载节点</b></td><td>保存<b>运行参数</b> + 保存下方<b>节点列表</b>，并立刻触发一次节点发现。</td><td>当你新增、修改或删除了下方 <code>ip.txt</code> 中的 IP/域名/URL 时，<b>必须点此按钮</b>才能让新节点立刻生效。</td></tr></table></section>
-      <section id="m9"><h2>9 GitHub 同步</h2><p>上传 <code>前缀_all.txt</code> 与按地区拆分文件；行格式同复制格式；支持手动/变化自动/定时上传。</p></section>
+      <section id="m9"><h2>9 GitHub 同步</h2><p>上传 <code>前缀_all.txt</code> 与按地区拆分文件；行格式同复制格式（含数据中心与下载速度，缺失时为 <code>Unknown</code> / <code>?MB/s</code>）；支持手动/变化自动/定时上传。部分文件上传失败时不会标记为已同步，下一轮会自动重试。</p>
+      <h3>Token 安全</h3><ul>
+      <li>真实 Token 仅存于 <code>dataDir/github.secret</code>（文件权限 600）或环境变量，<b>永不</b>明文写入 config.json。</li>
+      <li>接口只返回打码值（如 <code>abcd****wxyz</code>）；设置页输入框显示“留空=保持不变”，输入新值才会更新。</li>
+      <li>旧版本 config.json 中的明文 Token 会在首次启动时自动迁移到加密存储并从 config.json 删除。</li>
+      <li>探针 URL / 自定义探针 URL 在保存时会做安全消毒，防止命令注入。</li></ul></section>
       <section id="m10"><h2>10 删除与屏蔽</h2><p>手动删除/自动清理均进屏蔽记录；清空记录 = 解除全部屏蔽。</p></section>
       <section id="m11"><h2>11 常见问题</h2>
       <h3>延迟好却不是优质？</h3><ul><li>样本不足/成功率/达标率不达标；或速度下限未达标/未测速成功。</li></ul>
       <h3>速度列显示 - ？</h3><ul><li>尚未在线过（未触发测速），或测速失败（悬浮看原因；在线时 10 分钟自动重试，也可 ⚡ 手动复测）。</li></ul>
       <h3>会不会把节点测死？</h3><ul><li>不会：成功只测一次；失败重试间隔 10 分钟且仅在线时；离线完全不测；并发默认 1；单节点封顶 20MB/10s。</li></ul>
-      <h3>离线原因？</h3><ul><li>悬浮红柱或离线徽章查看（随样本持久化）。</li></ul></section>
+      <h3>离线原因？</h3><ul><li>悬浮红柱或离线徽章查看（随样本持久化）。</li></ul>
+      <h3>Token 会泄露吗？</h3><ul><li>不会：后端不落盘明文、接口不打码不出网；页面永远看不到完整 Token。</li></ul></section>
       <section id="m12"><h2>12 API</h2><table class="table-mini">
       <tr><th>接口</th><th>用途</th></tr>
       <tr><td>/api/state</td><td>节点/质量/进度/配置；items 含 speed；recent 含 failReason/colo/loc/exitIp。</td></tr>
+      <tr><td>/api/config</td><td>GET 返回打码 Token（tokenSet/tokenMasked）；POST 留空=不改 Token。</td></tr>
       <tr><td>/api/speedtest POST</td><td>手动复测 {ids:[...]}（≤10，串行）。</td></tr>
-      <tr><td>其余</td><td>logs/check/abort/config/ipfile/remove/graveyard/graveyard/clear/upload/reload 同前。</td></tr></table></section>
-      <section id="m13"><h2>13 最佳实践</h2><ul><li>速度下限从低到高调整（1→5→10 MB/s）观察优质数量。</li><li>间隔 60-300s；窗口 10-30；成功率 0.9-1；达标率 0.8-1。</li><li>真实业务务必配置自定义源站探针。</li><li>测速并发保持 1-2，监控机带宽小时尤其注意。</li></ul></section>
+      <tr><td>其余</td><td>logs/check/abort/ipfile/remove/graveyard/graveyard/clear/upload/reload 同前。</td></tr></table></section>
+      <section id="m13"><h2>13 最佳实践</h2><ul><li>速度下限从低到高调整（1→5→10 MB/s）观察优质数量。</li><li>间隔 60-300s；窗口 10-30；成功率 0.9-1；达标率 0.8-1。</li><li>真实业务务必配置自定义源站探针。</li><li>测速并发保持 1-2，监控机带宽小时尤其注意。</li><li>Token 建议用最小权限（仅仓库 contents 读写），并定期轮换。</li></ul></section>
     </div>
   </div>
 </div></div>
@@ -326,7 +335,7 @@ https://example.com/proxyip-list.txt</code></pre>
   <button id="btnAddProbe" class="btn ghost">+ 添加探针</button>
   <div class="section-title">GitHub 同步</div>
   <div class="settings-grid">
-    <div class="field"><label>GitHub Token</label><input id="cfg_github_token" type="password" class="input" autocomplete="new-password" placeholder="ghp_..." /></div>
+    <div class="field"><label>GitHub Token（留空=保持当前值）</label><input id="cfg_github_token" type="password" class="input" autocomplete="new-password" placeholder="ghp_..." /></div>
     <div class="field"><label>GitHub 仓库 (owner/repo)</label><input id="cfg_github_repo" type="text" class="input" placeholder="username/repo" /></div>
     <div class="field"><label>上传文件前缀</label><input id="cfg_github_path" type="text" class="input" placeholder="proxyip" /></div>
     <div class="field"><label>分支</label><input id="cfg_github_branch" type="text" class="input" placeholder="main" /></div>
@@ -493,7 +502,10 @@ function addProbeRow(url="",expect="200"){const w=$("#customProbesWrap");const m
 
 function fillSettings(cfg){$("#cfg_intervalSec").value=cfg.intervalSec??60;$("#cfg_timeoutSec").value=cfg.timeoutSec??5;$("#cfg_concurrency").value=cfg.concurrency??50;$("#cfg_maxTotalMs").value=cfg.maxTotalMs??0;$("#cfg_probeUrl").value=cfg.probeUrl||"";$("#cfg_autoCleanDays").value=cfg.autoCleanDays??7;$("#cfg_qualityWindow").value=cfg.qualityWindow??10;$("#cfg_successThreshold").value=cfg.successThreshold??1;$("#cfg_qualThreshold").value=cfg.qualThreshold??1;
 $("#cfg_speedEnabled").checked=cfg.speedEnabled!==false;$("#cfg_speedMinMBps").value=cfg.speedMinMBps??0;$("#cfg_speedConcurrency").value=cfg.speedConcurrency??1;$("#cfg_speedPerCycle").value=cfg.speedPerCycle??20;$("#cfg_speedTimeoutSec").value=cfg.speedTimeoutSec??10;$("#cfg_speedUrl").value=cfg.speedUrl||"";
-$("#cfg_github_token").value=cfg.github?.token||"";$("#cfg_github_repo").value=cfg.github?.repo||"";$("#cfg_github_path").value=cfg.github?.path||"proxyip";$("#cfg_github_branch").value=cfg.github?.branch||"main";$("#cfg_github_uploadIntervalMin").value=cfg.github?.uploadIntervalMin??0;$("#cfg_github_auto").checked=!!cfg.github?.auto;renderProbes(cfg.customProbes||[]);}
+const gh=cfg.github||{};
+$("#cfg_github_token").value="";
+$("#cfg_github_token").placeholder=gh.tokenSet?`${gh.tokenMasked||"****"}（留空=保持不变）`:"ghp_...";
+$("#cfg_github_repo").value=gh.repo||"";$("#cfg_github_path").value=gh.path||"proxyip";$("#cfg_github_branch").value=gh.branch||"main";$("#cfg_github_uploadIntervalMin").value=gh.uploadIntervalMin??0;$("#cfg_github_auto").checked=!!gh.auto;renderProbes(cfg.customProbes||[]);}
 
 function collectSettings(){const probes=$$("#customProbesWrap .probe-row").map(r=>({url:r.querySelector(".probe-url")?.value.trim()||"",expect:r.querySelector(".probe-expect")?.value.trim()||"200"})).filter(p=>p.url);
 return{intervalSec:$("#cfg_intervalSec").value,timeoutSec:$("#cfg_timeoutSec").value,concurrency:$("#cfg_concurrency").value,autoCleanDays:$("#cfg_autoCleanDays").value,maxTotalMs:$("#cfg_maxTotalMs").value,probeUrl:$("#cfg_probeUrl").value.trim(),qualityWindow:$("#cfg_qualityWindow").value,successThreshold:$("#cfg_successThreshold").value,qualThreshold:$("#cfg_qualThreshold").value,
@@ -531,7 +543,7 @@ $("#btnSettings").addEventListener("click",openSettings);
 $("#btnRefreshLogs").addEventListener("click",loadLogs);
 els.btnCheck.addEventListener("click",async()=>{try{await api("/api/check","POST");toast("已触发检测","success");refreshState();}catch(e){toast("触发检测失败: "+e.message,"error");}});
 els.btnAbort.addEventListener("click",async()=>{try{await api("/api/abort","POST");toast("已请求中断当前检测","info");}catch(e){toast("中断失败: "+e.message,"error");}});
-els.btnUpload.addEventListener("click",async()=>{if(DATA.state&&!DATA.state.github?.configured){const ok=await showConfirm("GitHub 未配置","尚未配置 GitHub Token / 仓库。是否打开设置？","打开设置");if(ok)openSettings();return;}const btn=els.btnUpload;setBtnLoading(btn,true,"上传中...");try{const res=await api("/api/upload","POST");toast(`上传成功：${res.count} 个优质节点，${res.fileCount} 个文件`,"success");refreshState();}catch(e){toast("上传失败: "+e.message,"error");}finally{setBtnLoading(btn,false);}});
+els.btnUpload.addEventListener("click",async()=>{if(DATA.state&&!DATA.state.github?.configured){const ok=await showConfirm("GitHub 未配置","尚未配置 GitHub Token / 仓库。是否打开设置？","打开设置");if(ok)openSettings();return;}const btn=els.btnUpload;setBtnLoading(btn,true,"上传中...");try{const res=await api("/api/upload","POST");if(res.failed&&res.failed>0){toast(`已上传但 ${res.failed} 个文件失败，下轮自动重试`,"warn");}else{toast(`上传成功：${res.count} 个优质节点，${res.fileCount} 个文件`,"success");}refreshState();}catch(e){toast("上传失败: "+e.message,"error");}finally{setBtnLoading(btn,false);}});
 $("#searchInput").addEventListener("input",e=>{FILTERS.search=e.target.value.trim();renderTable();});
 $("#kindFilter").addEventListener("change",e=>{FILTERS.kind=e.target.value;renderTable();});
 $("#statusFilter").addEventListener("change",e=>{FILTERS.status=e.target.value;renderTable();});

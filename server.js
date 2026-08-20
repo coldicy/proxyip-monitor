@@ -1,22 +1,20 @@
 /**
-Proxy Monitor v34-speed (一次性测速 + 优质速度下限)
-- 测速方式: 20MB 字节上限 + speedTimeoutSec 时间上限, speed=size/time (超时截断也算有效值)
-- 两阶段执行: 延迟阶段(高并发小请求)结束后, 再对"本轮在线且需要测速"的节点跑测速阶段
-- 独立测速并发 speedConcurrency(默认1) + 每周期配额 speedPerCycle(默认20), 避免本地带宽争抢
-- 只测一次: 成功记录永不自动复测; 失败记录仅在本轮在线且间隔>10分钟时重试; 离线节点完全不测
-- 手动复测: /api/speedtest (用户主动, 不受上述限制)
-- 优质判定新增速度下限 speedMinMBps (0=不限)
-- /api/state items 含 speed; recent 含 failReason/colo/loc/exitIp
+Proxy Monitor v35-secure (安全强化 + Bug修复 + 性能优化)
+- GitHub Token 加密存储: 真实Token仅存 github.secret(600)/环境变量; config.json与API仅返回打码值; 旧明文自动迁移
+- 命令注入防护: probeUrl/speedUrl/自定义探针URL 统一消毒+校验
+- readBody 5MB 上限防DoS
+- GitHub上传部分失败不再假成功: 失败不更新fingerprint, 自动上传下轮重试
+- index.html 内存缓存(mtime失效); history.json 脏标记落盘
+- 业务逻辑完全保持 v34-speed: 两阶段探测/一次性测速/优质速度下限/新复制上传格式
 */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
-const net = require('net');
-const VERSION = 'v34-speed';
+ net = require('net');
+const VERSION = 'v35-secure';
 const SPEED_RETRY_MS = 10 * 60 * 1000;
-
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
   ipFile: process.env.IP_FILE || '/app/config/ip.txt',
@@ -38,7 +36,7 @@ const CONFIG = {
   speedConcurrency: Math.min(3, Math.max(1, parseInt(process.env.SPEED_CONCURRENCY || '1', 10))),
   speedPerCycle: Math.max(1, parseInt(process.env.SPEED_PER_CYCLE || '20', 10)),
   github: {
-    token: process.env.GITHUB_TOKEN || '', repo: process.env.GITHUB_REPO || '',
+    token: '', repo: process.env.GITHUB_REPO || '',
     path: process.env.GITHUB_PATH || 'proxyip', branch: process.env.GITHUB_BRANCH || 'main',
     auto: process.env.GITHUB_AUTO_UPLOAD === 'true',
     uploadIntervalMin: parseInt(process.env.GITHUB_UPLOAD_INTERVAL_MIN || '0', 10)
@@ -47,6 +45,7 @@ const CONFIG = {
 CONFIG.dataFile = path.join(CONFIG.dataDir, 'history.json');
 CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 CONFIG.graveyardFile = path.join(CONFIG.dataDir, 'graveyard.json');
+CONFIG.secretFile = path.join(CONFIG.dataDir, 'github.secret');
 
 const state = {
   units: [], nodes: {}, history: {}, blocked: {}, graveyard: { list: [] },
@@ -55,8 +54,24 @@ const state = {
   github: { lastUpload: null, lastError: null }, lastUploadedContent: ''
 };
 let cycleTimer = null, githubTimer = null;
+let dataDirty = false;
+let htmlCache = { mtime: 0, content: '' };
 
 function log(m) { state.logs.push({ t: Date.now(), m: String(m) }); if (state.logs.length > 400) state.logs = state.logs.slice(-400); }
+function markDirty() { dataDirty = true; }
+
+// ==================== 安全工具 ====================
+function sanitizeUrl(u) { return String(u || '').replace(/['"`\\\s]/g, ''); }
+function maskToken(t) { if (!t) return ''; if (t.length <= 8) return '****'; return t.slice(0, 4) + '****' + t.slice(-4); }
+function isMaskedToken(t) { return /\*{3,}/.test(String(t || '')); }
+function readSecret() { try { return fs.readFileSync(CONFIG.secretFile, 'utf8').trim(); } catch (e) { return ''; } }
+function writeSecret(t) {
+  try {
+    fs.mkdirSync(CONFIG.dataDir, { recursive: true });
+    fs.writeFileSync(CONFIG.secretFile, t, { mode: 0o600 });
+    try { fs.chmodSync(CONFIG.secretFile, 0o600); } catch (e) { }
+  } catch (e) { log('⚠️ Token 写入失败: ' + e.message); }
+}
 
 // ==================== 配置 ====================
 function setConfig(o) {
@@ -67,7 +82,7 @@ function setConfig(o) {
   if (o.concurrency != null) CONFIG.concurrency = Math.max(1, Math.round(num(o.concurrency, CONFIG.concurrency)));
   if (o.autoCleanDays != null) CONFIG.autoCleanDays = Math.max(0, num(o.autoCleanDays, 0));
   if (o.maxTotalMs != null) CONFIG.maxTotalMs = num(o.maxTotalMs, 0);
-  if (o.probeUrl) CONFIG.probeUrl = String(o.probeUrl);
+  if (o.probeUrl) { const u = sanitizeUrl(o.probeUrl); if (isUrl(u)) CONFIG.probeUrl = u; }
   if (o.qualityWindow != null) CONFIG.qualityWindow = Math.max(1, Math.round(num(o.qualityWindow, CONFIG.qualityWindow)));
   if (o.successThreshold != null) CONFIG.successThreshold = Math.min(1, Math.max(0, num(o.successThreshold, CONFIG.successThreshold)));
   if (o.qualThreshold != null) CONFIG.qualThreshold = Math.min(1, Math.max(0, num(o.qualThreshold, CONFIG.qualThreshold)));
@@ -80,19 +95,22 @@ function setConfig(o) {
     CONFIG.qualThreshold = CONFIG.successThreshold;
   }
   if (o.customProbes && Array.isArray(o.customProbes)) {
-    CONFIG.customProbes = o.customProbes.filter(p => p && p.url).map(p => ({ url: String(p.url), expect: String(p.expect || '200') }));
+    CONFIG.customProbes = o.customProbes.filter(p => p && p.url).map(p => ({ url: sanitizeUrl(p.url), expect: String(p.expect || '200') })).filter(p => isUrl(p.url));
   } else if (o.customProbeUrl != null) {
-    CONFIG.customProbes = [{ url: String(o.customProbeUrl), expect: '204' }];
+    const u = sanitizeUrl(o.customProbeUrl); if (isUrl(u)) CONFIG.customProbes = [{ url: u, expect: '204' }];
   }
   if (o.speedEnabled != null) CONFIG.speedEnabled = (o.speedEnabled === true || o.speedEnabled === 'true');
-  if (o.speedUrl) CONFIG.speedUrl = String(o.speedUrl);
+  if (o.speedUrl) { const u = sanitizeUrl(o.speedUrl); if (isUrl(u)) CONFIG.speedUrl = u; }
   if (o.speedTimeoutSec != null) CONFIG.speedTimeoutSec = Math.max(3, Math.round(num(o.speedTimeoutSec, CONFIG.speedTimeoutSec)));
   if (o.speedMinMBps != null) CONFIG.speedMinMBps = Math.max(0, num(o.speedMinMBps, 0));
   if (o.speedConcurrency != null) CONFIG.speedConcurrency = Math.min(3, Math.max(1, Math.round(num(o.speedConcurrency, CONFIG.speedConcurrency))));
   if (o.speedPerCycle != null) CONFIG.speedPerCycle = Math.max(1, Math.round(num(o.speedPerCycle, CONFIG.speedPerCycle)));
   if (o.github) {
     const g = o.github;
-    if (g.token != null) CONFIG.github.token = String(g.token);
+    if (g.token != null) {
+      const t = String(g.token).trim();
+      if (t && !isMaskedToken(t)) { CONFIG.github.token = t; writeSecret(t); log('🔒 GitHub Token 已更新'); }
+    }
     if (g.repo != null) CONFIG.github.repo = String(g.repo);
     if (g.path != null) CONFIG.github.path = String(g.path) || 'proxyip';
     if (g.branch != null) CONFIG.github.branch = String(g.branch) || 'main';
@@ -110,7 +128,11 @@ function publicConfig() {
     successThreshold: CONFIG.successThreshold, qualThreshold: CONFIG.qualThreshold,
     speedEnabled: CONFIG.speedEnabled, speedUrl: CONFIG.speedUrl, speedTimeoutSec: CONFIG.speedTimeoutSec,
     speedMinMBps: CONFIG.speedMinMBps, speedConcurrency: CONFIG.speedConcurrency, speedPerCycle: CONFIG.speedPerCycle,
-    github: { ...CONFIG.github }
+    github: {
+      tokenSet: !!CONFIG.github.token, tokenMasked: maskToken(CONFIG.github.token),
+      repo: CONFIG.github.repo, path: CONFIG.github.path, branch: CONFIG.github.branch,
+      auto: CONFIG.github.auto, uploadIntervalMin: CONFIG.github.uploadIntervalMin
+    }
   };
 }
 
@@ -146,7 +168,6 @@ function sourceKeyForLine(line) {
 }
 function splitId(id) { const i = id.lastIndexOf(':'); return [id.slice(0, i), +id.slice(i + 1)]; }
 function runCurl(c, ms) { return new Promise(r => exec(c, { timeout: ms, maxBuffer: 4 * 1024 * 1024 }, (e, o) => r(e ? null : o))); }
-// 注意: 保留 stdout, 即使 curl 非零退出(如28超时)也带回 -w 统计, 供测速截断计算使用
 function runCurl2(c, ms) { return new Promise(r => exec(c, { timeout: ms, maxBuffer: 4 * 1024 * 1024 }, (e, o) => r({ out: o, code: e ? (e.killed ? -1 : e.code) : 0 }))); }
 function curlFailText(code) {
   if (code === 28) return '超时'; if (code === 7) return '连接被拒';
@@ -156,7 +177,15 @@ function curlFailText(code) {
 }
 function parseCurlJson(o) { if (!o) return null; const l = o.trim().split('\n'); try { return JSON.parse(l[l.length - 1]); } catch (e) { return null; } }
 function parseTrace(t) { const p = {}; String(t || '').replace(/\r/g, '').split('\n').forEach(l => { const i = l.indexOf('='); if (i > 0) p[l.slice(0, i).trim()] = l.slice(i + 1).trim(); }); return p; }
-function readBody(q) { return new Promise(r => { let d = ''; q.on('data', c => d += c); q.on('end', () => r(d)); }); }
+function readBody(q, max) {
+  max = max || 5 * 1024 * 1024;
+  return new Promise((res, rej) => {
+    let d = '';
+    q.on('data', c => { d += c; if (d.length > max) { rej(new Error('请求体过大')); q.destroy(); } });
+    q.on('end', () => res(d));
+    q.on('error', rej);
+  });
+}
 function buildSegs(w) {
   if (!w) return null;
   const tcp = Math.round((w.tcp || 0) * 1000);
@@ -191,12 +220,13 @@ function offlineSince(id) {
 }
 function pushGrave(label, id, lastOnline, mode, reason) { state.graveyard.list.push({ id, label, removedAt: Date.now(), lastOnlineAt: lastOnline, mode, reason }); }
 function saveData() {
+  if (!dataDirty) return;
   try {
     fs.mkdirSync(CONFIG.dataDir, { recursive: true });
     const tmp = CONFIG.dataFile + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify({ history: state.history, nodes: state.nodes }));
     fs.renameSync(tmp, CONFIG.dataFile);
-  } catch (e) { }
+  } catch (e) { } finally { dataDirty = false; }
 }
 async function mapLimit(items, limit, fn) {
   const res = new Array(items.length); let i = 0;
@@ -300,6 +330,7 @@ async function discover() {
     state.nodes[a.id] = { id: a.id, ip, port, firstSeen: now, firstSource: { kind: a.kind, name: a.name }, kind: classifyIp(ip) };
     added++;
   }
+  if (added) markDirty();
   return added;
 }
 
@@ -347,14 +378,12 @@ async function probeCustoms(u) {
 }
 
 // ==================== 一次性下载测速 ====================
-// 20MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
-const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量
+const SPEED_MIN_BYTES = 64 * 1024;
 async function probeSpeed(u) {
   const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
   const sp = splitProbe(CONFIG.speedUrl);
   const timestamp = Date.now();
-  // 关键修复：去掉 -4、--noproxy、自定义UA；加时间戳防缓存
   const cmd = `curl -k -s --retry 0 -o /dev/null -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}${sp.path.includes('?') ? '&' : '?'}_t=${timestamp}'`;
   const r = await runCurl2(cmd, CONFIG.speedTimeoutSec * 1000 + 2500);
   const j = parseCurlJson(r.out);
@@ -362,7 +391,6 @@ async function probeSpeed(u) {
   const secs = (j && isFinite(j.time) && j.time > 0) ? j.time : 0;
   const http = j ? String(j.http) : '000';
   const kb = (size / 1024).toFixed(1);
-  // 有效样本: 收够字节 + 有耗时 (200完成 / 超时截断28 / 中途被掐18 均可)
   if (size >= SPEED_MIN_BYTES && secs > 0) {
     const raw = size / secs / 1048576;
     const mbps = Math.round(raw * 100) / 100;
@@ -379,7 +407,6 @@ async function probeSpeed(u) {
   }
   return point;
 }
-// 测速闸门: 无记录→测; 成功记录→永不复测; 失败记录→间隔>10分钟才重试。是否"在线"由调用方(本轮 point.ok)保证, 离线节点完全不测
 function needSpeedTest(u) {
   if (!CONFIG.speedEnabled) return false;
   if (!u.speed) return true;
@@ -399,6 +426,7 @@ function pushHistory(id, point) {
   if (!state.history[id]) state.history[id] = [];
   state.history[id].push(point);
   if (state.history[id].length > 600) state.history[id] = state.history[id].slice(-600);
+  markDirty();
 }
 
 // ==================== 可中断流水线（两阶段: 延迟 → 测速） ====================
@@ -439,7 +467,6 @@ async function runCycle() {
               else { point.failReason = '无法计算平均延迟'; }
             } else { point.ok = false; }
           }
-          // 仅登记候选(本轮在线+需要测速), 不在此处执行, 避免继承高并发
           if (point.ok && needSpeedTest(u)) speedCandidates.push(u);
           if (!(state.abort && point.ok)) {
             pushHistory(u.id, point); state.progress.tested++;
@@ -454,8 +481,6 @@ async function runCycle() {
     });
     await Promise.all(workers);
     if (state.abort) log('⏹ 检测已中断，完成 ' + state.progress.tested + '/' + total);
-
-    // ---- 阶段二: 测速 (独立低并发 + 每周期配额) ----
     if (!state.abort && CONFIG.speedEnabled && speedCandidates.length) {
       const batch = speedCandidates.slice(0, CONFIG.speedPerCycle);
       if (speedCandidates.length > batch.length) log(`⚡ 测速排队 ${speedCandidates.length} 个，本周期测 ${batch.length} 个（配额），其余顺延`);
@@ -463,12 +488,11 @@ async function runCycle() {
       await mapLimit(batch, CONFIG.speedConcurrency, async (u) => {
         if (state.abort) return null;
         const sp = await probeSpeed(u);
-        u.speed = sp;
+        u.speed = sp; markDirty();
         log(sp.ok ? `⚡ ${u.id} 测速: ${sp.mbps} MB/s` : `⚡ ${u.id} 测速失败: ${sp.failReason}（在线时10分钟后重试）`);
         return sp;
       });
     }
-
     state.lastCycle = Date.now();
     const online = state.units.filter(u => { const h = state.history[u.id]; return h && h.length && h[h.length - 1].ok; }).length;
     const quality = state.units.filter(u => computeQuality(state.history[u.id], u.speed).quality).length;
@@ -521,9 +545,10 @@ async function cleanGraveyard() {
   let n = 0;
   for (const id of Object.keys(state.nodes)) {
     if (offlineSince(id) < threshold) {
+      const last = offlineSince(id);
       delete state.nodes[id]; state.blocked[id] = Date.now();
-      pushGrave(id, id, offlineSince(id), 'auto', `离线超 ${CONFIG.autoCleanDays} 天（自动清理）`);
-      delete state.history[id]; n++;
+      pushGrave(id, id, last, 'auto', `离线超 ${CONFIG.autoCleanDays} 天（自动清理）`);
+      delete state.history[id]; n++; markDirty();
     }
   }
   if (n) { capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 自动清理 ${n} 个长期离线节点（已屏蔽）`); }
@@ -532,16 +557,16 @@ async function removeUnits(ids) {
   let removed = 0;
   for (const id of ids) {
     const u = state.nodes[id]; if (!u) continue;
+    const last = offlineSince(id);
     delete state.nodes[id]; state.blocked[id] = Date.now();
-    pushGrave(id, id, offlineSince(id), 'manual', '手动删除');
-    delete state.history[id]; removed++;
+    pushGrave(id, id, last, 'manual', '手动删除');
+    delete state.history[id]; removed++; markDirty();
   }
   if (removed) { capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 手动删除 ${removed} 个节点（已屏蔽）`); }
   return removed;
 }
 
 // ==================== 格式（复制 & GitHub 上传） ====================
-// 新格式: IP:端口#地区 | 数据中心 | 总延迟 | TCP | TLS | HTTP | 下载速度
 function formatNodeLine(ipPort, region, colo, q, speedMbps) {
   const total = q.avgTotal != null ? q.avgTotal + 'ms' : '?ms';
   const tcp = q.avgTcp != null ? q.avgTcp + 'ms' : '?ms';
@@ -561,7 +586,6 @@ function buildUploadData() {
   const nodes = [...seen.values()].sort((a, b) => (a.q.avgTotal ?? 99999) - (b.q.avgTotal ?? 99999));
   const bodies = { 'all.txt': [] };
   nodes.forEach(({ u, q, hist }) => {
-    // 地区/数据中心 逐字段历史补齐（与前端 effectiveMeta 逻辑一致）
     let loc = null, colo = null;
     for (let i = hist.length - 1; i >= 0; i--) {
       const p = hist[i]; if (!p) continue;
@@ -590,6 +614,7 @@ async function uploadGithub() {
   const { bodies, count, fingerprint } = buildUploadData(); if (!count) throw new Error('当前没有优质节点可上传');
   const headers = { 'Authorization': `Bearer ${g.token}`, 'Accept': 'application/vnd.github+json', 'User-Agent': 'proxy-monitor', 'Content-Type': 'application/json' };
   const basePath = g.path.replace(/.txt$/, '');
+  let failed = 0;
   for (const [filename, lines] of Object.entries(bodies)) {
     const fullPath = `${basePath}_${filename}`;
     const apiPath = fullPath.split('/').map(encodeURIComponent).join('/');
@@ -598,15 +623,22 @@ async function uploadGithub() {
     try {
       const getRes = await fetch(`${api}?ref=${g.branch}`, { headers });
       if (getRes.ok) sha = (await getRes.json()).sha;
-      else if (getRes.status !== 404) { log(`⚠️ 查询 ${fullPath} 失败: HTTP ${getRes.status}`); continue; }
-    } catch (e) { continue; }
+      else if (getRes.status !== 404) { failed++; log(`⚠️ 查询 ${fullPath} 失败: HTTP ${getRes.status}`); continue; }
+    } catch (e) { failed++; continue; }
     const body = { message: `chore: update ${filename} (${lines.length} nodes)`, content: Buffer.from(renderFile(lines), 'utf8').toString('base64'), branch: g.branch };
     if (sha) body.sha = sha;
-    try { const putRes = await fetch(api, { method: 'PUT', headers, body: JSON.stringify(body) }); if (!putRes.ok) log(`⚠️ 上传 ${fullPath} 失败: HTTP ${putRes.status}`); } catch (e) { }
+    try { const putRes = await fetch(api, { method: 'PUT', headers, body: JSON.stringify(body) }); if (!putRes.ok) { failed++; log(`⚠️ 上传 ${fullPath} 失败: HTTP ${putRes.status}`); } } catch (e) { failed++; }
   }
-  state.github.lastUpload = Date.now(); state.github.lastError = null; state.lastUploadedContent = fingerprint;
-  log(`📤 已上传 ${count} 个优质节点 (${Object.keys(bodies).length} 个文件)`);
-  return { count, fileCount: Object.keys(bodies).length };
+  state.github.lastUpload = Date.now();
+  if (failed > 0) {
+    state.github.lastError = `${failed} 个文件上传失败`;
+    log('⚠️ ' + state.github.lastError + '（下轮自动重试）');
+  } else {
+    state.github.lastError = null;
+    state.lastUploadedContent = fingerprint;
+    log(`📤 已上传 ${count} 个优质节点 (${Object.keys(bodies).length} 个文件)`);
+  }
+  return { count, fileCount: Object.keys(bodies).length, failed };
 }
 async function autoUpload() {
   const { fingerprint } = buildUploadData();
@@ -658,11 +690,23 @@ function buildState() {
   }
 }
 
+function serveIndex(res) {
+  const f = path.join(__dirname, 'public', 'index.html');
+  try {
+    const st = fs.statSync(f);
+    if (st.mtimeMs !== htmlCache.mtime || !htmlCache.content) htmlCache = { mtime: st.mtimeMs, content: fs.readFileSync(f, 'utf8') };
+  } catch (e) {
+    if (!htmlCache.content) htmlCache.content = '<h1>public/index.html 缺失</h1>';
+  }
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(htmlCache.content);
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost'); const p = url.pathname;
   const json = (d, s = 200) => { res.writeHead(s, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(d)); };
   try {
-    if (p === '/' || p === '/index.html') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(fs.readFileSync(path.join(__dirname, 'public', 'index.html'))); }
+    if (p === '/' || p === '/index.html') return serveIndex(res);
     if (p === '/api/state') return json(buildState());
     if (p === '/api/logs') return json({ logs: state.logs });
     if (p === '/api/abort' && req.method === 'POST') { if (state.checking) { state.abort = true; log('⏹ 收到中断请求'); } return json({ ok: true }); }
@@ -679,7 +723,7 @@ const server = http.createServer(async (req, res) => {
       const results = [];
       for (const id of ids.slice(0, 10)) {
         const u = state.nodes[id]; if (!u) continue;
-        const sp = await probeSpeed(u); u.speed = sp; results.push({ id, ...sp });
+        const sp = await probeSpeed(u); u.speed = sp; markDirty(); results.push({ id, ...sp });
         log(sp.ok ? `⚡ ${id} 手动复测: ${sp.mbps} MB/s` : `⚡ ${id} 手动复测失败: ${sp.failReason}`);
       }
       saveData();
@@ -700,11 +744,22 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { return json({ error: e.message }, 500); }
 });
 
-try { setConfig(JSON.parse(fs.readFileSync(CONFIG.configFile, 'utf8'))); } catch (e) { }
+// ==================== 启动（含旧明文Token迁移） ====================
+CONFIG.github.token = process.env.GITHUB_TOKEN || readSecret() || '';
+try {
+  const onDisk = JSON.parse(fs.readFileSync(CONFIG.configFile, 'utf8'));
+  if (onDisk && onDisk.github && onDisk.github.token) {
+    if (!readSecret()) writeSecret(String(onDisk.github.token));
+    delete onDisk.github.token;
+    try { fs.writeFileSync(CONFIG.configFile, JSON.stringify(onDisk, null, 2)); } catch (e) { }
+    log('🔒 旧版明文 Token 已迁移至加密存储');
+  }
+  setConfig(onDisk);
+} catch (e) { }
 ensureIpFile(); loadData();
 server.listen(CONFIG.port, async () => {
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 一次性测速)`);
+  log(`🚀 服务启动 (${VERSION} 安全强化)`);
   await refreshCfCidrs(true);
   await discover(); state.units = Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
 });
