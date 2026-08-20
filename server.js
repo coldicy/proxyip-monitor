@@ -348,22 +348,34 @@ async function probeCustoms(u) {
 
 // ==================== 一次性下载测速 ====================
 // 100MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
+// ==================== 一次性下载测速 ====================
+// ==================== 一次性下载测速 ====================
+const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量，避免错误页/中断连接误判
 async function probeSpeed(u) {
   const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
   const sp = splitProbe(CONFIG.speedUrl);
-  const cmd = `curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}'`;
+  const cmd = `curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) proxy-monitor-speedtest' -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}'`;
   const r = await runCurl2(cmd, CONFIG.speedTimeoutSec * 1000 + 2500);
   const j = parseCurlJson(r.out);
-  if (j && j.size > 0) {
-    const secs = (j.time > 0) ? j.time : ((j.speed > 0) ? (j.size / j.speed) : 0);
-    if (secs > 0) {
-      const mbps = Math.round((j.size / secs / 1048576) * 100) / 100;
-      if (mbps > 0) { point.mbps = mbps; point.size = Math.round(j.size); point.ok = true; return point; }
+  const size = (j && isFinite(j.size)) ? j.size : 0;
+  const secs = (j && isFinite(j.time) && j.time > 0) ? j.time : 0;
+  const http = j ? String(j.http) : '000';
+  const kb = (size / 1024).toFixed(1);
+  // 有效样本: 收够字节 + 有耗时 (200完成 / 超时截断28 / 中途被掐18 均可)
+  if (size >= SPEED_MIN_BYTES && secs > 0) {
+    const raw = size / secs / 1048576;
+    const mbps = Math.round(raw * 100) / 100;
+    if (mbps > 0 && (http === '200' || r.code === 28 || r.code === 18)) {
+      point.mbps = mbps; point.size = Math.round(size); point.ok = true; return point;
     }
-    point.failReason = '测速结果异常';
+    point.failReason = `测速失败 (HTTP ${http}, 收到 ${kb}KB/${secs.toFixed(1)}s, 疑似非下载响应)`;
+    return point;
+  }
+  if (j) {
+    point.failReason = `测速失败 (HTTP ${http}, 仅收到 ${kb}KB${secs > 0 ? '/' + secs.toFixed(1) + 's' : ''}${r.code && r.code !== 0 ? ', curl ' + r.code : ''})`;
   } else {
-    point.failReason = `测速失败 (${j ? ('HTTP ' + j.http) : curlFailText(r.code)})`;
+    point.failReason = `测速失败 (${curlFailText(r.code)})`;
   }
   return point;
 }
