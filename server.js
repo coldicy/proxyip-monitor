@@ -32,7 +32,7 @@ const CONFIG = {
   successThreshold: parseFloat(process.env.SUCCESS_THRESHOLD || '1'),
   qualThreshold: parseFloat(process.env.QUAL_THRESHOLD || '1'),
   speedEnabled: process.env.SPEED_ENABLED !== 'false',
-  speedUrl: process.env.SPEED_URL || 'https://speed.cloudflare.com/__down?bytes=104857600',
+  speedUrl: process.env.SPEED_URL || 'https://speed.cloudflare.com/__down?bytes=20000000',
   speedTimeoutSec: parseInt(process.env.SPEED_TIMEOUT_SEC || '10', 10),
   speedMinMBps: parseFloat(process.env.SPEED_MIN_MBPS || '0'),
   speedConcurrency: Math.min(3, Math.max(1, parseInt(process.env.SPEED_CONCURRENCY || '1', 10))),

@@ -230,14 +230,14 @@ https://example.com/list.txt</code></pre>
       <tr><td>下载速度</td><td>一次性测速结果 MB/s（见 5）。</td></tr>
       <tr><td>优质</td><td>样本充足 &amp; 成功率≥阈值 &amp; 达标率≥阈值 &amp; 速度≥下限。</td></tr></table></section>
       <section id="m5"><h2>5 一次性测速</h2><ul>
-      <li>原理：--resolve 走被测 IP 下载测速 URL（默认 speed.cloudflare.com 100MB 上限），--max-time 10s 时间上限；速度 = 已下载字节 / 耗时，超时截断也得到有效平均速度。</li>
+      <li>原理：--resolve 走被测 IP 下载测速 URL（默认 speed.cloudflare.com 20MB 上限），--max-time 10s 时间上限；速度 = 已下载字节 / 耗时，超时截断也得到有效平均速度。</li>
       <li>两阶段执行：延迟阶段（高并发小请求）结束后，再对“本轮在线且需要测速”的节点跑测速阶段。</li>
       <li>独立低并发（默认 1，可配 1-3）+ 每周期配额（默认 20），避免本地带宽争抢；配额外的顺延后续周期。</li>
       <li>只测一次：成功记录永不自动复测；失败记录仅在本轮在线且间隔 &gt;10 分钟时重试；<b>离线节点完全不测</b>，不浪费性能。</li>
       <li>结果持久化在节点上，重启不丢、不重复测。</li>
       <li>优质门槛：速度下限 &gt;0 时，测速不达标或未测速成功的节点不评为优质/不上传。</li>
       <li>手动复测：行内 ⚡ 按钮（用户主动，不受“不复测”限制）。</li></ul>
-      <div class="callout warn"><p>测速真实消耗节点带宽（单节点封顶 100MB/10s）。测速结果本质是 min(节点能力, 本地带宽÷并发)，速度下限请参照监控机本地带宽设置。</p></div></section>
+      <div class="callout warn"><p>测速真实消耗节点带宽（单节点封顶 20MB/10s）。测速结果本质是 min(节点能力, 本地带宽÷并发)，速度下限请参照监控机本地带宽设置。</p></div></section>
       <section id="m6"><h2>6 探针分工</h2><h3>官方探针</h3><ul><li>默认 cloudflare trace，检测反代能力并读取 colo/loc/出口IP；必须返回 CF 内容。</li></ul>
       <h3>自定义源站探针</h3><ul><li>验证真实回源；全部成功该次才在线；失败记录精确原因（如 预期200实际502）。</li></ul></section>
       <section id="m7"><h2>7 页面操作</h2><h3>筛选与排序</h3><ul>
@@ -257,7 +257,7 @@ https://example.com/list.txt</code></pre>
       <tr><td>测速并发 (1-3)</td><td>独立于延迟并发，默认 1，避免本地带宽争抢。</td></tr>
       <tr><td>每周期测速配额</td><td>默认 20；新节点多时顺延后续周期消化。</td></tr>
       <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
-      <tr><td>测速 URL</td><td>默认 100MB 下载端点；可调 bytes 改变体量。</td></tr>
+      <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
       <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/阈值/探针/GitHub 同前。</td></tr></table>
       <div class="callout warn"><p>达标率阈值不能高于成功率阈值，后端会自动调整。</p></div></section>
       <section id="m9"><h2>9 GitHub 同步</h2><p>上传 <code>前缀_all.txt</code> 与按地区拆分文件；行格式同复制格式；支持手动/变化自动/定时上传。</p></section>
@@ -265,7 +265,7 @@ https://example.com/list.txt</code></pre>
       <section id="m11"><h2>11 常见问题</h2>
       <h3>延迟好却不是优质？</h3><ul><li>样本不足/成功率/达标率不达标；或速度下限未达标/未测速成功。</li></ul>
       <h3>速度列显示 - ？</h3><ul><li>尚未在线过（未触发测速），或测速失败（悬浮看原因；在线时 10 分钟自动重试，也可 ⚡ 手动复测）。</li></ul>
-      <h3>会不会把节点测死？</h3><ul><li>不会：成功只测一次；失败重试间隔 10 分钟且仅在线时；离线完全不测；并发默认 1；单节点封顶 100MB/10s。</li></ul>
+      <h3>会不会把节点测死？</h3><ul><li>不会：成功只测一次；失败重试间隔 10 分钟且仅在线时；离线完全不测；并发默认 1；单节点封顶 20MB/10s。</li></ul>
       <h3>离线原因？</h3><ul><li>悬浮红柱或离线徽章查看（随样本持久化）。</li></ul></section>
       <section id="m12"><h2>12 API</h2><table class="table-mini">
       <tr><th>接口</th><th>用途</th></tr>
@@ -304,7 +304,7 @@ https://example.com/list.txt</code></pre>
     <div class="field"><label>测速并发 (1-3)</label><input id="cfg_speedConcurrency" type="number" min="1" max="3" class="input" /></div>
     <div class="field"><label>每周期测速配额</label><input id="cfg_speedPerCycle" type="number" min="1" class="input" /></div>
     <div class="field"><label>测速超时 (秒)</label><input id="cfg_speedTimeoutSec" type="number" min="3" class="input" /></div>
-    <div class="field wide"><label>测速 URL</label><input id="cfg_speedUrl" type="text" class="input" placeholder="https://speed.cloudflare.com/__down?bytes=104857600" /></div>
+    <div class="field wide"><label>测速 URL</label><input id="cfg_speedUrl" type="text" class="input" placeholder="https://speed.cloudflare.com/__down?bytes=20000000" /></div>
   </div>
   <div class="section-title">自定义源站探针</div>
   <p class="muted">官方探针通过后依次请求以下探针；全部成功该次才在线。</p>
