@@ -350,12 +350,15 @@ async function probeCustoms(u) {
 // 100MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
 // ==================== 一次性下载测速 ====================
 // ==================== 一次性下载测速 ====================
-const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量，避免错误页/中断连接误判
+// ==================== 一次性下载测速 ====================
+const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量
 async function probeSpeed(u) {
   const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
   const sp = splitProbe(CONFIG.speedUrl);
-  const cmd = `curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) proxy-monitor-speedtest' -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}'`;
+  const timestamp = Date.now();
+  // 关键修复：去掉 -4、--noproxy、自定义UA；加时间戳防缓存
+  const cmd = `curl -k -s --retry 0 -o /dev/null -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}${sp.path.includes('?') ? '&' : '?'}_t=${timestamp}'`;
   const r = await runCurl2(cmd, CONFIG.speedTimeoutSec * 1000 + 2500);
   const j = parseCurlJson(r.out);
   const size = (j && isFinite(j.size)) ? j.size : 0;
