@@ -1,7 +1,7 @@
 /**
-Proxy Monitor v35-secure-hotfix
-修复: 启动异步异常导致的崩溃重启循环; net 漏 const; sanitizeUrl 误删字母s; maskToken 打码丢失; server error 监听; runCycle 拒绝兜底
-保留: v35-secure 全部安全特性 + v34-speed 业务逻辑
+Proxy Monitor v36-window (历史仅保留优质窗口大小)
+历史只保留 qualityWindow 条; 前端窗口上限50; /api/state 只发窗口大小 recent
+保留 v35-secure-hotfix 全部特性: 进程级止血/Token加密/注入防护/两阶段测速
 */
 const http = require('http');
 const fs = require('fs');
@@ -9,7 +9,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v35-secure-hotfix';
+const VERSION = 'v36-window';
 const SPEED_RETRY_MS = 10 * 60 * 1000;
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -70,6 +70,8 @@ function writeSecret(t) {
   } catch (e) { log('⚠️ Token 写入失败: ' + e.message); }
 }
 // ==================== 配置 ====================
+// 对 CONFIG.qualityWindow 进行取整，并保证结果在 1 到 50 之间
+function historyCap() { return Math.min(50, Math.max(1, Math.round(CONFIG.qualityWindow) || 10)); }
 function setConfig(o) {
   if (!o) return;
   const num = (v, d) => { const n = parseFloat(v); return isFinite(n) ? n : d; };
@@ -79,7 +81,7 @@ function setConfig(o) {
   if (o.autoCleanDays != null) CONFIG.autoCleanDays = Math.max(0, num(o.autoCleanDays, 0));
   if (o.maxTotalMs != null) CONFIG.maxTotalMs = num(o.maxTotalMs, 0);
   if (o.probeUrl) { const u = sanitizeUrl(o.probeUrl); if (isUrl(u)) CONFIG.probeUrl = u; }
-  if (o.qualityWindow != null) CONFIG.qualityWindow = Math.max(1, Math.round(num(o.qualityWindow, CONFIG.qualityWindow)));
+  if (o.qualityWindow != null) CONFIG.qualityWindow = Math.min(50, Math.max(1, Math.round(num(o.qualityWindow, CONFIG.qualityWindow))));
   if (o.successThreshold != null) CONFIG.successThreshold = Math.min(1, Math.max(0, num(o.successThreshold, CONFIG.successThreshold)));
   if (o.qualThreshold != null) CONFIG.qualThreshold = Math.min(1, Math.max(0, num(o.qualThreshold, CONFIG.qualThreshold)));
   if (o.qualityRate != null && o.successThreshold == null && o.qualThreshold == null) {
@@ -411,10 +413,12 @@ function averageProbes(probes) {
   const src = Math.round(probes.reduce((s, p) => s + p.src, 0) / probes.length);
   return { total: tcp + tls + src, tcp, tls, src };
 }
+// 修改: 历史仅保留优质窗口大小
 function pushHistory(id, point) {
   if (!state.history[id]) state.history[id] = [];
   state.history[id].push(point);
-  if (state.history[id].length > 50) state.history[id] = state.history[id].slice(-50);
+  const cap = historyCap();
+  if (state.history[id].length > cap) state.history[id] = state.history[id].slice(-cap);
   markDirty();
 }
 // ==================== 可中断流水线（两阶段: 延迟 → 测速） ====================
@@ -634,6 +638,7 @@ async function autoUpload() {
 function buildState() {
   try {
     state.units = Object.values(state.nodes);
+    const cap = historyCap();
     const items = state.units.map(u => {
       const hist = state.history[u.id] || []; const latest = hist.length ? hist[hist.length - 1] : null;
       return {
@@ -643,7 +648,8 @@ function buildState() {
         colo: latest ? latest.colo : null, loc: latest ? latest.loc : null, exitIp: latest ? latest.exitIp : null,
         speed: u.speed || null,
         latest, quality: computeQuality(hist, u.speed),
-        recent: hist.slice(-50).map(p => ({
+        // 修改: 只发优质窗口大小的数量
+        recent: hist.slice(-cap).map(p => ({
           t: p.t, ok: !!p.ok, total: p.total, off: p.off, cus: p.cus, probes: p.probes || [],
           avgTcp: p.avgTcp, avgTls: p.avgTls, avgHttp: p.avgHttp,
           failReason: p.failReason || null, colo: p.colo || null, loc: p.loc || null, exitIp: p.exitIp || null
