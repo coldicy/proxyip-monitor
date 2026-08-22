@@ -1,19 +1,15 @@
 /**
-Proxy Monitor v35-secure (安全强化 + Bug修复 + 性能优化)
-- GitHub Token 加密存储: 真实Token仅存 github.secret(600)/环境变量; config.json与API仅返回打码值; 旧明文自动迁移
-- 命令注入防护: probeUrl/speedUrl/自定义探针URL 统一消毒+校验
-- readBody 5MB 上限防DoS
-- GitHub上传部分失败不再假成功: 失败不更新fingerprint, 自动上传下轮重试
-- index.html 内存缓存(mtime失效); history.json 脏标记落盘
-- 业务逻辑完全保持 v34-speed: 两阶段探测/一次性测速/优质速度下限/新复制上传格式
+Proxy Monitor v35-secure-hotfix
+修复: 启动异步异常导致的崩溃重启循环; net 漏 const; sanitizeUrl 误删字母s; maskToken 打码丢失; server error 监听; runCycle 拒绝兜底
+保留: v35-secure 全部安全特性 + v34-speed 业务逻辑
 */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
- net = require('net');
-const VERSION = 'v35-secure';
+const net = require('net');
+const VERSION = 'v35-secure-hotfix';
 const SPEED_RETRY_MS = 10 * 60 * 1000;
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -46,7 +42,6 @@ CONFIG.dataFile = path.join(CONFIG.dataDir, 'history.json');
 CONFIG.configFile = path.join(CONFIG.dataDir, 'config.json');
 CONFIG.graveyardFile = path.join(CONFIG.dataDir, 'graveyard.json');
 CONFIG.secretFile = path.join(CONFIG.dataDir, 'github.secret');
-
 const state = {
   units: [], nodes: {}, history: {}, blocked: {}, graveyard: { list: [] },
   cfCidrs: [], cfCidrsAt: 0,
@@ -60,7 +55,12 @@ let htmlCache = { mtime: 0, content: '' };
 function log(m) { state.logs.push({ t: Date.now(), m: String(m) }); if (state.logs.length > 400) state.logs = state.logs.slice(-400); }
 function markDirty() { dataDirty = true; }
 
+// ==================== 进程级止血: 只记日志, 不让进程崩溃重启 ====================
+process.on('uncaughtException', (e) => { log('💥 未捕获异常(已止血): ' + (e && e.stack ? e.stack : e)); });
+process.on('unhandledRejection', (e) => { log('💥 未处理拒绝(已止血): ' + (e && e.stack ? e.stack : e)); });
+
 // ==================== 安全工具 ====================
+// 修复: 旧正则 /['"`\\s]/g 会误删字母 s; 现在只剥离 引号/反引号/反斜杠/空白
 function sanitizeUrl(u) { return String(u || '').replace(/['"`\\\s]/g, ''); }
 function maskToken(t) { if (!t) return ''; if (t.length <= 8) return '****'; return t.slice(0, 4) + '****' + t.slice(-4); }
 function isMaskedToken(t) { return /\*{3,}/.test(String(t || '')); }
@@ -119,7 +119,6 @@ function setConfig(o) {
   }
   restartGithubTimer();
 }
-
 function publicConfig() {
   return {
     intervalSec: CONFIG.intervalSec, timeoutSec: CONFIG.timeoutSec, concurrency: CONFIG.concurrency,
@@ -135,9 +134,8 @@ function publicConfig() {
     }
   };
 }
-
 function persistConfig() { try { fs.mkdirSync(CONFIG.dataDir, { recursive: true }); fs.writeFileSync(CONFIG.configFile, JSON.stringify(publicConfig(), null, 2)); } catch (e) { } }
-function restartTimer() { if (cycleTimer) clearInterval(cycleTimer); cycleTimer = setInterval(runCycle, CONFIG.intervalSec * 1000); }
+function restartTimer() { if (cycleTimer) clearInterval(cycleTimer); cycleTimer = setInterval(() => { runCycle().catch(e => log('⚠️ 周期检测异常: ' + e.message)); }, CONFIG.intervalSec * 1000); }
 function restartGithubTimer() {
   if (githubTimer) clearInterval(githubTimer);
   const mins = CONFIG.github.uploadIntervalMin;
@@ -689,7 +687,6 @@ function buildState() {
     };
   }
 }
-
 function serveIndex(res) {
   const f = path.join(__dirname, 'public', 'index.html');
   try {
@@ -701,7 +698,6 @@ function serveIndex(res) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(htmlCache.content);
 }
-
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost'); const p = url.pathname;
   const json = (d, s = 200) => { res.writeHead(s, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(d)); };
@@ -730,21 +726,22 @@ const server = http.createServer(async (req, res) => {
       return json({ ok: true, results });
     }
     if (p === '/api/config' && req.method === 'GET') return json(publicConfig());
-    if (p === '/api/config' && req.method === 'POST') { setConfig(JSON.parse(await readBody(req) || '{}')); persistConfig(); restartTimer(); log('🛠️ 配置已更新'); runCycle(); return json({ ok: true, config: publicConfig() }); }
+    if (p === '/api/config' && req.method === 'POST') { setConfig(JSON.parse(await readBody(req) || '{}')); persistConfig(); restartTimer(); log('🛠️ 配置已更新'); runCycle().catch(e => log('⚠️ 保存后检测异常: ' + e.message)); return json({ ok: true, config: publicConfig() }); }
     if (p === '/api/ipfile' && req.method === 'GET') { let c = ''; try { c = fs.readFileSync(CONFIG.ipFile, 'utf8'); } catch (e) { } return json({ content: c }); }
     if (p === '/api/ipfile' && req.method === 'POST') {
       const { content } = JSON.parse(await readBody(req) || '{}');
       if (!ensureIpFile()) return json({ ok: false, error: 'ip.txt 路径被占用为目录' }, 500);
-      fs.writeFileSync(CONFIG.ipFile, String(content ?? '')); runCycle(); return json({ ok: true, count: Object.keys(state.nodes).length });
+      fs.writeFileSync(CONFIG.ipFile, String(content ?? '')); runCycle().catch(e => log('⚠️ 重载检测异常: ' + e.message)); return json({ ok: true, count: Object.keys(state.nodes).length });
     }
-    if (p === '/api/check' && req.method === 'POST') { log('🖱️ 手动触发检测'); runCycle(); return json({ ok: true }); }
+    if (p === '/api/check' && req.method === 'POST') { log('🖱️ 手动触发检测'); runCycle().catch(e => log('⚠️ 手动检测异常: ' + e.message)); return json({ ok: true }); }
     if (p === '/api/reload' && req.method === 'POST') { await discover(); state.units = Object.values(state.nodes); return json({ ok: true, count: state.units.length }); }
     if (p === '/api/upload' && req.method === 'POST') { try { return json({ ok: true, ...(await uploadGithub()) }); } catch (e) { state.github.lastError = e.message; log('⚠️ 手动上传失败: ' + e.message); return json({ ok: false, error: e.message }, 500); } }
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 500); }
 });
 
-// ==================== 启动（含旧明文Token迁移） ====================
+// ==================== 启动（全兜底, 绝不让初始化异常杀死进程） ====================
+server.on('error', (e) => { log('💥 HTTP server 错误: ' + e.message); });
 CONFIG.github.token = process.env.GITHUB_TOKEN || readSecret() || '';
 try {
   const onDisk = JSON.parse(fs.readFileSync(CONFIG.configFile, 'utf8'));
@@ -757,9 +754,16 @@ try {
   setConfig(onDisk);
 } catch (e) { }
 ensureIpFile(); loadData();
-server.listen(CONFIG.port, async () => {
+server.listen(CONFIG.port, () => {
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
-  log(`🚀 服务启动 (${VERSION} 安全强化)`);
-  await refreshCfCidrs(true);
-  await discover(); state.units = Object.values(state.nodes); runCycle(); restartTimer(); restartGithubTimer();
+  log(`🚀 服务启动 (${VERSION})`);
+  (async () => {
+    try {
+      await refreshCfCidrs(true);
+      await discover();
+    } catch (e) { log('⚠️ 启动初始化失败(已止血): ' + e.message); }
+    state.units = Object.values(state.nodes);
+    runCycle().catch(e => log('⚠️ 首轮检测异常: ' + e.message));
+    restartTimer(); restartGithubTimer();
+  })();
 });
