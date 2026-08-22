@@ -657,7 +657,7 @@ function buildState() {
         colo: latest ? latest.colo : null, loc: latest ? latest.loc : null, exitIp: latest ? latest.exitIp : null,
         speed: u.speed || null,
         latest, quality: computeQuality(hist, u.speed),
-        recent: hist.slice(-40).map(p => ({
+        recent: hist.slice(-50).map(p => ({
           t: p.t, ok: !!p.ok, total: p.total, off: p.off, cus: p.cus, probes: p.probes || [],
           avgTcp: p.avgTcp, avgTls: p.avgTls, avgHttp: p.avgHttp,
           failReason: p.failReason || null, colo: p.colo || null, loc: p.loc || null, exitIp: p.exitIp || null
