@@ -1,7 +1,11 @@
 /**
-Proxy Monitor v36-window (历史仅保留优质窗口大小)
-历史只保留 qualityWindow 条; 前端窗口上限50; /api/state 只发窗口大小 recent
-保留 v35-secure-hotfix 全部特性: 进程级止血/Token加密/注入防护/两阶段测速
+Proxy Monitor v36-window
+在 v35-secure-hotfix 基础上:
+- 历史只保留优质窗口大小 (historyCap = min(50, qualityWindow)); /api/state 只发窗口大小 recent
+- qualityWindow 钳制 1-50 (前端同步限制)
+- lastOnlineAt 修复: 历史裁剪后自动清理仍能正确取"最后在线"
+- 官方探针 uag 回显校验 (防伪造 trace)
+保留: 进程级止血 / Token 加密 / 注入防护 / 两阶段探测 / 一次性测速闸门
 */
 const http = require('http');
 const fs = require('fs');
@@ -208,9 +212,13 @@ function loadGraveyard() {
   } catch (e) { state.graveyard.list = []; state.blocked = {}; }
 }
 function capGraveyard() { if (state.graveyard.list.length > 1000) state.graveyard.list = state.graveyard.list.slice(-1000); }
+// 修复: 优先取节点注册表 lastOnlineAt, 历史裁剪后自动清理仍正确
 function offlineSince(id) {
+  const u = state.nodes[id];
+  if (u && u.lastOnlineAt) return u.lastOnlineAt;
   const hist = state.history[id] || [];
   for (let i = hist.length - 1; i >= 0; i--) { if (hist[i].ok) return hist[i].t; }
+  if (u && u.firstSeen) return u.firstSeen;
   if (hist.length > 0) return hist[0].t;
   return Date.now();
 }
@@ -288,6 +296,16 @@ function loadData() {
   } catch (e) { state.nodes = migrateNodes({}); }
   loadGraveyard();
 }
+// 启动时回填 lastOnlineAt, 保证历史裁剪后自动清理正确
+function backfillLastOnline() {
+  for (const id of Object.keys(state.nodes)) {
+    const u = state.nodes[id];
+    if (u && !u.lastOnlineAt) {
+      const hist = state.history[id] || [];
+      for (let i = hist.length - 1; i >= 0; i--) { if (hist[i].ok) { u.lastOnlineAt = hist[i].t; break; } }
+    }
+  }
+}
 // ==================== 发现(只增) ====================
 async function discover() {
   await refreshCfCidrs(false);
@@ -326,12 +344,13 @@ async function discover() {
   if (added) markDirty();
   return added;
 }
-// ==================== 官方探针 ====================
+// ==================== 官方探针 (uag 回显校验) ====================
 async function probeLatency(u) {
   const point = { t: Date.now(), ok: false, off: null, colo: null, loc: null, exitIp: null, failReason: null };
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
   const probe = splitProbe(CONFIG.probeUrl); const ms = CONFIG.timeoutSec * 1000;
-  const latCmd = `curl -4 -k -s --noproxy '*' --retry 0 -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec + 2} 'https://${probe.host}:${u.port}${probe.path}'`;
+  const ua = 'PM-' + Math.random().toString(36).slice(2, 10);
+  const latCmd = `curl -4 -k -s --noproxy '*' --retry 0 -A '${ua}' -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec + 2} 'https://${probe.host}:${u.port}${probe.path}'`;
   let lat = null, lastCode = 0, lastOut = null;
   for (let a = 0; a < 2; a++) {
     const r = await runCurl2(latCmd, ms + 2500); lastCode = r.code; lastOut = r.out; lat = parseCurlJson(r.out);
@@ -340,6 +359,7 @@ async function probeLatency(u) {
   if (lat && lat.http === 200) {
     const info = parseTrace(lastOut.trim().split('\n').slice(0, -1).join('\n'));
     if (!info.colo && !info.fl) { point.failReason = '官方探针返回非 CF 内容 (不具备反代能力)'; return point; }
+    if (!lastOut.includes('uag=' + ua)) { point.failReason = '官方探针UA未回显 (疑似伪造trace)'; return point; }
     point.ok = true; point.off = buildSegs(lat);
     point.colo = info.colo || null; point.loc = info.loc || null; point.exitIp = info.ip || null;
   } else {
@@ -367,36 +387,56 @@ async function probeCustoms(u) {
   }
   return results;
 }
-// ==================== 一次性下载测速 ====================
-// 20MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
-const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量
-async function probeSpeed(u) {
-  const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
-  if (!u.ip) { point.failReason = '无有效IP'; return point; }
-  const sp = splitProbe(CONFIG.speedUrl);
-  const timestamp = Date.now();
-  const cmd = `curl -k -s --retry 0 -o /dev/null -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}${sp.path.includes('?') ? '&' : '?'}_t=${timestamp}'`;
-  const r = await runCurl2(cmd, CONFIG.speedTimeoutSec * 1000 + 2500);
-  const j = parseCurlJson(r.out);
-  const size = (j && isFinite(j.size)) ? j.size : 0;
-  const secs = (j && isFinite(j.time) && j.time > 0) ? j.time : 0;
-  const http = j ? String(j.http) : '000';
-  const kb = (size / 1024).toFixed(1);
-  if (size >= SPEED_MIN_BYTES && secs > 0) {
-    const raw = size / secs / 1048576;
-    const mbps = Math.round(raw * 100) / 100;
-    if (mbps > 0 && (http === '200' || r.code === 28 || r.code === 18)) {
-      point.mbps = mbps; point.size = Math.round(size); point.ok = true; return point;
-    }
-    point.failReason = `测速失败 (HTTP ${http}, 收到 ${kb}KB/${secs.toFixed(1)}s, 疑似非下载响应)`;
-    return point;
-  }
-  if (j) {
-    point.failReason = `测速失败 (HTTP ${http}, 仅收到 ${kb}KB${secs > 0 ? '/' + secs.toFixed(1) + 's' : ''}${r.code && r.code !== 0 ? ', curl ' + r.code : ''})`;
-  } else {
-    point.failReason = `测速失败 (${curlFailText(r.code)})`;
-  }
-  return point;
+// ==================== 一次性下载测速 (峰值窗口算法) ====================
+const SPEED_MIN_BYTES = 64 * 1024;
+function probeSpeed(u) {
+  return new Promise((resolve) => {
+    const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
+    if (!u.ip) { point.failReason = '无有效IP'; return resolve(point); }
+    const sp = splitProbe(CONFIG.speedUrl);
+    const sep = sp.path.includes('?') ? '&' : '?';
+    const reqPath = sp.path + sep + '_t=' + Date.now();
+    let settled = false, req = null, statusCode = 0;
+    let totalBytes = 0, lastBytes = 0, lastTime = Date.now(), maxSpeed = 0;
+    const done = (ok, failReason) => {
+      if (settled) return; settled = true;
+      clearTimeout(hardTimer); clearInterval(ticker);
+      try { req && req.destroy(); } catch (e) { }
+      const now = Date.now(); const dur = (now - lastTime) / 1000;
+      if (dur > 0) { const cur = (totalBytes - lastBytes) / dur / 1048576; if (cur > maxSpeed) maxSpeed = cur; }
+      point.size = totalBytes;
+      if (ok && totalBytes >= SPEED_MIN_BYTES && maxSpeed > 0) {
+        point.ok = true; point.mbps = Math.round(maxSpeed * 100) / 100;
+      } else {
+        point.failReason = failReason || `测速失败 (HTTP ${statusCode || '000'}, 收到 ${(totalBytes / 1024).toFixed(1)}KB, 峰值 ${maxSpeed.toFixed(2)}MB/s)`;
+      }
+      resolve(point);
+    };
+    const hardTimer = setTimeout(() => done(true, null), CONFIG.speedTimeoutSec * 1000);
+    const ticker = setInterval(() => {
+      const now = Date.now(); const dur = (now - lastTime) / 1000;
+      if (dur > 0) { const cur = (totalBytes - lastBytes) / dur / 1048576; if (cur > maxSpeed) maxSpeed = cur; }
+      lastBytes = totalBytes; lastTime = now;
+    }, 500);
+    try {
+      req = https.request({
+        host: sp.host, port: u.port, path: reqPath, method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', 'Host': sp.host },
+        createConnection: () => {
+          const s = net.connect({ host: u.ip, port: u.port });
+          return tls.connect({ socket: s, servername: sp.host, rejectUnauthorized: false });
+        }
+      }, (res) => {
+        statusCode = res.statusCode;
+        if (statusCode !== 200) { res.resume(); return done(false, `测速失败 (HTTP ${statusCode}, 疑似非下载响应)`); }
+        res.on('data', (c) => { totalBytes += c.length; });
+        res.on('end', () => done(true, null));
+        res.on('error', () => done(totalBytes >= SPEED_MIN_BYTES, totalBytes >= SPEED_MIN_BYTES ? null : '测速失败 (响应中断)'));
+      });
+      req.on('error', (e) => done(false, `测速失败 (连接错误: ${e.message})`));
+      req.end();
+    } catch (e) { done(false, `测速失败 (${e.message})`); }
+  });
 }
 // 测速闸门: 无记录→测; 成功记录→永不复测; 失败记录→间隔>10分钟才重试。是否"在线"由调用方(本轮point.ok)保证, 离线节点完全不测
 function needSpeedTest(u) {
@@ -413,12 +453,14 @@ function averageProbes(probes) {
   const src = Math.round(probes.reduce((s, p) => s + p.src, 0) / probes.length);
   return { total: tcp + tls + src, tcp, tls, src };
 }
-// 修改: 历史仅保留优质窗口大小
+// 历史只保留窗口大小; 在线样本记录 lastOnlineAt
 function pushHistory(id, point) {
   if (!state.history[id]) state.history[id] = [];
   state.history[id].push(point);
   const cap = historyCap();
   if (state.history[id].length > cap) state.history[id] = state.history[id].slice(-cap);
+  const n = state.nodes[id];
+  if (n && point && point.ok) n.lastOnlineAt = point.t;
   markDirty();
 }
 // ==================== 可中断流水线（两阶段: 延迟 → 测速） ====================
@@ -731,7 +773,7 @@ const server = http.createServer(async (req, res) => {
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 500); }
 });
-// ==================== 启动（全兜底, 绝不让初始化异常杀死进程） ====================
+// ==================== 启动（含旧明文Token迁移 + lastOnlineAt回填） ====================
 server.on('error', (e) => { log('💥 HTTP server 错误: ' + e.message); });
 CONFIG.github.token = process.env.GITHUB_TOKEN || readSecret() || '';
 try {
@@ -744,7 +786,7 @@ try {
   }
   setConfig(onDisk);
 } catch (e) { }
-ensureIpFile(); loadData();
+ensureIpFile(); loadData(); backfillLastOnline();
 server.listen(CONFIG.port, () => {
   console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
   log(`🚀 服务启动 (${VERSION})`);
