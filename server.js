@@ -423,7 +423,7 @@ function averageProbes(probes) {
 function pushHistory(id, point) {
   if (!state.history[id]) state.history[id] = [];
   state.history[id].push(point);
-  if (state.history[id].length > 600) state.history[id] = state.history[id].slice(-600);
+  if (state.history[id].length > 50) state.history[id] = state.history[id].slice(-50);
   markDirty();
 }
 
