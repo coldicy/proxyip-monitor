@@ -1,6 +1,6 @@
 /**
-Proxy Monitor v36-window
-- 测速算法改回平均值算法
+Proxy Monitor v37-graveyard 管理
+- 新增: 手动解除/添加屏蔽 (graveyard 管理)
 */
 const http = require('http');
 const fs = require('fs');
@@ -8,7 +8,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
-const VERSION = 'v36-window';
+const VERSION = 'v37-graveyard 管理';
 const SPEED_RETRY_MS = 10 * 60 * 1000;
 const CONFIG = {
   port: parseInt(process.env.PORT || '8787', 10),
@@ -707,6 +707,56 @@ function serveIndex(res) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(htmlCache.content);
 }
+
+// ==================== 新增屏蔽管理 API ====================
+async function unblockIds(ids) {
+  let removed = 0;
+  for (const id of ids) {
+    if (state.blocked[id]) {
+      delete state.blocked[id];
+      removed++;
+    }
+    // 从 graveyard.list 中删除对应项
+    const idx = state.graveyard.list.findIndex(g => g.id === id);
+    if (idx !== -1) {
+      state.graveyard.list.splice(idx, 1);
+      removed++;
+    }
+  }
+  if (removed) {
+    capGraveyard();
+    persistGraveyard();
+    markDirty();
+    log(`🔓 手动解除屏蔽 ${removed} 个节点`);
+  }
+  return removed;
+}
+
+async function blockIds(ids) {
+  let added = 0;
+  const now = Date.now();
+  for (const id of ids) {
+    // 如果已屏蔽则跳过
+    if (state.blocked[id]) continue;
+    // 如果节点存在，先删除
+    if (state.nodes[id]) {
+      delete state.nodes[id];
+      delete state.history[id];
+      markDirty();
+    }
+    state.blocked[id] = now;
+    pushGrave(id, id, now, 'manual', '手动屏蔽');
+    added++;
+  }
+  if (added) {
+    capGraveyard();
+    persistGraveyard();
+    markDirty();
+    log(`🚫 手动屏蔽 ${added} 个节点`);
+  }
+  return added;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost'); const p = url.pathname;
   const json = (d, s = 200) => { res.writeHead(s, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(d)); };
@@ -717,6 +767,20 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/abort' && req.method === 'POST') { if (state.checking) { state.abort = true; log('⏹ 收到中断请求'); } return json({ ok: true }); }
     if (p === '/api/graveyard' && req.method === 'GET') return json({ graveyard: state.graveyard.list });
     if (p === '/api/graveyard/clear' && req.method === 'POST') { state.graveyard.list = []; state.blocked = {}; persistGraveyard(); return json({ ok: true }); }
+    // 新增：解除屏蔽
+    if (p === '/api/graveyard/unblock' && req.method === 'POST') {
+      const { ids } = JSON.parse(await readBody(req) || '{}');
+      if (!Array.isArray(ids) || !ids.length) return json({ ok: false, error: '无有效ID' }, 400);
+      const count = await unblockIds(ids);
+      return json({ ok: true, count });
+    }
+    // 新增：手动添加屏蔽
+    if (p === '/api/graveyard/block' && req.method === 'POST') {
+      const { ids } = JSON.parse(await readBody(req) || '{}');
+      if (!Array.isArray(ids) || !ids.length) return json({ ok: false, error: '无有效ID' }, 400);
+      const count = await blockIds(ids);
+      return json({ ok: true, count });
+    }
     if (p === '/api/remove' && req.method === 'POST') {
       const { ids } = JSON.parse(await readBody(req) || '{}');
       if (!Array.isArray(ids) || !ids.length) return json({ ok: false, error: '无有效节点ID' }, 400);
