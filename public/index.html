@@ -75,7 +75,7 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;border:1px solid transparent;white-space:nowrap;cursor:default}
 .badge.quality{color:#052e16;background:linear-gradient(135deg,#34d399,#a3e635)}
 .badge.ok{color:#082f49;background:linear-gradient(135deg,#38bdf8,#22d3ee)}
-.badge.online{color:#0f172a;background:linear-gradient(135deg,#a3e635,#84cc16)}
+.badge.unqual{color:#451a03;background:linear-gradient(135deg,#fde68a,#fbbf24)}
 .badge.offline{color:#fec2c8;background:rgba(244,63,94,.16);border-color:rgba(244,63,94,.3)}
 .ops{display:flex;gap:6px;flex-wrap:nowrap}
 .mini-btn{padding:6px 9px;border-radius:9px;border:1px solid var(--line);background:rgba(15,23,42,.8);color:var(--text);cursor:pointer;font-size:12px;transition:.16s ease;white-space:nowrap}
@@ -158,7 +158,7 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
 <main>
   <section class="stats">
     <div class="card"><div class="label">节点总数</div><div class="value" id="statTotal">-</div><div class="sub">来自 ip.txt、域名解析与列表源</div></div>
-    <div class="card"><div class="label">当前在线</div><div class="value good" id="statOnline">-</div><div class="sub">最近一次检测通过</div></div>
+    <div class="card"><div class="label">当前在线</div><div class="value good" id="statOnline">-</div><div class="sub">最近一次检测通过（优质+达标+未达标）</div></div>
     <div class="card"><div class="label">优质节点</div><div class="value good" id="statQuality">-</div><div class="sub">成功率/达标率/速度均满足</div></div>
     <div class="card"><div class="label">当前离线</div><div class="value bad" id="statOffline">-</div><div class="sub">最近一次检测失败</div></div>
     <div class="card span-2"><div class="label">检测进度</div><div class="progress-wrap"><div id="progressBar" class="progress-fill"></div></div><div class="sub" id="progressText">尚未开始检测</div></div>
@@ -180,7 +180,7 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
       <div class="filters">
         <input id="searchInput" class="input" style="min-width:220px" placeholder="搜索 IP / 地区 / 数据中心 / 出口IP / 来源" />
         <select id="kindFilter" class="input" title="身份筛选"><option value="all">身份: 全部</option><option value="cf">CloudflareIP</option><option value="proxy">ProxyIP</option></select>
-        <select id="statusFilter" class="input" title="状态筛选（与状态列徽章一一对应）"><option value="all">状态: 全部</option><option value="quality">优质</option><option value="qual">达标</option><option value="online">在线</option><option value="offline">离线</option></select>
+        <select id="statusFilter" class="input" title="状态筛选；「在线」= 优质+达标+未达标"><option value="all">状态: 全部</option><option value="quality">优质</option><option value="qual">达标</option><option value="unqual">未达标</option><option value="online">在线</option><option value="offline">离线</option></select>
         <label class="filter">总延迟 ≤<input id="maxLatencyFilter" type="number" min="0" step="1" class="input" style="width:88px" placeholder="ms" /></label>
         <label class="filter">速度 ≥<input id="minSpeedFilter" type="number" min="0" step="0.1" class="input" style="width:88px" placeholder="MB/s" /></label>
         <label class="filter">达标率 ≥<input id="qualRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
@@ -245,15 +245,16 @@ https://example.com/proxyip-list.txt</code></pre>
       <li>只测一次：成功记录永不自动复测；失败记录仅在本轮在线且间隔 &gt;10 分钟时重试；离线节点完全不测，不浪费性能。</li>
       <li>结果持久化在节点上，重启不丢、不重复测。</li>
       <li>优质门槛：速度下限 &gt;0 时，测速不达标或未测速成功的节点不评为优质/不上传。</li>
-      <li>手动复测：行内 ⚡ 按钮（用户主动，不受“不复测”限制）。</li></ul>
-      <div class="callout warn"><p>测速真实消耗节点带宽（单节点封顶 20MB/10s）。测速结果本质是 min(节点能力, 本地带宽÷并发)，速度下限请参照监控机本地带宽设置。</p></div></section>
-      <section id="m6"><h2>6 探针分工</h2><h3>官方探针</h3><ul><li>默认 cloudflare trace，检测反代能力并读取 colo/loc/出口IP；必须返回 CF 内容。</li></ul>
+      <li>手动复测：行内 ⚡ 按钮（用户主动，不受“不复测”限制）。</li>
+      <li>测速真实消耗节点带宽（单节点封顶 20MB/10s）。测速结果本质是 min(节点能力, 本地带宽÷并发)，速度下限请参照监控机本地带宽设置。</li></ul></section>
+      <section id="m6"><h2>6 探针分工</h2><h3>官方探针</h3><ul><li>默认 cloudflare trace，检测反代能力并读取 colo/loc/出口IP；必须返回 CF 内容，且回显本次随机 UA（uag=…）防伪造。</li></ul>
       <h3>自定义源站探针</h3><ul><li>验证真实回源；全部成功该次才在线；失败记录精确原因（如 预期200实际502）。</li></ul></section>
       <section id="m7"><h2>7 页面操作</h2><h3>筛选与排序</h3><ul>
-      <li>状态：全部/优质/达标/在线/离线（与徽章一一对应）；速度 ≥（MB/s）；其余同前。</li>
+      <li>状态：全部/优质/达标/未达标/在线/离线。其中「在线」= 优质+达标+未达标（即最近一次检测通过）；「未达标」= 在线但最近一次总延迟超上限（未设上限时在线即达标）。</li>
       <li>排序新增“下载速度降序”。</li></ul>
       <h3>表格</h3><ul>
       <li>节点信息：IP:端口 同行显示身份标签（CloudflareIP/ProxyIP）；下方三行依次为 ① 首次引入时间 + 来源；② 地区(国旗) + 数据中心 + 出口IP（离线时历史补齐）；③ 最近检测时间。</li>
+      <li>状态徽章：优质 / 达标 / 未达标 / 离线，语义互斥。</li>
       <li>下载速度列：绿=达标或未设下限；红=低于下限；<code>-</code>=未测速/失败（悬浮看原因与时间）。</li>
       <li>操作：复制 / ⚡复测 / 删除。</li>
       <li>延迟柱：绿=在线达标，黄=在线超上限，红=失败；悬浮红柱看该次精确失败原因。柱数 = 优质窗口大小（上限 50）。</li></ul>
@@ -268,10 +269,10 @@ https://example.com/proxyip-list.txt</code></pre>
       <tr><td>每周期测速配额</td><td>默认 20；新节点多时顺延后续周期消化。</td></tr>
       <tr><td>测速超时 (秒)</td><td>单节点时间上限，默认 10。</td></tr>
       <tr><td>测速 URL</td><td>默认 20MB 下载端点；可调 bytes 改变体量。</td></tr>
-      <tr><td>优质判定窗口 (1-50)</td><td>后端每节点最多仅保留最近 50 条样本，窗口最大 50。</td></tr>
+      <tr><td>优质判定窗口 (1-50)</td><td>后端每节点仅保留窗口大小样本，前端同步限制 1-50。</td></tr>
       <tr><td>达标率阈值 / 成功率阈值</td><td>达标率不能高于成功率，否则后端会自动将其拉平。</td></tr>
       <tr><td>GitHub Token</td><td>加密存储；输入框留空 = 保持当前 Token 不变（见 9）。</td></tr>
-      <tr><td>其余</td><td>间隔/超时/并发/延迟上限/窗口/探针 同前。</td></tr></table>
+      <tr><td>其余</td><td>间隔/超时/并发/延迟上限/探针 同前。</td></tr></table>
       <h3>底部两个保存按钮的区别</h3>
       <table class="table-mini">
       <tr><th>按钮</th><th>作用范围</th><th>适用场景</th></tr>
@@ -288,7 +289,7 @@ https://example.com/proxyip-list.txt</code></pre>
       <h3>Token 会泄露吗？</h3><ul><li>不会：接口只返回打码值；页面永远看不到完整 Token。</li></ul></section>
       <section id="m12"><h2>12 API</h2><table class="table-mini">
       <tr><th>接口</th><th>用途</th></tr>
-      <tr><td>/api/state</td><td>节点/质量/进度/配置；items 含 speed；recent 含 failReason/colo/loc/exitIp（最近 50 条）。</td></tr>
+      <tr><td>/api/state</td><td>节点/质量/进度/配置；items 含 speed；recent 含 failReason/colo/loc/exitIp（窗口大小条）。</td></tr>
       <tr><td>/api/config</td><td>GET 返回打码 Token（tokenSet/tokenMasked）；POST 留空=不改 Token。</td></tr>
       <tr><td>/api/speedtest POST</td><td>手动复测 {ids:[...]}（≤10，串行）。</td></tr>
       <tr><td>其余</td><td>logs/check/abort/ipfile/remove/graveyard/graveyard/clear/upload/reload 同前。</td></tr></table></section>
@@ -384,9 +385,10 @@ function speedOf(item){return (item.speed&&item.speed.ok&&item.speed.mbps!=null)
 function effectiveMeta(item){const latest=item.latest||{};const recent=item.recent||[];const pick=f=>{if(latest[f])return{v:latest[f],hist:false};for(let i=recent.length-1;i>=0;i--){const p=recent[i];if(p&&p[f])return{v:p[f],hist:true};}return{v:null,hist:false};};return{loc:pick("loc"),colo:pick("colo"),exitIp:pick("exitIp")};}
 function latencyClass(v){if(v==null||!isFinite(v))return "";const l=DATA.state?.config?.maxTotalMs||0;if(l>0)return v<=l?"good":"warn";return "good";}
 function rateClass(v,th){if(v==null||!isFinite(v))return "";const t=Number(th)||0;if(t<=0)return "good";if(v>=t)return "good";if(v>=t*0.8)return "warn";return "bad";}
-function statusOf(item){const q=item.quality||{};const latest=item.latest||{};if(q.quality)return "quality";if(latest.ok){const l=DATA.state?.config?.maxTotalMs||0;if(l>0&&latest.total!=null&&latest.total<=l)return "qual";return "online";}return "offline";}
+// 状态语义: quality=优质; qual=达标(在线且最近一次总延迟≤上限, 未设上限时在线即达标); unqual=未达标(在线但超上限); offline=离线
+function statusOf(item){const q=item.quality||{};const latest=item.latest||{};if(q.quality)return "quality";if(latest.ok){const l=DATA.state?.config?.maxTotalMs||0;if(l<=0)return "qual";if(latest.total!=null&&latest.total<=l)return "qual";return "unqual";}return "offline";}
 function failReasonFor(p){if(p&&p.failReason)return p.failReason;if(p&&p.off)return "官方探针成功，但自定义源站探针未全部通过";return "官方探针未通过（连接失败 / 超时 / 非CF内容）";}
-function statusHtml(item){const s=statusOf(item);if(s==="quality")return '<span class="badge quality">优质</span>';if(s==="qual")return '<span class="badge ok">达标</span>';if(s==="online")return '<span class="badge online">在线</span>';const fr=(item.latest||{}).failReason;return `<span class="badge offline"${fr?` title="${escapeHtml(fr)}"`:""}>离线</span>`;}
+function statusHtml(item){const s=statusOf(item);if(s==="quality")return '<span class="badge quality">优质</span>';if(s==="qual")return '<span class="badge ok">达标</span>';if(s==="unqual")return '<span class="badge unqual">未达标</span>';const fr=(item.latest||{}).failReason;return `<span class="badge offline"${fr?` title="${escapeHtml(fr)}"`:""}>离线</span>`;}
 function srcLabelOf(item){const k=item.srcKind||"pure";const n=item.srcName||"";if(k==="pure")return "纯IP";if(k==="dom")return "域名"+(n?"/"+n:"");if(k==="url")return "列表"+(n?"/"+n:"");return k+(n?"/"+n:"");}
 
 function speedCellHtml(item){const sp=item.speed||null;const minSp=speedMin();
@@ -426,7 +428,7 @@ ${speedCellHtml(item)}
 function getFiltered(){if(!DATA.state||!Array.isArray(DATA.state.items))return [];let arr=DATA.state.items.slice();const f=FILTERS;
 if(f.search){const s=f.search.toLowerCase();arr=arr.filter(i=>{const m=effectiveMeta(i);return [i.id,i.ip,i.srcName,m.loc.v,m.colo.v,m.exitIp.v].filter(Boolean).some(v=>String(v).toLowerCase().includes(s));});}
 if(f.kind!=="all")arr=arr.filter(i=>i.ipKind===f.kind);
-if(f.status!=="all")arr=arr.filter(i=>statusOf(i)===f.status);
+if(f.status!=="all"){if(f.status==="online")arr=arr.filter(i=>i.latest&&i.latest.ok);else arr=arr.filter(i=>statusOf(i)===f.status);}
 if(f.onlyQuality)arr=arr.filter(i=>i.quality?.quality);
 const ml=parseFloat(f.maxLatency);if(isFinite(ml))arr=arr.filter(i=>i.quality?.avgTotal!=null&&i.quality.avgTotal<=ml);
 const ms=parseFloat(f.minSpeed);if(isFinite(ms))arr=arr.filter(i=>speedOf(i)!=null&&speedOf(i)>=ms);
