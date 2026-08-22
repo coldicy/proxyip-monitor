@@ -51,14 +51,11 @@ const state = {
 let cycleTimer = null, githubTimer = null;
 let dataDirty = false;
 let htmlCache = { mtime: 0, content: '' };
-
 function log(m) { state.logs.push({ t: Date.now(), m: String(m) }); if (state.logs.length > 400) state.logs = state.logs.slice(-400); }
 function markDirty() { dataDirty = true; }
-
 // ==================== 进程级止血: 只记日志, 不让进程崩溃重启 ====================
 process.on('uncaughtException', (e) => { log('💥 未捕获异常(已止血): ' + (e && e.stack ? e.stack : e)); });
 process.on('unhandledRejection', (e) => { log('💥 未处理拒绝(已止血): ' + (e && e.stack ? e.stack : e)); });
-
 // ==================== 安全工具 ====================
 // 修复: 旧正则 /['"`\\s]/g 会误删字母 s; 现在只剥离 引号/反引号/反斜杠/空白
 function sanitizeUrl(u) { return String(u || '').replace(/['"`\\\s]/g, ''); }
@@ -72,7 +69,6 @@ function writeSecret(t) {
     try { fs.chmodSync(CONFIG.secretFile, 0o600); } catch (e) { }
   } catch (e) { log('⚠️ Token 写入失败: ' + e.message); }
 }
-
 // ==================== 配置 ====================
 function setConfig(o) {
   if (!o) return;
@@ -146,7 +142,6 @@ function restartGithubTimer() {
     }, mins * 60 * 1000);
   }
 }
-
 // ==================== 工具 ====================
 function splitProbe(u) { try { const x = new URL(u); return { host: x.hostname, path: x.pathname + x.search }; } catch (e) { return { host: 'www.cloudflare.com', path: '/cdn-cgi/trace' }; } }
 function isUrl(s) { return /^https?:\/\//i.test(s); }
@@ -166,6 +161,7 @@ function sourceKeyForLine(line) {
 }
 function splitId(id) { const i = id.lastIndexOf(':'); return [id.slice(0, i), +id.slice(i + 1)]; }
 function runCurl(c, ms) { return new Promise(r => exec(c, { timeout: ms, maxBuffer: 4 * 1024 * 1024 }, (e, o) => r(e ? null : o))); }
+// 注意: 保留 stdout, 即使 curl 非零退出(如28超时)也带回 -w 统计, 供测速截断计算使用
 function runCurl2(c, ms) { return new Promise(r => exec(c, { timeout: ms, maxBuffer: 4 * 1024 * 1024 }, (e, o) => r({ out: o, code: e ? (e.killed ? -1 : e.code) : 0 }))); }
 function curlFailText(code) {
   if (code === 28) return '超时'; if (code === 7) return '连接被拒';
@@ -238,7 +234,6 @@ async function fetchList(url) {
   if (out && out.trim()) { if (out.length > 2 * 1024 * 1024) return out.slice(0, 2 * 1024 * 1024); return out; }
   return '';
 }
-
 // ==================== CF CIDR 分类 ====================
 const CF_SUPERNETS = ['103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '104.16.0.0/12', '108.162.192.0/18',
   '131.0.72.0/22', '141.101.64.0/18', '162.158.0.0/15', '172.64.0.0/13', '173.245.48.0/20',
@@ -262,7 +257,6 @@ async function refreshCfCidrs(force) {
   log('🌐 CF IP分类集合已更新: ' + state.cfCidrs.length + ' 条');
 }
 function classifyIp(ip) { if (!ip || !net.isIPv4(ip) || !state.cfCidrs.length) return 'unknown'; return state.cfCidrs.some(c => cidrMatch(ip, c)) ? 'cf' : 'proxy'; }
-
 // ==================== 节点注册表迁移 ====================
 function migrateNodes(disc) {
   const nodes = {};
@@ -292,7 +286,6 @@ function loadData() {
   } catch (e) { state.nodes = migrateNodes({}); }
   loadGraveyard();
 }
-
 // ==================== 发现(只增) ====================
 async function discover() {
   await refreshCfCidrs(false);
@@ -331,7 +324,6 @@ async function discover() {
   if (added) markDirty();
   return added;
 }
-
 // ==================== 官方探针 ====================
 async function probeLatency(u) {
   const point = { t: Date.now(), ok: false, off: null, colo: null, loc: null, exitIp: null, failReason: null };
@@ -353,7 +345,6 @@ async function probeLatency(u) {
   }
   return point;
 }
-
 // ==================== 自定义探针 ====================
 async function probeCustoms(u) {
   const results = []; const ms = CONFIG.timeoutSec * 1000;
@@ -374,9 +365,9 @@ async function probeCustoms(u) {
   }
   return results;
 }
-
 // ==================== 一次性下载测速 ====================
-const SPEED_MIN_BYTES = 64 * 1024;
+// 20MB 字节上限 + speedTimeoutSec 时间上限; speed = size/time; 超时截断(exit 28)仍输出 -w, 慢节点也能得到有效平均速度
+const SPEED_MIN_BYTES = 64 * 1024; // 有效样本最低接收量
 async function probeSpeed(u) {
   const point = { t: Date.now(), ok: false, mbps: null, size: null, failReason: null };
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
@@ -405,13 +396,13 @@ async function probeSpeed(u) {
   }
   return point;
 }
+// 测速闸门: 无记录→测; 成功记录→永不复测; 失败记录→间隔>10分钟才重试。是否"在线"由调用方(本轮point.ok)保证, 离线节点完全不测
 function needSpeedTest(u) {
   if (!CONFIG.speedEnabled) return false;
   if (!u.speed) return true;
   if (u.speed.ok) return false;
   return (Date.now() - (u.speed.t || 0)) > SPEED_RETRY_MS;
 }
-
 // ==================== 辅助：计算多个探针的平均值 ====================
 function averageProbes(probes) {
   if (!probes.length) return null;
@@ -426,7 +417,6 @@ function pushHistory(id, point) {
   if (state.history[id].length > 50) state.history[id] = state.history[id].slice(-50);
   markDirty();
 }
-
 // ==================== 可中断流水线（两阶段: 延迟 → 测速） ====================
 async function runCycle() {
   if (state.checking) return; state.checking = true; state.abort = false;
@@ -500,7 +490,6 @@ async function runCycle() {
     if (CONFIG.github.auto) autoUpload().catch(e => { state.github.lastError = e.message; log('⚠️ 自动上传失败: ' + e.message); });
   } finally { state.checking = false; state.abort = false; }
 }
-
 // ==================== 优质判定（含速度下限） ====================
 function computeQuality(points, speed) {
   const recent = (points || []).slice(-CONFIG.qualityWindow);
@@ -535,7 +524,6 @@ function computeQuality(points, speed) {
   const quality = enough && rate >= CONFIG.successThreshold && qualRate >= CONFIG.qualThreshold && speedPass;
   return { quality, rate, qualRate, avgTotal, avgTcp, avgTls, avgHttp, samples: recent.length, speedPass };
 }
-
 // ==================== 清理 ====================
 async function cleanGraveyard() {
   if (CONFIG.autoCleanDays <= 0) return;
@@ -563,7 +551,6 @@ async function removeUnits(ids) {
   if (removed) { capGraveyard(); persistGraveyard(); saveData(); log(`🗑️ 手动删除 ${removed} 个节点（已屏蔽）`); }
   return removed;
 }
-
 // ==================== 格式（复制 & GitHub 上传） ====================
 function formatNodeLine(ipPort, region, colo, q, speedMbps) {
   const total = q.avgTotal != null ? q.avgTotal + 'ms' : '?ms';
@@ -643,7 +630,6 @@ async function autoUpload() {
   if (fingerprint === state.lastUploadedContent) { log('⏭️ 优质列表未变化，跳过上传'); return; }
   await uploadGithub();
 }
-
 // ==================== API ====================
 function buildState() {
   try {
@@ -739,7 +725,6 @@ const server = http.createServer(async (req, res) => {
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 500); }
 });
-
 // ==================== 启动（全兜底, 绝不让初始化异常杀死进程） ====================
 server.on('error', (e) => { log('💥 HTTP server 错误: ' + e.message); });
 CONFIG.github.token = process.env.GITHUB_TOKEN || readSecret() || '';
