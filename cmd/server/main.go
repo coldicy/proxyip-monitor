@@ -1,44 +1,45 @@
 package main
 
 import (
+"bytes"
+"context"
 "embed"
+"encoding/json"
 "fmt"
-"io/fs"
 "log"
 "net/http"
 "os"
+"os/exec"
 "os/signal"
-"path/filepath"
 "strings"
 "sync"
 "syscall"
 "time"
 
 "proxy-monitor/internal/config"
+"proxy-monitor/internal/detector"
 "proxy-monitor/internal/models"
 )
 
-//go:embed web/dist/*
-var staticFiles embed.FS
+//go:embed web/dist/index.html
+var indexHTML []byte
 
 const version = "v36-window-go"
 
 type AppState struct {
-mu            sync.RWMutex
-cfg           *config.Config
-units         map[string]*models.Unit
-history       map[string][]*models.HistoryEntry
-graveyard     *models.Graveyard
-blocked       map[string]int64
-checking      bool
-abort         bool
-progress      Progress
-lastCycle     *time.Time
-logs          []LogEntry
-githubState   GitHubState
-lastUploaded  string
-cfCidrs       []string
-cfCidrsAt     time.Time
+mu          sync.RWMutex
+cfg         *config.Config
+detector    *detector.Detector
+units       map[string]*models.Unit
+history     map[string][]*models.HistoryEntry
+graveyard   *models.Graveyard
+blocked     map[string]int64
+checking    bool
+abort       bool
+progress    Progress
+lastCycle   *time.Time
+logs        []LogEntry
+githubState GitHubState
 }
 
 type Progress struct {
@@ -71,13 +72,16 @@ cfg.GitHub.Token = token
 cfg.GitHub.Token = ghToken
 }
 
+det := detector.NewDetector(cfg)
+
 state := &AppState{
-cfg:       cfg,
-units:     make(map[string]*models.Unit),
-history:   make(map[string][]*models.HistoryEntry),
-graveyard: &models.Graveyard{List: []models.GraveyardEntry{}, Blocked: make(map[string]int64)},
-blocked:   make(map[string]int64),
-logs:      []LogEntry{},
+cfg:         cfg,
+detector:    det,
+units:       make(map[string]*models.Unit),
+history:     make(map[string][]*models.HistoryEntry),
+graveyard:   &models.Graveyard{List: []models.GraveyardEntry{}, Blocked: make(map[string]int64)},
+blocked:     make(map[string]int64),
+logs:        []LogEntry{},
 githubState: GitHubState{},
 }
 
@@ -93,11 +97,13 @@ log.Printf("⚠️ 创建 IP 文件失败：%v", err)
 }
 
 go func() {
-if err := refreshCfCidrs(state, true); err != nil {
+if err := det.RefreshCfCidrs(true); err != nil {
 log.Printf("⚠️ 更新 CF CIDR 失败：%v", err)
 }
-if err := discover(state); err != nil {
+if added, err := det.Discover(state.units, state.history, state.blocked); err != nil {
 log.Printf("⚠️ 发现节点失败：%v", err)
+} else if added > 0 {
+log.Printf("🆕 发现 %d 个新节点", added)
 }
 
 if ready := waitNetworkReady(state.cfg, 45000, 5000); !ready {
@@ -192,14 +198,8 @@ jsonResp(map[string]string{"error": "not found"}, 404)
 }
 
 func serveIndex(w http.ResponseWriter) {
-data, err := staticFiles.ReadFile("web/dist/index.html")
-if err != nil {
-w.WriteHeader(http.StatusInternalServerError)
-w.Write([]byte("<h1>index.html 缺失</h1>"))
-return
-}
 w.Header().Set("Content-Type", "text/html; charset=utf-8")
-w.Write(data)
+w.Write(indexHTML)
 }
 
 func addLog(state *AppState, msg string) {
@@ -284,8 +284,79 @@ data, _ := json.Marshal(v)
 return data
 }
 
-var json = newJSON()
+func waitNetworkReady(cfg *config.Config, maxMs, stepMs int) bool {
+maxMs = maxMs || 45000
+stepMs = stepMs || 5000
 
-func newJSON() *json.Encoder {
+probeURL := cfg.ProbeURL
+if !strings.HasPrefix(probeURL, "http") {
+probeURL = "https://www.cloudflare.com/cdn-cgi/trace"
+}
+
+started := time.Now()
+tried := 0
+for time.Since(started) < time.Duration(maxMs)*time.Millisecond {
+tried++
+cmd := fmt.Sprintf(`curl -4 -k -s --noproxy '*' -o /dev/null -w '%%{http_code}' --connect-timeout 3 --max-time 6 '%s'`, probeURL)
+out, code := runCurlCmd(cmd, 8000)
+if code == 0 && strings.TrimSpace(out) != "000" {
+if tried > 1 {
+log.Printf("🌐 网络已就绪（第 %d 次尝试）", tried)
+}
+return true
+}
+time.Sleep(time.Duration(stepMs) * time.Millisecond)
+}
+return false
+}
+
+func runCurlCmd(cmd string, timeoutMs int) (string, int) {
+ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+defer cancel()
+
+c := exec.CommandContext(ctx, "sh", "-c", cmd)
+var out bytes.Buffer
+c.Stdout = &out
+
+err := c.Run()
+exitCode := 0
+if err != nil {
+if exitErr, ok := err.(*exec.ExitError); ok {
+exitCode = exitErr.ExitCode()
+} else {
+exitCode = -1
+}
+}
+return out.String(), exitCode
+}
+
+func buildState(state *AppState) interface{} {
+state.mu.RLock()
+defer state.mu.RUnlock()
+
+units := make([]*models.Unit, 0, len(state.units))
+for _, u := range state.units {
+units = append(units, u)
+}
+
+return map[string]interface{}{
+"units":     units,
+"history":   state.history,
+"progress":  state.progress,
+"checking":  state.checking,
+"lastCycle": state.lastCycle,
+"github":    state.githubState,
+"graveyard": state.graveyard.List,
+"cfg":       state.cfg.PublicConfig(),
+}
+}
+
+func runCycle(state *AppState) {
+log.Println("🔄 检测周期开始")
+// TODO: 实现核心检测周期逻辑
+}
+
+func uploadGithub(state *AppState) error {
+// TODO: 实现 GitHub 上传逻辑
 return nil
 }
