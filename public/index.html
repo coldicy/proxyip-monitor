@@ -40,7 +40,11 @@ main{width:min(1760px,calc(100% - 40px));margin:20px auto 0;display:grid;gap:16p
 .input,select,textarea{background:rgba(15,23,42,.76);color:var(--text);border:1px solid var(--line);border-radius:11px;padding:9px 10px;font-size:13px;outline:none;transition:.18s ease}
 .input:focus,select:focus,textarea:focus{border-color:rgba(56,189,248,.55);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
 select{cursor:pointer}
-select.op{width:60px;padding:9px 4px;text-align:center;cursor:pointer;font-weight:700}
+/* 运算符选择器: 外观与原文本一致, 无边框无背景无箭头, 点击展开选择 */
+select.op{appearance:none;-webkit-appearance:none;-moz-appearance:none;background:transparent;border:none;border-radius:0;padding:0;margin:0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;line-height:1;min-width:14px;text-align:center;transition:.15s ease}
+select.op:hover{color:var(--accent)}
+select.op:focus{outline:none;border:none;box-shadow:none;color:var(--accent)}
+select.op option{background:rgba(15,23,42,.98);color:var(--text);font-size:13px;font-weight:400}
 label.filter{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap}
 label.check{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap;user-select:none;cursor:pointer}
 input[type="checkbox"]{width:16px;height:16px;accent-color:#38bdf8;cursor:pointer}
@@ -184,10 +188,10 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
 <input id="searchInput" class="input" style="min-width:220px" placeholder="搜索 IP / 地区 / 数据中心 / 出口IP / 来源" />
 <select id="kindFilter" class="input" title="身份筛选"><option value="all">身份: 全部</option><option value="cf">CloudflareIP</option><option value="proxy">ProxyIP</option></select>
 <select id="statusFilter" class="input" title="状态筛选；「在线」= 优质+达标+未达标"><option value="all">状态: 全部</option><option value="quality">优质</option><option value="qual">达标</option><option value="unqual">未达标</option><option value="online">在线</option><option value="offline">离线</option></select>
-<label class="filter">总延迟<select id="latOpFilter" class="input op" title="比较运算符"><option value="lte" selected>≤</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="maxLatencyFilter" type="number" min="0" step="1" class="input" style="width:88px" placeholder="ms" /></label>
-<label class="filter">速度<select id="speedOpFilter" class="input op" title="比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="minSpeedFilter" type="number" min="0" step="0.1" class="input" style="width:88px" placeholder="MB/s" /></label>
-<label class="filter">达标率<select id="qualOpFilter" class="input op" title="比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="qualRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
-<label class="filter">成功率<select id="successOpFilter" class="input op" title="比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="successRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
+<label class="filter">总延迟<select id="latOpFilter" class="op" title="点击切换比较运算符"><option value="lte" selected>≤</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="maxLatencyFilter" type="number" min="0" step="1" class="input" style="width:88px" placeholder="ms" /></label>
+<label class="filter">速度<select id="speedOpFilter" class="op" title="点击切换比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="minSpeedFilter" type="number" min="0" step="0.1" class="input" style="width:88px" placeholder="MB/s" /></label>
+<label class="filter">达标率<select id="qualOpFilter" class="op" title="点击切换比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="qualRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
+<label class="filter">成功率<select id="successOpFilter" class="op" title="点击切换比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="successRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
 <select id="coloFilter" class="input" title="数据中心筛选"><option value="">数据中心: 全部</option></select>
 <select id="locFilter" class="input" title="地区筛选"><option value="">地区: 全部</option></select>
 <label class="check"><input id="onlyQualityFilter" type="checkbox" /> 只看优质</label>
@@ -209,7 +213,6 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
 </section>
 <footer class="footer">Proxy Monitor · 达标 = 在线且总延迟 ≤ 上限 · 优质 = 样本充足 &amp; 成功率 &amp; 达标率 &amp; 速度 ≥ 下限 · <a id="footerManual">📖 手册</a> · <span id="footerVersion">版本 -</span></footer>
 </main>
-
 <div class="modal" id="manualModal"><div class="modal-card large">
 <div class="modal-head"><h2>📖 使用手册</h2><button class="close-btn" data-close="manualModal">✕</button></div>
 <div class="manual">
@@ -252,11 +255,13 @@ https://example.com/proxyip-list.txt</code></pre>
 <li>测速真实消耗节点带宽（单节点封顶 20MB/10s）。测速结果本质是 min(节点能力, 本地带宽÷并发)，速度下限请参照监控机本地带宽设置。</li></ul></section>
 <section id="m6"><h2>6 探针分工</h2><h3>官方探针</h3><ul><li>默认 cloudflare trace，检测反代能力并读取 colo/loc/出口IP；必须返回 CF 内容，且回显本次随机 UA（uag=…）防伪造。</li></ul>
 <h3>自定义源站探针</h3><ul><li>验证真实回源；全部成功该次才在线；失败记录精确原因（如 预期200实际502）。</li></ul></section>
-<section id="m7"><h2>7 页面操作</h2><h3>筛选与排序</h3><ul>
+<section id="m7"><h2>7 页面操作</h2><h3>筛选与排序</h3>
+<ul>
 <li>状态：全部/优质/达标/未达标/在线/离线。其中「在线」= 优质+达标+未达标（即最近一次检测通过）；「未达标」= 在线但最近一次总延迟超上限（未设上限时在线即达标）。</li>
-<li>数值筛选：总延迟 / 速度 / 达标率 / 成功率 均带运算符下拉框（≤ / ≥ / &lt; / &gt; / =），默认总延迟 ≤、其余 ≥，可自由切换并即时生效；输入框留空 = 不启用该条件。</li>
+<li>数值筛选：总延迟 / 速度 / 达标率 / 成功率 的运算符（≤ / ≥ / &lt; / &gt; / =）为可点击文本，点击展开切换，默认总延迟 ≤、其余 ≥；输入框留空 = 不启用该条件。</li>
 <li>排序新增“下载速度降序”。</li></ul>
-<h3>表格</h3><ul>
+<h3>表格</h3>
+<ul>
 <li>节点信息：IP:端口 同行显示身份标签（CloudflareIP/ProxyIP）；下方三行依次为 ① 首次引入时间 + 来源；② 地区(国旗) + 数据中心 + 出口IP（离线时历史补齐）；③ 最近检测时间。</li>
 <li>状态徽章：优质 / 达标 / 未达标 / 离线，语义互斥。</li>
 <li>下载速度列：绿=达标或未设下限；红=低于下限；<code>-</code>=未测速/失败（悬浮看原因与时间）。</li>
@@ -302,13 +307,11 @@ https://example.com/proxyip-list.txt</code></pre>
 </div>
 </div>
 </div></div>
-
 <div class="modal" id="logsModal"><div class="modal-card">
 <div class="modal-head"><h2>📜 运行日志</h2><button class="close-btn" data-close="logsModal">✕</button></div>
 <div class="logs-box" id="logsBox">加载中...</div>
 <div class="modal-foot"><button id="btnRefreshLogs" class="btn">刷新</button><button class="btn ghost" data-close="logsModal">关闭</button></div>
 </div></div>
-
 <div class="modal" id="settingsModal"><div class="modal-card large">
 <div class="modal-head"><h2>⚙️ 设置</h2><button class="close-btn" data-close="settingsModal">✕</button></div>
 <div class="section-title">运行配置</div>
@@ -362,23 +365,20 @@ https://example.com/proxyip-list.txt</code></pre>
 </div>
 <div id="graveyardList" class="graveyard-list">加载中...</div>
 </div></div>
-
 <div class="modal" id="confirmModal"><div class="modal-card" style="max-width:480px;">
 <div class="modal-head"><h2 id="confirmTitle">确认</h2><button class="close-btn" data-close="confirmModal">✕</button></div>
 <p id="confirmMessage" style="color:var(--muted);line-height:1.75;">确定执行该操作吗？</p>
 <div class="modal-foot"><button id="confirmCancelBtn" class="btn ghost">取消</button><button id="confirmOkBtn" class="btn primary">确定</button></div>
 </div></div>
-
 <div id="tooltip" class="tooltip"></div>
 <div id="toastWrap" class="toast-wrap"></div>
-
 <script>
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
 const DATA={state:null};
 let currentFiltered=[],SELECTED=new Set(),GRAVE_SELECTED=new Set(),SORT="total_asc",pollTimer=null,logsTimer=null,stateErrorShown=false,confirmResolve=null;
-let FILTERS={search:"",kind:"all",status:"all",maxLatency:"",minSpeed:"",minQual:"",minSuccess:"",colo:"",loc:"",onlyQuality:false};
+// 数值筛选运算符: latOp/speedOp/qualOp/successOp ∈ lte(≤) gte(≥) lt(<) gt(>) eq(=); 默认: 总延迟≤, 其余≥
+let FILTERS={search:"",kind:"all",status:"all",latOp:"lte",maxLatency:"",speedOp:"gte",minSpeed:"",qualOp:"gte",minQual:"",successOp:"gte",minSuccess:"",colo:"",loc:"",onlyQuality:false};
 const els={tbody:$("#tbody"),tableWrap:$("#tableWrap"),emptyTip:$("#emptyTip"),selectAll:$("#selectAll"),selCount:$("#selCount"),btnDeleteSelected:$("#btnDeleteSelected"),btnCopyFiltered:$("#btnCopyFiltered"),filteredCount:$("#filteredCount"),statTotal:$("#statTotal"),statOnline:$("#statOnline"),statQuality:$("#statQuality"),statOffline:$("#statOffline"),statGithub:$("#statGithub"),statGithubSub:$("#statGithubSub"),progressBar:$("#progressBar"),progressText:$("#progressText"),footerVersion:$("#footerVersion"),btnAbort:$("#btnAbort"),btnCheck:$("#btnCheck"),btnUpload:$("#btnUpload")};
-
 function api(path,method="GET",body){const o={method};if(body!==undefined){o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(body);}return fetch(path,o).then(async r=>{const ct=r.headers.get("content-type")||"";const d=ct.includes("application/json")?await r.json():await r.text();if(!r.ok)throw new Error(d&&d.error?d.error:("HTTP "+r.status));return d;});}
 function toast(msg,type="info"){const w=$("#toastWrap");const d=document.createElement("div");d.className="toast "+type;d.textContent=msg;w.appendChild(d);setTimeout(()=>{d.style.opacity="0";d.style.transform="translateY(8px)";setTimeout(()=>d.remove(),260);},4200);}
 function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]));}
@@ -392,7 +392,6 @@ function cmpOp(op,a,b){if(op==="lt")return a<b;if(op==="gt")return a>b;if(op==="
 function qualityWindow(){return DATA.state?.config?.qualityWindow||10;}
 function speedMin(){return DATA.state?.config?.speedMinMBps||0;}
 function speedOf(item){return (item.speed&&item.speed.ok&&item.speed.mbps!=null)?item.speed.mbps:null;}
-
 function effectiveMeta(item){const latest=item.latest||{};const recent=item.recent||[];const pick=f=>{if(latest[f])return{v:latest[f],hist:false};for(let i=recent.length-1;i>=0;i--){const p=recent[i];if(p&&p[f])return{v:p[f],hist:true};}return{v:null,hist:false};};return{loc:pick("loc"),colo:pick("colo"),exitIp:pick("exitIp")};}
 function latencyClass(v){if(v==null||!isFinite(v))return "";const l=DATA.state?.config?.maxTotalMs||0;if(l>0)return v<=l?"good":"warn";return "good";}
 function rateClass(v,th){if(v==null||!isFinite(v))return "";const t=Number(th)||0;if(t<=0)return "good";if(v>=t)return "good";if(v>=t*0.8)return "warn";return "bad";}
@@ -401,14 +400,11 @@ function statusOf(item){const q=item.quality||{};const latest=item.latest||{};if
 function failReasonFor(p){if(p&&p.failReason)return p.failReason;if(p&&p.off)return "官方探针成功，但自定义源站探针未全部通过";return "官方探针未通过（连接失败 / 超时 / 非CF内容）";}
 function statusHtml(item){const s=statusOf(item);if(s==="quality")return '<span class="badge quality">优质</span>';if(s==="qual")return '<span class="badge ok">达标</span>';if(s==="unqual")return '<span class="badge unqual">未达标</span>';const fr=(item.latest||{}).failReason;return `<span class="badge offline"${fr?` title="${escapeHtml(fr)}"`:""}>离线</span>`;}
 function srcLabelOf(item){const k=item.srcKind||"pure";const n=item.srcName||"";if(k==="pure")return "纯IP";if(k==="dom")return "域名"+(n?"/"+n:"");if(k==="url")return "列表"+(n?"/"+n:"");return k+(n?"/"+n:"");}
-
 function speedCellHtml(item){const sp=item.speed||null;const minSp=speedMin();
 if(sp&&sp.ok&&sp.mbps!=null){const cls=minSp>0?(sp.mbps>=minSp?"good":"bad"):"good";return `<td class="metric ${cls}" title="测速时间 ${escapeHtml(fmtTime(sp.t))} · 一次性测速">${sp.mbps.toFixed(2)}<span class="unit">MB/s</span></td>`;}
 if(sp&&!sp.ok)return `<td class="metric muted" title="${escapeHtml(sp.failReason||"测速失败")} · 在线时10分钟自动重试，可⚡手动复测">-</td>`;
 return `<td class="metric muted" title="尚未测速（首次在线时自动一次性测速）">-</td>`;}
-
 function barsHtml(item){const win=qualityWindow();const recent=(item.recent||[]).slice(-win);if(!recent.length)return '<span class="chart-empty">暂无</span>';const totals=recent.filter(p=>p.ok&&p.total!=null).map(p=>p.total);const limit=DATA.state?.config?.maxTotalMs||0;const max=Math.max(100,limit,...totals);return recent.map((p,idx)=>{let cls="bar";let h=7;if(p.ok&&p.total!=null){h=Math.max(8,Math.min(42,Math.round((p.total/max)*42)));if(limit>0&&p.total<=limit)cls+=" ok";else cls+=" warn";}else{cls+=" fail";h=8;}return `<span class="${cls}" style="height:${h}px" data-id="${escapeHtml(item.id)}" data-idx="${idx}"></span>`;}).join("");}
-
 function rowHtml(item){const q=item.quality||{};const latest=item.latest||{};const hasSamples=(q.samples||0)>0;const kind=item.ipKind||"unknown";const kindCls=kind==="cf"?"cf":kind==="proxy"?"proxy":"unknown";const kindTxt=kind==="cf"?"CloudflareIP":kind==="proxy"?"ProxyIP":"未知";const m=effectiveMeta(item);
 const qualCell=hasSamples?fmtPct(q.qualRate):fmtPct(null);const sucCell=hasSamples?fmtPct(q.rate):fmtPct(null);
 const qualCls=hasSamples?rateClass(q.qualRate,DATA.state?.config?.qualThreshold):"";const sucCls=hasSamples?rateClass(q.rate,DATA.state?.config?.successThreshold):"";
@@ -435,7 +431,6 @@ ${speedCellHtml(item)}
 <button class="mini-btn" data-op="copy" data-id="${escapeHtml(item.id)}">复制</button>
 <button class="mini-btn" data-op="speed" data-id="${escapeHtml(item.id)}" title="手动复测速度">⚡</button>
 <button class="mini-btn" data-op="del" data-id="${escapeHtml(item.id)}">删除</button></div></td></tr>`;}
-
 function getFiltered(){if(!DATA.state||!Array.isArray(DATA.state.items))return [];let arr=DATA.state.items.slice();const f=FILTERS;
 if(f.search){const s=f.search.toLowerCase();arr=arr.filter(i=>{const m=effectiveMeta(i);return [i.id,i.ip,i.srcName,m.loc.v,m.colo.v,m.exitIp.v].filter(Boolean).some(v=>String(v).toLowerCase().includes(s));});}
 if(f.kind!=="all")arr=arr.filter(i=>i.ipKind===f.kind);
@@ -454,11 +449,9 @@ else if(SORT==="success_desc")arr.sort((a,b)=>sv(b)-sv(a)||tv(a)-tv(b));
 else if(SORT==="qual_desc")arr.sort((a,b)=>qv(b)-qv(a)||tv(a)-tv(b));
 else if(SORT==="speed_desc")arr.sort((a,b)=>pv(b)-pv(a)||tv(a)-tv(b));
 return arr;}
-
 function updateSelectedCount(){els.selCount.textContent=SELECTED.size;els.btnDeleteSelected.disabled=SELECTED.size===0;}
 function updateSelectAll(){const vis=currentFiltered.filter(i=>SELECTED.has(i.id)).length;els.selectAll.checked=currentFiltered.length>0&&vis===currentFiltered.length;els.selectAll.indeterminate=vis>0&&vis<currentFiltered.length;}
 function setSelectOptions(sel,values,allLabel,labelFn){const cur=sel.value;const opts=[`<option value="">${allLabel}</option>`];values.forEach(v=>{const l=labelFn?labelFn(v):v;opts.push(`<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`);});sel.innerHTML=opts.join("");if(values.includes(cur))sel.value=cur;else sel.value="";}
-
 function renderSummary(){const st=DATA.state;if(!st)return;const s=st.summary||{total:0,online:0,quality:0,offline:0};
 els.statTotal.textContent=s.total??0;els.statOnline.textContent=s.online??0;els.statQuality.textContent=s.quality??0;els.statOffline.textContent=s.offline??0;
 const p=st.progress||{tested:0,total:0};const pct=p.total?Math.round(p.tested/p.total*100):0;
@@ -470,7 +463,6 @@ if(gh.configured){els.statGithub.textContent=ghModeText(gh);const parts=[];if(gh
 else{els.statGithub.textContent="未配置";els.statGithubSub.textContent="可在设置中配置 GitHub";els.statGithubSub.className="sub";}
 els.footerVersion.textContent=`版本 ${st.version||"-"} · 间隔 ${st.intervalSec||"-"}s`;
 els.btnAbort.disabled=!st.checking;els.btnCheck.disabled=!!st.checking;}
-
 function renderFilterOptions(){if(!DATA.state||!Array.isArray(DATA.state.items))return;
 const colos=[...new Set(DATA.state.items.map(i=>effectiveMeta(i).colo.v).filter(Boolean))].sort();
 const locs=[...new Set(DATA.state.items.map(i=>effectiveMeta(i).loc.v).filter(Boolean))].sort();
@@ -478,52 +470,40 @@ setSelectOptions($("#coloFilter"),colos,"数据中心: 全部");
 setSelectOptions($("#locFilter"),locs,"地区: 全部",v=>`${flagEmoji(v)} ${v}`);
 if(!colos.includes($("#coloFilter").value)){$("#coloFilter").value="";FILTERS.colo="";}
 if(!locs.includes($("#locFilter").value)){$("#locFilter").value="";FILTERS.loc="";}}
-
 function renderTable(){if(!DATA.state)return;currentFiltered=getFiltered();const st=els.tableWrap.scrollTop;
 if(!DATA.state.items.length){els.emptyTip.hidden=false;els.emptyTip.textContent="暂无节点。请先在 ⚙️ 设置中填写 ip.txt，或等待列表源发现节点。";els.tbody.innerHTML="";}
 else if(!currentFiltered.length){els.emptyTip.hidden=false;els.emptyTip.textContent="没有符合当前筛选条件的节点。可点击重置后重试。";els.tbody.innerHTML="";}
 else{els.emptyTip.hidden=true;els.tbody.innerHTML=currentFiltered.map(rowHtml).join("");}
 els.tableWrap.scrollTop=st;els.filteredCount.textContent=`筛选 ${currentFiltered.length} / ${DATA.state?.summary?.total||0}`;updateSelectedCount();updateSelectAll();}
-
 function renderAll(){if(!DATA.state)return;const ids=new Set(DATA.state.items.map(i=>i.id));for(const id of [...SELECTED])if(!ids.has(id))SELECTED.delete(id);renderSummary();renderFilterOptions();renderTable();}
 function schedulePoll(){clearTimeout(pollTimer);pollTimer=setTimeout(refreshState,DATA.state&&DATA.state.checking?2500:8000);}
 async function refreshState(){try{DATA.state=await api("/api/state");stateErrorShown=false;renderAll();}catch(e){if(!stateErrorShown){toast("状态加载失败: "+e.message,"error");stateErrorShown=true;}}finally{schedulePoll();}}
-
 function formatItemLine(item){const q=item.quality||{};const latest=item.latest||{};const m=effectiveMeta(item);const region=m.loc.v||m.colo.v||"Unknown";const dc=m.colo.v||"Unknown";
 const ms=(qv,lv)=>{if(qv!=null&&isFinite(qv))return `${Math.round(qv)}ms`;if(lv!=null&&isFinite(lv))return `${Math.round(lv)}ms`;return "?ms";};
 const sp=speedOf(item);const spd=sp!=null?sp.toFixed(2)+"MB/s":"?MB/s";
 return `${item.ip}:${item.port}#${region} | ${dc} | ${ms(q.avgTotal,latest.total)} | ${ms(q.avgTcp,latest.avgTcp)} | ${ms(q.avgTls,latest.avgTls)} | ${ms(q.avgHttp,latest.avgHttp)} | ${spd}`;}
-
 async function copyText(text){try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);toast("已复制到剪贴板","success");return;}throw 0;}catch(e){const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("已复制到剪贴板","success");}catch(err){toast("复制失败，请手动复制","error");}ta.remove();}}
 function copyItems(items){if(!items.length){toast("没有可复制的节点","warn");return;}copyText(items.map(formatItemLine).join("\n"));}
-
 function openModal(el){el.classList.add("show");document.body.classList.add("modal-open");}
 function closeModal(el){el.classList.remove("show");if(!document.querySelector(".modal.show"))document.body.classList.remove("modal-open");if(el.id==="logsModal"){clearInterval(logsTimer);logsTimer=null;}if(el.id==="confirmModal"&&confirmResolve){const r=confirmResolve;confirmResolve=null;r(false);}}
 function showConfirm(title,message,okText="确定",danger=false){return new Promise(res=>{confirmResolve=res;$("#confirmTitle").textContent=title;$("#confirmMessage").textContent=message;const ok=$("#confirmOkBtn");ok.textContent=okText;ok.className="btn "+(danger?"danger":"primary");openModal($("#confirmModal"));});}
-
 async function removeIds(ids){if(!ids.length)return;const ok=await showConfirm("删除节点",`确定删除 ${ids.length} 个节点吗？删除后会进入屏蔽记录。`,"删除",true);if(!ok)return;try{const res=await api("/api/remove","POST",{ids});toast(`已删除 ${res.count??ids.length} 个节点`,"success");SELECTED.clear();await refreshState();}catch(e){toast("删除失败: "+e.message,"error");}}
-
 async function runSpeedTest(id){toast("开始测速（手动复测）...","info");try{const res=await api("/api/speedtest","POST",{ids:[id]});const r=(res.results||[])[0];if(r&&r.ok)toast(`测速完成: ${r.mbps} MB/s`,"success");else toast("测速失败: "+((r&&r.failReason)||"未知原因"),"warn");refreshState();}catch(e){toast("测速失败: "+e.message,"error");}}
-
 function renderLogs(logs){const box=$("#logsBox");if(!logs.length){box.innerHTML='<div class="muted">暂无日志</div>';return;}box.innerHTML=logs.slice().reverse().map(l=>`<div class="log-line"><span class="log-time">${escapeHtml(fmtTime(l.t))}</span><span>${escapeHtml(l.m)}</span></div>`).join("");}
 async function loadLogs(){try{const d=await api("/api/logs");renderLogs(d.logs||[]);}catch(e){$("#logsBox").innerHTML=`<div class="bad">日志加载失败: ${escapeHtml(e.message)}</div>`;}}
 function openLogs(){openModal($("#logsModal"));loadLogs();clearInterval(logsTimer);logsTimer=setInterval(loadLogs,3000);}
-
 function renderProbes(probes){const w=$("#customProbesWrap");w.innerHTML="";if(!probes.length){w.innerHTML='<div class="muted">未配置自定义探针（仅使用官方探针）</div>';return;}probes.forEach(p=>addProbeRow(p.url||"",p.expect||"200"));}
 function addProbeRow(url="",expect="200"){const w=$("#customProbesWrap");const mu=w.querySelector(".muted");if(mu)mu.remove();const d=document.createElement("div");d.className="probe-row";d.innerHTML=`<input class="input probe-url" placeholder="https://your-origin.example.com/health" value="${escapeHtml(url)}" /><input class="input probe-expect" placeholder="200" value="${escapeHtml(expect)}" /><button class="mini-btn probe-remove" title="删除">✕</button>`;w.appendChild(d);}
-
 function fillSettings(cfg){$("#cfg_intervalSec").value=cfg.intervalSec??60;$("#cfg_timeoutSec").value=cfg.timeoutSec??5;$("#cfg_concurrency").value=cfg.concurrency??50;$("#cfg_maxTotalMs").value=cfg.maxTotalMs??0;$("#cfg_probeUrl").value=cfg.probeUrl||"";$("#cfg_autoCleanDays").value=cfg.autoCleanDays??7;$("#cfg_qualityWindow").value=Math.min(50,Math.max(1,Math.round(Number(cfg.qualityWindow)||10)));$("#cfg_successThreshold").value=cfg.successThreshold??1;$("#cfg_qualThreshold").value=cfg.qualThreshold??1;
 $("#cfg_speedEnabled").checked=cfg.speedEnabled!==false;$("#cfg_speedMinMBps").value=cfg.speedMinMBps??0;$("#cfg_speedConcurrency").value=cfg.speedConcurrency??1;$("#cfg_speedPerCycle").value=cfg.speedPerCycle??20;$("#cfg_speedTimeoutSec").value=cfg.speedTimeoutSec??10;$("#cfg_speedUrl").value=cfg.speedUrl||"";
 const gh=cfg.github||{};
 $("#cfg_github_token").value="";
 $("#cfg_github_token").placeholder=gh.tokenSet?`${gh.tokenMasked||"****"}（留空=保持不变）`:"ghp_...";
 $("#cfg_github_repo").value=gh.repo||"";$("#cfg_github_path").value=gh.path||"proxyip";$("#cfg_github_branch").value=gh.branch||"main";$("#cfg_github_uploadIntervalMin").value=gh.uploadIntervalMin??0;$("#cfg_github_auto").checked=!!gh.auto;renderProbes(cfg.customProbes||[]);}
-
 function collectSettings(){const probes=$$("#customProbesWrap .probe-row").map(r=>({url:r.querySelector(".probe-url")?.value.trim()||"",expect:r.querySelector(".probe-expect")?.value.trim()||"200"})).filter(p=>p.url);
 return{intervalSec:$("#cfg_intervalSec").value,timeoutSec:$("#cfg_timeoutSec").value,concurrency:$("#cfg_concurrency").value,autoCleanDays:$("#cfg_autoCleanDays").value,maxTotalMs:$("#cfg_maxTotalMs").value,probeUrl:$("#cfg_probeUrl").value.trim(),qualityWindow:Math.min(50,Math.max(1,Math.round(Number($("#cfg_qualityWindow").value)||10))),successThreshold:$("#cfg_successThreshold").value,qualThreshold:$("#cfg_qualThreshold").value,
 speedEnabled:$("#cfg_speedEnabled").checked,speedMinMBps:$("#cfg_speedMinMBps").value,speedConcurrency:$("#cfg_speedConcurrency").value,speedPerCycle:$("#cfg_speedPerCycle").value,speedTimeoutSec:$("#cfg_speedTimeoutSec").value,speedUrl:$("#cfg_speedUrl").value.trim(),
 github:{token:$("#cfg_github_token").value.trim(),repo:$("#cfg_github_repo").value.trim(),path:$("#cfg_github_path").value.trim(),branch:$("#cfg_github_branch").value.trim(),auto:$("#cfg_github_auto").checked,uploadIntervalMin:$("#cfg_github_uploadIntervalMin").value},customProbes:probes};}
-
 function updateGraveSelectedCount(){
 const countEl=$("#graveSelCount");
 const btn=$("#btnUnblockSelected");
@@ -545,7 +525,8 @@ const checked=GRAVE_SELECTED.has(g.id)?'checked':'';
 return `<div class="grave-item" data-grave-id="${escapeHtml(g.id)}">
 <input type="checkbox" class="grave-check" data-id="${escapeHtml(g.id)}" ${checked} />
 <div class="grave-content">
-<b>${escapeHtml(g.id)}</b> · ${escapeHtml(mode)} · ${escapeHtml(g.reason||"-")}<br />
+<b>${escapeHtml(g.id)}</b> · ${escapeHtml(mode)} · ${escapeHtml(g.reason||"-")}
+<br />
 移除: ${escapeHtml(fmtTime(g.removedAt))} · 最后在线: ${escapeHtml(fmtTime(g.lastOnlineAt))}
 </div>
 <button class="mini-btn" data-op="unblock" data-id="${escapeHtml(g.id)}">🔓 解除</button>
@@ -564,12 +545,10 @@ ids.forEach(id=>GRAVE_SELECTED.delete(id));
 loadGraveyard();
 }catch(e){toast("解除失败: "+e.message,"error");}
 }
-
 async function loadGraveyard(){try{const d=await api("/api/graveyard");renderGraveyard(d.graveyard||[]);}catch(e){$("#graveyardList").innerHTML=`<div class="bad">加载失败: ${escapeHtml(e.message)}</div>`;}}
 async function loadSettings(){try{const [cfg,ip,gy]=await Promise.all([api("/api/config"),api("/api/ipfile"),api("/api/graveyard")]);fillSettings(cfg);$("#ipContent").value=ip.content||"";renderGraveyard(gy.graveyard||[]);}catch(e){toast("设置加载失败: "+e.message,"error");}}
 function openSettings(){openModal($("#settingsModal"));loadSettings();}
 function setBtnLoading(btn,loading,text){if(!btn)return;if(loading){btn.dataset.old=btn.innerHTML;btn.disabled=true;btn.innerHTML=text||"处理中...";}else{btn.disabled=false;if(btn.dataset.old)btn.innerHTML=btn.dataset.old;}}
-
 function buildTooltipHtml(p,item){const m=effectiveMeta(item);const status=p.ok?'<span class="good">成功</span>':'<span class="bad">失败</span>';
 let html=`<h4>${flagEmoji(m.loc.v)} ${escapeHtml(item.ip)}:${item.port} · ${escapeHtml(fmtTime(p.t))}</h4><div class="grid"><span>状态</span><span>${status}</span>`;
 if(p.total!=null)html+=`<span>总延迟</span><span>${Math.round(p.total)} ms</span>`;
@@ -582,11 +561,9 @@ if(!p.ok){const reason=failReasonFor(p);if(reason)html+=`<div class="probe-item"
 if(Array.isArray(p.probes)&&p.probes.length){html+=`<div style="margin-top:9px;color:var(--muted)">探针明细（总 / TCP / TLS / HTTP）</div>`;p.probes.forEach(pr=>{const name=pr.name==="official"?"官方探针":pr.name;const src=pr.src??((pr.total!=null&&pr.tcp!=null&&pr.tls!=null)?Math.max(0,pr.total-pr.tcp-pr.tls):null);html+=`<div class="probe-item"><b>${escapeHtml(name)}</b><br />总 ${pr.total??"-"} ms · TCP ${pr.tcp??"-"} ms · TLS ${pr.tls??"-"} ms · HTTP ${src??"-"} ms</div>`;});}
 else if(p.off){html+=`<div class="probe-item"><b>官方探针</b><br />总 ${p.off.total??"-"} ms · TCP ${p.off.tcp??"-"} ms · TLS ${p.off.tls??"-"} ms · HTTP ${p.off.src??"-"} ms</div>`;}
 return html;}
-
 function positionTooltip(e){const tip=$("#tooltip");const pad=14;let x=e.clientX+pad,y=e.clientY+pad;const r=tip.getBoundingClientRect();if(x+r.width>window.innerWidth-10)x=Math.max(10,window.innerWidth-r.width-10);if(y+r.height>window.innerHeight-10)y=Math.max(10,window.innerHeight-r.height-10);tip.style.left=x+"px";tip.style.top=y+"px";}
 function showTooltip(bar,e){const id=bar.dataset.id;const idx=parseInt(bar.dataset.idx,10);const item=DATA.state?.items?.find(x=>x.id===id);if(!item)return;const recent=(item.recent||[]).slice(-qualityWindow());const p=recent[idx];if(!p)return;const tip=$("#tooltip");tip.innerHTML=buildTooltipHtml(p,item);tip.classList.add("show");positionTooltip(e);}
 function hideTooltip(){$("#tooltip").classList.remove("show");}
-
 document.addEventListener("DOMContentLoaded",()=>{
 $("#btnManual").addEventListener("click",()=>openModal($("#manualModal")));
 $("#footerManual").addEventListener("click",()=>openModal($("#manualModal")));
@@ -603,7 +580,7 @@ $("#maxLatencyFilter").addEventListener("input",e=>{FILTERS.maxLatency=e.target.
 $("#minSpeedFilter").addEventListener("input",e=>{FILTERS.minSpeed=e.target.value;renderTable();});
 $("#qualRateFilter").addEventListener("input",e=>{FILTERS.minQual=e.target.value;renderTable();});
 $("#successRateFilter").addEventListener("input",e=>{FILTERS.minSuccess=e.target.value;renderTable();});
-// 新增: 运算符下拉框切换即时生效
+// 新增: 运算符(纯文本样式)点击展开切换, 即时生效
 $("#latOpFilter").addEventListener("change",e=>{FILTERS.latOp=e.target.value;renderTable();});
 $("#speedOpFilter").addEventListener("change",e=>{FILTERS.speedOp=e.target.value;renderTable();});
 $("#qualOpFilter").addEventListener("change",e=>{FILTERS.qualOp=e.target.value;renderTable();});
@@ -633,7 +610,6 @@ $("#customProbesWrap").addEventListener("click",e=>{if(!e.target.closest(".probe
 $("#btnSaveConfig").addEventListener("click",async()=>{const btn=$("#btnSaveConfig");setBtnLoading(btn,true);try{await api("/api/config","POST",collectSettings());toast("配置已保存，后端已开始新一轮检测","success");refreshState();}catch(e){toast("保存配置失败: "+e.message,"error");}finally{setBtnLoading(btn,false);}});
 $("#btnSaveReload").addEventListener("click",async()=>{const btn=$("#btnSaveReload");setBtnLoading(btn,true);try{await api("/api/config","POST",collectSettings());await api("/api/ipfile","POST",{content:$("#ipContent").value});try{await api("/api/reload","POST");}catch(e){}toast("配置与节点列表已保存，重载已触发","success");refreshState();}catch(e){toast("保存并重载失败: "+e.message,"error");}finally{setBtnLoading(btn,false);}});
 $("#btnClearGraveyard").addEventListener("click",async()=>{const ok=await showConfirm("清空记录","清空后将解除全部屏蔽，被删除节点可重新加入。确定清空吗？","清空",true);if(!ok)return;try{await api("/api/graveyard/clear","POST");toast("已清空屏蔽记录","success");GRAVE_SELECTED.clear();loadGraveyard();}catch(e){toast("清空失败: "+e.message,"error");}});
-
 $("#btnUnblockSelected").addEventListener("click",()=>{unblockGraveIds(Array.from(GRAVE_SELECTED));});
 $("#graveyardList").addEventListener("change",e=>{
 const cb=e.target.closest(".grave-check");if(!cb)return;
@@ -653,7 +629,6 @@ cb.checked=e.target.checked;
 });
 updateGraveSelectedCount();
 });
-
 refreshState();
 });
 </script>
