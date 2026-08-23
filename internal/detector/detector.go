@@ -186,7 +186,7 @@ func (d *Detector) Discover(nodes map[string]*models.Unit, history map[string][]
 			defer cancel()
 			
 			resolver := &net.Resolver{}
-			ips, err := resolver.LookupIPv4Addr(ctx, job.host)
+			ips, err := resolver.LookupIP(ctx, "ip4", job.host)
 			if err != nil {
 				return
 			}
@@ -194,9 +194,10 @@ func (d *Detector) Discover(nodes map[string]*models.Unit, history map[string][]
 			domMu.Lock()
 			defer domMu.Unlock()
 			for _, ip := range ips {
-				if net.ParseIP(ip) != nil && strings.Contains(ip, ".") {
+				ipStr := ip.String()
+				if net.ParseIP(ipStr) != nil && strings.Contains(ipStr, ".") {
 					adds = append(adds, addEntry{
-						id:   fmt.Sprintf("%s:%d", ip, job.port),
+						id:   fmt.Sprintf("%s:%d", ipStr, job.port),
 						kind: job.kind,
 						name: job.name,
 					})
@@ -393,10 +394,12 @@ func (d *Detector) ProbeLatency(u *models.Unit) *models.ProbeResult {
 	}
 
 	var lastOut string
+	var lastCode int
 	var lat *CurlResult
 	for attempt := 0; attempt < 2; attempt++ {
 		out, code := d.runCurl(curlCmd, ms+2500)
 		lastOut = out
+		lastCode = code
 		if code == 0 || code == 28 {
 			lat = parseCurlJSON(out)
 			if lat != nil && lat.HTTP != 0 && lat.HTTP != 0 {
@@ -439,7 +442,7 @@ func (d *Detector) ProbeLatency(u *models.Unit) *models.ProbeResult {
 			result.FailReason = strPtr("无法解析探针响应")
 		}
 	} else {
-		failReason := curlFailText(lastOut)
+		failReason := curlFailText(lastCode)
 		if failReason == "" {
 			failReason = fmt.Sprintf("不具备反代 CF 能力 (HTTP %d)", lat.HTTP)
 		}

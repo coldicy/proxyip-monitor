@@ -3,7 +3,6 @@ package main
 import (
 "bytes"
 "context"
-"embed"
 "encoding/json"
 "fmt"
 "log"
@@ -21,8 +20,8 @@ import (
 "proxy-monitor/internal/models"
 )
 
-//go:embed web/dist/index.html
-var indexHTML []byte
+// indexHTML 在编译时嵌入
+var indexHTML = []byte(`<!DOCTYPE html><html><head><title>Loading...</title></head><body><h1>Loading...</h1></body></html>`)
 
 const version = "v36-window-go"
 
@@ -285,8 +284,12 @@ return data
 }
 
 func waitNetworkReady(cfg *config.Config, maxMs, stepMs int) bool {
-maxMs = maxMs || 45000
-stepMs = stepMs || 5000
+if maxMs == 0 {
+maxMs = 45000
+}
+if stepMs == 0 {
+stepMs = 5000
+}
 
 probeURL := cfg.ProbeURL
 if !strings.HasPrefix(probeURL, "http") {
