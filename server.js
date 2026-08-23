@@ -1,6 +1,6 @@
 /**
 Proxy Monitor v36-window
-- 性能优化: /api/state 响应缓存
+- 修复: 启动网络就绪检查 + 无效轮保护(整轮全灭回滚), 防止 Docker 更新后脏样本污染优质窗口
 */
 const http = require('http');
 const fs = require('fs');
@@ -265,6 +265,21 @@ async function fetchList(url) {
   if (out && out.trim()) { if (out.length > 2 * 1024 * 1024) return out.slice(0, 2 * 1024 * 1024); return out; }
   return '';
 }
+// ==================== 启动网络就绪检查（新增） ====================
+// 直连官方探针 URL（不经被测IP），拿到任意 HTTP 响应即认为出站网络就绪。
+// 防止 Docker 更新/重启后网络未就绪时，第一轮检测写入整轮失败样本。
+async function waitNetworkReady(maxMs, stepMs) {
+  maxMs = maxMs || 45000; stepMs = stepMs || 5000;
+  const probe = splitProbe(CONFIG.probeUrl);
+  const started = Date.now(); let tried = 0;
+  while (Date.now() - started < maxMs) {
+    tried++;
+    const out = await runCurl(`curl -4 -k -s --noproxy '*' -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 6 'https://${probe.host}${probe.path}'`, 8000);
+    if (out && String(out).trim() !== '000') { if (tried > 1) log('🌐 网络已就绪（第 ' + tried + ' 次尝试）'); return true; }
+    await new Promise(r => setTimeout(r, stepMs));
+  }
+  return false;
+}
 // ==================== CF CIDR 分类 ====================
 const CF_SUPERNETS = ['103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '104.16.0.0/12', '108.162.192.0/18',
   '131.0.72.0/22', '141.101.64.0/18', '162.158.0.0/15', '172.64.0.0/13', '173.245.48.0/20',
@@ -473,6 +488,9 @@ async function runCycle() {
     const total = state.units.length;
     state.progress = { tested: 0, total }; invalidateStateCache();
     log('🔄 开始检测 ' + total + ' 个节点（并发 ' + CONFIG.concurrency + '）');
+    // 新增: 记录本轮开始时间与上轮在线数, 供无效轮保护判定
+    const roundT = Date.now();
+    const prevOnline = state.units.filter(u => { const h = state.history[u.id]; return h && h.length && h[h.length - 1].ok; }).length;
     const queue = [...state.units];
     const speedCandidates = [];
     const workers = Array.from({ length: Math.min(CONFIG.concurrency, Math.max(queue.length, 1)) }, async () => {
@@ -516,6 +534,22 @@ async function runCycle() {
     });
     await Promise.all(workers);
     if (state.abort) log('⏹ 检测已中断，完成 ' + state.progress.tested + '/' + total);
+    // ==================== 无效轮保护（新增） ====================
+    // 上轮 ≥30% 在线、本轮全体离线、且非中断轮 → 判定为监控端网络异常(Docker重启/断网等),
+    // 回滚本轮写入的失败样本, 不让未正常完成的轮次污染优质窗口
+    if (!state.abort && total >= 10 && prevOnline >= Math.max(3, Math.round(total * 0.3))) {
+      const onlineNow = state.units.filter(u => { const h = state.history[u.id]; return h && h.length && h[h.length - 1].ok; }).length;
+      if (onlineNow === 0) {
+        let rolled = 0;
+        for (const u of state.units) {
+          const h = state.history[u.id];
+          if (h && h.length && !h[h.length - 1].ok && h[h.length - 1].t >= roundT) { h.pop(); rolled++; }
+        }
+        markDirty();
+        log(`🛡️ 无效轮保护: 上轮在线 ${prevOnline}, 本轮全体离线(判定为网络异常), 已回滚 ${rolled} 条失败样本, 不计入优质窗口`);
+      }
+    }
+    // ==================== 无效轮保护 结束 ====================
     if (!state.abort && CONFIG.speedEnabled && speedCandidates.length) {
       const batch = speedCandidates.slice(0, CONFIG.speedPerCycle);
       if (speedCandidates.length > batch.length) log(`⚡ 测速排队 ${speedCandidates.length} 个，本周期测 ${batch.length} 个（配额），其余顺延`);
@@ -746,7 +780,6 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/abort' && req.method === 'POST') { if (state.checking) { state.abort = true; log('⏹ 收到中断请求'); } return json({ ok: true }); }
     if (p === '/api/graveyard' && req.method === 'GET') return json({ graveyard: state.graveyard.list });
     if (p === '/api/graveyard/clear' && req.method === 'POST') { state.graveyard.list = []; state.blocked = {}; persistGraveyard(); return json({ ok: true }); }
-        
     // 新增：解除屏蔽接口
     if (p === '/api/graveyard/unblock' && req.method === 'POST') {
       const { ids } = JSON.parse(await readBody(req) || '{}');
@@ -765,7 +798,6 @@ const server = http.createServer(async (req, res) => {
       log(`🔓 解除屏蔽 ${unblocked} 个节点`);
       return json({ ok: true, count: unblocked });
     }
-
     if (p === '/api/remove' && req.method === 'POST') {
       const { ids } = JSON.parse(await readBody(req) || '{}');
       if (!Array.isArray(ids) || !ids.length) return json({ ok: false, error: '无有效节点ID' }, 400);
@@ -797,7 +829,7 @@ const server = http.createServer(async (req, res) => {
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 500); }
 });
-// ==================== 启动（含旧明文Token迁移 + lastOnlineAt回填） ====================
+// ==================== 启动（含旧明文Token迁移 + lastOnlineAt回填 + 网络就绪检查） ====================
 server.on('error', (e) => { log('💥 HTTP server 错误: ' + e.message); });
 CONFIG.github.token = process.env.GITHUB_TOKEN || readSecret() || '';
 try {
@@ -820,6 +852,9 @@ server.listen(CONFIG.port, () => {
       await discover();
     } catch (e) { log('⚠️ 启动初始化失败(已止血): ' + e.message); }
     state.units = Object.values(state.nodes);
+    // 新增: 启动网络就绪检查, 避免 Docker 更新/重启后网络未就绪导致第一轮整轮失败
+    const ready = await waitNetworkReady(45000, 5000);
+    log(ready ? '🌐 启动网络检查通过' : '⚠️ 启动后等待45秒网络仍未就绪, 开启无效轮保护进行首轮检测');
     runCycle().catch(e => log('⚠️ 首轮检测异常: ' + e.message));
     restartTimer(); restartGithubTimer();
   })();
