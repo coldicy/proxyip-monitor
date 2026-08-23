@@ -40,6 +40,7 @@ main{width:min(1760px,calc(100% - 40px));margin:20px auto 0;display:grid;gap:16p
 .input,select,textarea{background:rgba(15,23,42,.76);color:var(--text);border:1px solid var(--line);border-radius:11px;padding:9px 10px;font-size:13px;outline:none;transition:.18s ease}
 .input:focus,select:focus,textarea:focus{border-color:rgba(56,189,248,.55);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
 select{cursor:pointer}
+select.op{width:60px;padding:9px 4px;text-align:center;cursor:pointer;font-weight:700}
 label.filter{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap}
 label.check{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;white-space:nowrap;user-select:none;cursor:pointer}
 input[type="checkbox"]{width:16px;height:16px;accent-color:#38bdf8;cursor:pointer}
@@ -183,10 +184,10 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
 <input id="searchInput" class="input" style="min-width:220px" placeholder="搜索 IP / 地区 / 数据中心 / 出口IP / 来源" />
 <select id="kindFilter" class="input" title="身份筛选"><option value="all">身份: 全部</option><option value="cf">CloudflareIP</option><option value="proxy">ProxyIP</option></select>
 <select id="statusFilter" class="input" title="状态筛选；「在线」= 优质+达标+未达标"><option value="all">状态: 全部</option><option value="quality">优质</option><option value="qual">达标</option><option value="unqual">未达标</option><option value="online">在线</option><option value="offline">离线</option></select>
-<label class="filter">总延迟 ≤<input id="maxLatencyFilter" type="number" min="0" step="1" class="input" style="width:88px" placeholder="ms" /></label>
-<label class="filter">速度 ≥<input id="minSpeedFilter" type="number" min="0" step="0.1" class="input" style="width:88px" placeholder="MB/s" /></label>
-<label class="filter">达标率 ≥<input id="qualRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
-<label class="filter">成功率 ≥<input id="successRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
+<label class="filter">总延迟<select id="latOpFilter" class="input op" title="比较运算符"><option value="lte" selected>≤</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="maxLatencyFilter" type="number" min="0" step="1" class="input" style="width:88px" placeholder="ms" /></label>
+<label class="filter">速度<select id="speedOpFilter" class="input op" title="比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="minSpeedFilter" type="number" min="0" step="0.1" class="input" style="width:88px" placeholder="MB/s" /></label>
+<label class="filter">达标率<select id="qualOpFilter" class="input op" title="比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="qualRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
+<label class="filter">成功率<select id="successOpFilter" class="input op" title="比较运算符"><option value="gte" selected>≥</option><option value="lte">≤</option><option value="lt">&lt;</option><option value="gt">&gt;</option><option value="eq">=</option></select><input id="successRateFilter" type="number" min="0" max="100" step="0.1" class="input" style="width:84px" placeholder="%" /></label>
 <select id="coloFilter" class="input" title="数据中心筛选"><option value="">数据中心: 全部</option></select>
 <select id="locFilter" class="input" title="地区筛选"><option value="">地区: 全部</option></select>
 <label class="check"><input id="onlyQualityFilter" type="checkbox" /> 只看优质</label>
@@ -253,6 +254,7 @@ https://example.com/proxyip-list.txt</code></pre>
 <h3>自定义源站探针</h3><ul><li>验证真实回源；全部成功该次才在线；失败记录精确原因（如 预期200实际502）。</li></ul></section>
 <section id="m7"><h2>7 页面操作</h2><h3>筛选与排序</h3><ul>
 <li>状态：全部/优质/达标/未达标/在线/离线。其中「在线」= 优质+达标+未达标（即最近一次检测通过）；「未达标」= 在线但最近一次总延迟超上限（未设上限时在线即达标）。</li>
+<li>数值筛选：总延迟 / 速度 / 达标率 / 成功率 均带运算符下拉框（≤ / ≥ / &lt; / &gt; / =），默认总延迟 ≤、其余 ≥，可自由切换并即时生效；输入框留空 = 不启用该条件。</li>
 <li>排序新增“下载速度降序”。</li></ul>
 <h3>表格</h3><ul>
 <li>节点信息：IP:端口 同行显示身份标签（CloudflareIP/ProxyIP）；下方三行依次为 ① 首次引入时间 + 来源；② 地区(国旗) + 数据中心 + 出口IP（离线时历史补齐）；③ 最近检测时间。</li>
@@ -354,9 +356,9 @@ https://example.com/proxyip-list.txt</code></pre>
 <div class="section-title">被移除的节点记录</div>
 <p class="muted">手动/自动移除均已屏蔽。可单独或批量解除屏蔽，解除后若 ip.txt 中存在将在下轮重新加入。</p>
 <div style="margin:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-    <button id="btnClearGraveyard" class="btn danger">🗑️ 清空全部记录</button>
-    <button id="btnUnblockSelected" class="btn primary" disabled>🔓 解除所选屏蔽 (<span id="graveSelCount">0</span>)</button>
-    <label class="check" style="margin-left:auto;"><input type="checkbox" id="graveSelectAll" /> 全选</label>
+<button id="btnClearGraveyard" class="btn danger">🗑️ 清空全部记录</button>
+<button id="btnUnblockSelected" class="btn primary" disabled>🔓 解除所选屏蔽 (<span id="graveSelCount">0</span>)</button>
+<label class="check" style="margin-left:auto;"><input type="checkbox" id="graveSelectAll" /> 全选</label>
 </div>
 <div id="graveyardList" class="graveyard-list">加载中...</div>
 </div></div>
@@ -379,12 +381,14 @@ const els={tbody:$("#tbody"),tableWrap:$("#tableWrap"),emptyTip:$("#emptyTip"),s
 
 function api(path,method="GET",body){const o={method};if(body!==undefined){o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(body);}return fetch(path,o).then(async r=>{const ct=r.headers.get("content-type")||"";const d=ct.includes("application/json")?await r.json():await r.text();if(!r.ok)throw new Error(d&&d.error?d.error:("HTTP "+r.status));return d;});}
 function toast(msg,type="info"){const w=$("#toastWrap");const d=document.createElement("div");d.className="toast "+type;d.textContent=msg;w.appendChild(d);setTimeout(()=>{d.style.opacity="0";d.style.transform="translateY(8px)";setTimeout(()=>d.remove(),260);},4200);}
-function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[s]));}
+function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]));}
 function fmtTime(ts){if(!ts)return "-";try{return new Date(ts).toLocaleString("zh-CN",{hour12:false});}catch(e){return "-";}}
 function flagEmoji(code){if(!code)return "🌍";const c=String(code).trim().toUpperCase();if(!/^[A-Z]{2}$/.test(c))return "🌍";const b=0x1F1E6;return String.fromCodePoint(b+c.charCodeAt(0)-65,b+c.charCodeAt(1)-65);}
 function fmtCellMs(v){if(v==null||!isFinite(v))return '<span class="muted">-</span>';return `${Math.round(v)}<span class="unit">ms</span>`;}
 function fmtPct(v){if(v==null||!isFinite(v))return '<span class="muted">-</span>';return `${(v*100).toFixed(1)}%`;}
 function parseRatioInput(v){if(v===""||v==null)return null;const n=parseFloat(v);if(!isFinite(n))return null;let r=n;if(r>1)r=r/100;return Math.max(0,Math.min(1,r));}
+// 比较运算符: lte≤ gte≥ lt< gt> eq=(浮点容差1e-9)
+function cmpOp(op,a,b){if(op==="lt")return a<b;if(op==="gt")return a>b;if(op==="eq")return Math.abs(a-b)<1e-9;if(op==="gte")return a>=b;return a<=b;}
 function qualityWindow(){return DATA.state?.config?.qualityWindow||10;}
 function speedMin(){return DATA.state?.config?.speedMinMBps||0;}
 function speedOf(item){return (item.speed&&item.speed.ok&&item.speed.mbps!=null)?item.speed.mbps:null;}
@@ -437,10 +441,11 @@ if(f.search){const s=f.search.toLowerCase();arr=arr.filter(i=>{const m=effective
 if(f.kind!=="all")arr=arr.filter(i=>i.ipKind===f.kind);
 if(f.status!=="all"){if(f.status==="online")arr=arr.filter(i=>i.latest&&i.latest.ok);else arr=arr.filter(i=>statusOf(i)===f.status);}
 if(f.onlyQuality)arr=arr.filter(i=>i.quality?.quality);
-const ml=parseFloat(f.maxLatency);if(isFinite(ml))arr=arr.filter(i=>i.quality?.avgTotal!=null&&i.quality.avgTotal<=ml);
-const ms=parseFloat(f.minSpeed);if(isFinite(ms))arr=arr.filter(i=>speedOf(i)!=null&&speedOf(i)>=ms);
-const mq=parseRatioInput(f.minQual);if(mq!=null)arr=arr.filter(i=>(i.quality?.qualRate??0)>=mq);
-const msc=parseRatioInput(f.minSuccess);if(msc!=null)arr=arr.filter(i=>(i.quality?.rate??0)>=msc);
+// 数值筛选: 运算符可选(≤/≥/</>//=), 输入框留空=不启用
+const ml=parseFloat(f.maxLatency);if(isFinite(ml))arr=arr.filter(i=>i.quality?.avgTotal!=null&&cmpOp(f.latOp,i.quality.avgTotal,ml));
+const ms=parseFloat(f.minSpeed);if(isFinite(ms))arr=arr.filter(i=>{const s=speedOf(i);return s!=null&&cmpOp(f.speedOp,s,ms);});
+const mq=parseRatioInput(f.minQual);if(mq!=null)arr=arr.filter(i=>cmpOp(f.qualOp,(i.quality?.qualRate??0),mq));
+const msc=parseRatioInput(f.minSuccess);if(msc!=null)arr=arr.filter(i=>cmpOp(f.successOp,(i.quality?.rate??0),msc));
 if(f.colo)arr=arr.filter(i=>effectiveMeta(i).colo.v===f.colo);
 if(f.loc)arr=arr.filter(i=>effectiveMeta(i).loc.v===f.loc);
 const tv=i=>i.quality?.avgTotal??Infinity,sv=i=>i.quality?.rate??-1,qv=i=>i.quality?.qualRate??-1,pv=i=>speedOf(i)??-1;
@@ -520,44 +525,44 @@ speedEnabled:$("#cfg_speedEnabled").checked,speedMinMBps:$("#cfg_speedMinMBps").
 github:{token:$("#cfg_github_token").value.trim(),repo:$("#cfg_github_repo").value.trim(),path:$("#cfg_github_path").value.trim(),branch:$("#cfg_github_branch").value.trim(),auto:$("#cfg_github_auto").checked,uploadIntervalMin:$("#cfg_github_uploadIntervalMin").value},customProbes:probes};}
 
 function updateGraveSelectedCount(){
-    const countEl=$("#graveSelCount");
-    const btn=$("#btnUnblockSelected");
-    if(countEl)countEl.textContent=GRAVE_SELECTED.size;
-    if(btn)btn.disabled=GRAVE_SELECTED.size===0;
-    const selectAll=$("#graveSelectAll");
-    const totalVisible=document.querySelectorAll("#graveyardList .grave-check").length;
-    if(selectAll){
-        selectAll.checked=totalVisible>0&&GRAVE_SELECTED.size===totalVisible;
-        selectAll.indeterminate=GRAVE_SELECTED.size>0&&GRAVE_SELECTED.size<totalVisible;
-    }
+const countEl=$("#graveSelCount");
+const btn=$("#btnUnblockSelected");
+if(countEl)countEl.textContent=GRAVE_SELECTED.size;
+if(btn)btn.disabled=GRAVE_SELECTED.size===0;
+const selectAll=$("#graveSelectAll");
+const totalVisible=document.querySelectorAll("#graveyardList .grave-check").length;
+if(selectAll){
+selectAll.checked=totalVisible>0&&GRAVE_SELECTED.size===totalVisible;
+selectAll.indeterminate=GRAVE_SELECTED.size>0&&GRAVE_SELECTED.size<totalVisible;
+}
 }
 function renderGraveyard(list){
-    const box=$("#graveyardList");
-    if(!list.length){box.innerHTML='<div class="muted">暂无被移除节点</div>';GRAVE_SELECTED.clear();updateGraveSelectedCount();return;}
-    box.innerHTML=list.slice().reverse().map(g=>{
-        const mode=g.mode==="auto"?"自动":"手动";
-        const checked=GRAVE_SELECTED.has(g.id)?'checked':'';
-        return `<div class="grave-item" data-grave-id="${escapeHtml(g.id)}">
-            <input type="checkbox" class="grave-check" data-id="${escapeHtml(g.id)}" ${checked} />
-            <div class="grave-content">
-                <b>${escapeHtml(g.id)}</b> · ${escapeHtml(mode)} · ${escapeHtml(g.reason||"-")}<br />
-                移除: ${escapeHtml(fmtTime(g.removedAt))} · 最后在线: ${escapeHtml(fmtTime(g.lastOnlineAt))}
-            </div>
-            <button class="mini-btn" data-op="unblock" data-id="${escapeHtml(g.id)}">🔓 解除</button>
-        </div>`;
-    }).join("");
-    updateGraveSelectedCount();
+const box=$("#graveyardList");
+if(!list.length){box.innerHTML='<div class="muted">暂无被移除节点</div>';GRAVE_SELECTED.clear();updateGraveSelectedCount();return;}
+box.innerHTML=list.slice().reverse().map(g=>{
+const mode=g.mode==="auto"?"自动":"手动";
+const checked=GRAVE_SELECTED.has(g.id)?'checked':'';
+return `<div class="grave-item" data-grave-id="${escapeHtml(g.id)}">
+<input type="checkbox" class="grave-check" data-id="${escapeHtml(g.id)}" ${checked} />
+<div class="grave-content">
+<b>${escapeHtml(g.id)}</b> · ${escapeHtml(mode)} · ${escapeHtml(g.reason||"-")}<br />
+移除: ${escapeHtml(fmtTime(g.removedAt))} · 最后在线: ${escapeHtml(fmtTime(g.lastOnlineAt))}
+</div>
+<button class="mini-btn" data-op="unblock" data-id="${escapeHtml(g.id)}">🔓 解除</button>
+</div>`;
+}).join("");
+updateGraveSelectedCount();
 }
 async function unblockGraveIds(ids){
-    if(!ids.length)return;
-    const ok=await showConfirm("解除屏蔽",`确定解除 ${ids.length} 个节点的屏蔽吗？解除后它们将重新加入监控。`,"解除",false);
-    if(!ok)return;
-    try{
-        const res=await api("/api/graveyard/unblock","POST",{ids});
-        toast(`已解除 ${res.count??ids.length} 个节点的屏蔽`,"success");
-        ids.forEach(id=>GRAVE_SELECTED.delete(id));
-        loadGraveyard();
-    }catch(e){toast("解除失败: "+e.message,"error");}
+if(!ids.length)return;
+const ok=await showConfirm("解除屏蔽",`确定解除 ${ids.length} 个节点的屏蔽吗？解除后它们将重新加入监控。`,"解除",false);
+if(!ok)return;
+try{
+const res=await api("/api/graveyard/unblock","POST",{ids});
+toast(`已解除 ${res.count??ids.length} 个节点的屏蔽`,"success");
+ids.forEach(id=>GRAVE_SELECTED.delete(id));
+loadGraveyard();
+}catch(e){toast("解除失败: "+e.message,"error");}
 }
 
 async function loadGraveyard(){try{const d=await api("/api/graveyard");renderGraveyard(d.graveyard||[]);}catch(e){$("#graveyardList").innerHTML=`<div class="bad">加载失败: ${escapeHtml(e.message)}</div>`;}}
@@ -598,11 +603,17 @@ $("#maxLatencyFilter").addEventListener("input",e=>{FILTERS.maxLatency=e.target.
 $("#minSpeedFilter").addEventListener("input",e=>{FILTERS.minSpeed=e.target.value;renderTable();});
 $("#qualRateFilter").addEventListener("input",e=>{FILTERS.minQual=e.target.value;renderTable();});
 $("#successRateFilter").addEventListener("input",e=>{FILTERS.minSuccess=e.target.value;renderTable();});
+// 新增: 运算符下拉框切换即时生效
+$("#latOpFilter").addEventListener("change",e=>{FILTERS.latOp=e.target.value;renderTable();});
+$("#speedOpFilter").addEventListener("change",e=>{FILTERS.speedOp=e.target.value;renderTable();});
+$("#qualOpFilter").addEventListener("change",e=>{FILTERS.qualOp=e.target.value;renderTable();});
+$("#successOpFilter").addEventListener("change",e=>{FILTERS.successOp=e.target.value;renderTable();});
 $("#coloFilter").addEventListener("change",e=>{FILTERS.colo=e.target.value;renderTable();});
 $("#locFilter").addEventListener("change",e=>{FILTERS.loc=e.target.value;renderTable();});
 $("#onlyQualityFilter").addEventListener("change",e=>{FILTERS.onlyQuality=e.target.checked;renderTable();});
 $("#sortSelect").addEventListener("change",e=>{SORT=e.target.value;renderTable();});
-$("#btnResetFilters").addEventListener("click",()=>{FILTERS={search:"",kind:"all",status:"all",maxLatency:"",minSpeed:"",minQual:"",minSuccess:"",colo:"",loc:"",onlyQuality:false};$("#searchInput").value="";$("#kindFilter").value="all";$("#statusFilter").value="all";$("#maxLatencyFilter").value="";$("#minSpeedFilter").value="";$("#qualRateFilter").value="";$("#successRateFilter").value="";$("#coloFilter").value="";$("#locFilter").value="";$("#onlyQualityFilter").checked=false;renderTable();});
+// 重置: 运算符一并恢复默认 (总延迟≤, 其余≥)
+$("#btnResetFilters").addEventListener("click",()=>{FILTERS={search:"",kind:"all",status:"all",latOp:"lte",maxLatency:"",speedOp:"gte",minSpeed:"",qualOp:"gte",minQual:"",successOp:"gte",minSuccess:"",colo:"",loc:"",onlyQuality:false};$("#searchInput").value="";$("#kindFilter").value="all";$("#statusFilter").value="all";$("#latOpFilter").value="lte";$("#maxLatencyFilter").value="";$("#speedOpFilter").value="gte";$("#minSpeedFilter").value="";$("#qualOpFilter").value="gte";$("#qualRateFilter").value="";$("#successOpFilter").value="gte";$("#successRateFilter").value="";$("#coloFilter").value="";$("#locFilter").value="";$("#onlyQualityFilter").checked=false;renderTable();});
 els.btnCopyFiltered.addEventListener("click",()=>copyItems(currentFiltered));
 els.selectAll.addEventListener("change",e=>{const c=e.target.checked;currentFiltered.forEach(i=>{if(c)SELECTED.add(i.id);else SELECTED.delete(i.id);});renderTable();});
 els.btnDeleteSelected.addEventListener("click",()=>removeIds(Array.from(SELECTED)));
@@ -625,22 +636,22 @@ $("#btnClearGraveyard").addEventListener("click",async()=>{const ok=await showCo
 
 $("#btnUnblockSelected").addEventListener("click",()=>{unblockGraveIds(Array.from(GRAVE_SELECTED));});
 $("#graveyardList").addEventListener("change",e=>{
-    const cb=e.target.closest(".grave-check");if(!cb)return;
-    const id=cb.dataset.id;
-    if(cb.checked)GRAVE_SELECTED.add(id);else GRAVE_SELECTED.delete(id);
-    updateGraveSelectedCount();
+const cb=e.target.closest(".grave-check");if(!cb)return;
+const id=cb.dataset.id;
+if(cb.checked)GRAVE_SELECTED.add(id);else GRAVE_SELECTED.delete(id);
+updateGraveSelectedCount();
 });
 $("#graveyardList").addEventListener("click",async e=>{
-    const btn=e.target.closest("button[data-op='unblock']");if(!btn)return;
-    const id=btn.dataset.id;unblockGraveIds([id]);
+const btn=e.target.closest("button[data-op='unblock']");if(!btn)return;
+const id=btn.dataset.id;unblockGraveIds([id]);
 });
 $("#graveSelectAll").addEventListener("change",e=>{
-    const checks=document.querySelectorAll("#graveyardList .grave-check");
-    checks.forEach(cb=>{
-        if(e.target.checked)GRAVE_SELECTED.add(cb.dataset.id);else GRAVE_SELECTED.delete(cb.dataset.id);
-        cb.checked=e.target.checked;
-    });
-    updateGraveSelectedCount();
+const checks=document.querySelectorAll("#graveyardList .grave-check");
+checks.forEach(cb=>{
+if(e.target.checked)GRAVE_SELECTED.add(cb.dataset.id);else GRAVE_SELECTED.delete(cb.dataset.id);
+cb.checked=e.target.checked;
+});
+updateGraveSelectedCount();
 });
 
 refreshState();
