@@ -1,6 +1,7 @@
-FROM golang:1.19-alpine AS builder
+# 多阶段构建 - 编译阶段
+FROM golang:1.21-alpine AS builder
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl git
 
 WORKDIR /app
 
@@ -9,19 +10,20 @@ COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY web/ ./web/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server
+# 静态编译，禁用 CGO
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/server
 
-FROM alpine:latest
-
-RUN apk add --no-cache curl ca-certificates
+# 运行阶段 - 使用 distroless 镜像
+FROM gcr.io/distroless/static-debian11:nonroot
 
 WORKDIR /app
 
 COPY --from=builder /app/server .
-COPY --from=builder /app/web/dist/index.html ./public/index.html
+COPY --from=builder /app/web/dist/index.html ./web/dist/index.html
 
-RUN mkdir -p /app/config /app/data
+# 创建数据目录
+USER nonroot
 
 EXPOSE 8787
 
-CMD ["./server"]
+ENTRYPOINT ["./server"]

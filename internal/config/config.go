@@ -45,14 +45,15 @@ Expect string `json:"expect"`
 
 // GitHubConfig GitHub 配置
 type GitHubConfig struct {
-Token             string `json:"-"`
-TokenMasked       string `json:"tokenMasked,omitempty"`
-TokenSet          bool   `json:"tokenSet"`
-Repo              string `json:"repo"`
-Path              string `json:"path"`
-Branch            string `json:"branch"`
-Auto              bool   `json:"auto"`
-UploadIntervalMin int    `json:"uploadIntervalMin"`
+	Token             string `json:"-"`
+	TokenMasked       string `json:"tokenMasked,omitempty"`
+	TokenSet          bool   `json:"tokenSet"`
+	Repo              string `json:"repo"`
+	Path              string `json:"path"`
+	FilePath          string `json:"-"` // 用于上传的文件路径
+	Branch            string `json:"branch"`
+	Auto              bool   `json:"auto"`
+	UploadIntervalMin int    `json:"uploadIntervalMin"`
 }
 
 // DefaultConfig 返回默认配置
@@ -215,14 +216,15 @@ SpeedTimeoutSec:   10,
 SpeedMinMBps:      speedMinMBps,
 SpeedConcurrency:  speedConcurrency,
 SpeedPerCycle:     speedPerCycle,
-GitHub: GitHubConfig{
-Token:             os.Getenv("GITHUB_TOKEN"),
-Repo:              githubRepo,
-Path:              githubPath,
-Branch:            githubBranch,
-Auto:              githubAuto,
-UploadIntervalMin: githubInterval,
-},
+	GitHub: GitHubConfig{
+		Token:             os.Getenv("GITHUB_TOKEN"),
+		Repo:              githubRepo,
+		Path:              githubPath,
+		FilePath:          githubPath,
+		Branch:            githubBranch,
+		Auto:              githubAuto,
+		UploadIntervalMin: githubInterval,
+	},
 DataFile:      filepath.Join(dataDir, "history.json"),
 ConfigFile:    filepath.Join(dataDir, "config.json"),
 GraveyardFile: filepath.Join(dataDir, "graveyard.json"),
@@ -475,14 +477,19 @@ return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 
 // HistoryCap 获取历史记录容量
 func (c *Config) HistoryCap() int {
-cap := c.QualityWindow
-if cap < 1 {
-cap = 1
+	cap := c.QualityWindow
+	if cap < 1 {
+		cap = 1
+	}
+	if cap > 50 {
+		cap = 50
+	}
+	return cap
 }
-if cap > 50 {
-cap = 50
-}
-return cap
+
+// MaxHistory 返回最大历史记录数（用于存储层）
+func (c *Config) MaxHistory() int {
+	return c.HistoryCap()
 }
 
 // LoadSecret 从文件加载 GitHub Token

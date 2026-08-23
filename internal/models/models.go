@@ -71,19 +71,20 @@ FailReason *string   `json:"failReason,omitempty"`
 
 // HistoryEntry 历史记录条目
 type HistoryEntry struct {
-T          time.Time     `json:"t"`
-OK         bool          `json:"ok"`
-Off        *Segments     `json:"off,omitempty"`
-Cus        *Segments     `json:"cus,omitempty"`
-Total      *int          `json:"total,omitempty"`
-AvgTCP     *int          `json:"avgTcp,omitempty"`
-AvgTLS     *int          `json:"avgTls,omitempty"`
-AvgHTTP    *int          `json:"avgHttp,omitempty"`
-Colo       *string       `json:"colo,omitempty"`
-Loc        *string       `json:"loc,omitempty"`
-ExitIP     *string       `json:"exitIp,omitempty"`
-FailReason *string       `json:"failReason,omitempty"`
-Probes     []ProbeDetail `json:"probes,omitempty"`
+	T          time.Time     `json:"t"`
+	OK         bool          `json:"ok"`
+	Off        *Segments     `json:"off,omitempty"`
+	Cus        *Segments     `json:"cus,omitempty"`
+	Total      *int          `json:"total,omitempty"`
+	AvgTCP     *int          `json:"avgTcp,omitempty"`
+	AvgTLS     *int          `json:"avgTls,omitempty"`
+	AvgHTTP    *int          `json:"avgHttp,omitempty"`
+	Colo       *string       `json:"colo,omitempty"`
+	Loc        *string       `json:"loc,omitempty"`
+	ExitIP     *string       `json:"exitIp,omitempty"`
+	FailReason *string       `json:"failReason,omitempty"`
+	Probes     []ProbeDetail `json:"probes,omitempty"`
+	SpeedMbps  *float64      `json:"mbps,omitempty"`
 }
 
 // QualityResult 质量判定结果

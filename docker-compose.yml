@@ -1,10 +1,25 @@
 services:
   proxy-monitor:
-    image: coldicy7/proxyip-monitor
+    build: .
+    # image: coldicy7/proxyip-monitor  # 使用已构建的镜像时取消注释
     container_name: proxy-monitor
     restart: unless-stopped
     ports:
       - "8787:8787"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}  # 可选：通过环境变量传入 GitHub Token
     volumes:
-      - ./proxy-monitor/config:/app/config # 配置文件目录
-      - ./proxy-monitor/data:/app/data # 数据目录
+      - ./proxy-monitor/config:/app/config  # 配置文件目录
+      - ./proxy-monitor/data:/app/data      # 数据目录
+      - ./ips.txt:/app/ips.txt:ro           # IP 列表文件（只读）
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/api/state"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
