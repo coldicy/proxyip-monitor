@@ -380,24 +380,31 @@ func (d *Detector) ProbeLatency(u *models.Unit) *models.ProbeResult {
 	ms := d.cfg.TimeoutSec * 1000
 	ua := fmt.Sprintf("PM-%s", randomString(8))
 
-	// 构建 curl 命令
+	// 构建 curl 参数（参数化方式，避免命令注入）
 	resolveArg := fmt.Sprintf("%s:%d:%s", probeURL.Hostname(), u.Port, u.IP)
-	curlCmd := fmt.Sprintf(
-		`curl -4 -k -s --noproxy '*' --retry 0 -A '%s' -w '\n{"tcp":%%{time_connect},"tls":%%{time_appconnect},"ttfb":%%{time_starttransfer},"http":%%{http_code}}' --resolve "%s" --connect-timeout 3 --max-time %d 'https://%s:%d%s'`,
-		ua, resolveArg, d.cfg.TimeoutSec+2, probeURL.Hostname(), u.Port, probeURL.Path,
-	)
-	if probeURL.RawQuery != "" {
-		curlCmd = fmt.Sprintf(
-			`curl -4 -k -s --noproxy '*' --retry 0 -A '%s' -w '\n{"tcp":%%{time_connect},"tls":%%{time_appconnect},"ttfb":%%{time_starttransfer},"http":%%{http_code}}' --resolve "%s" --connect-timeout 3 --max-time %d 'https://%s:%d%s?%s'`,
-			ua, resolveArg, d.cfg.TimeoutSec+2, probeURL.Hostname(), u.Port, probeURL.Path, probeURL.RawQuery,
-		)
+	
+	// 基础参数
+	baseArgs := []string{
+		"-4", "-k", "-s", "--noproxy", "*", "--retry", "0",
+		"-A", ua,
+		"-w", "\n{\"tcp\":%{time_connect},\"tls\":%{time_appconnect},\"ttfb\":%{time_starttransfer},\"http\":%{http_code}}",
+		"--resolve", resolveArg,
+		"--connect-timeout", "3",
+		"--max-time", strconv.Itoa(d.cfg.TimeoutSec + 2),
 	}
+	
+	// 构建目标 URL
+	targetURL := fmt.Sprintf("https://%s:%d%s", probeURL.Hostname(), u.Port, probeURL.Path)
+	if probeURL.RawQuery != "" {
+		targetURL = fmt.Sprintf("https://%s:%d%s?%s", probeURL.Hostname(), u.Port, probeURL.Path, probeURL.RawQuery)
+	}
+	baseArgs = append(baseArgs, targetURL)
 
 	var lastOut string
 	var lastCode int
 	var lat *CurlResult
 	for attempt := 0; attempt < 2; attempt++ {
-		out, code := d.runCurl(curlCmd, ms+2500)
+		out, code := d.runCurlArgs(baseArgs, ms+2500)
 		lastOut = out
 		lastCode = code
 		if code == 0 || code == 28 {
@@ -472,19 +479,25 @@ func (d *Detector) ProbeCustoms(u *models.Unit) []ProbeCustomResult {
 			continue
 		}
 
+		// 构建 curl 参数（参数化方式，避免命令注入）
 		resolveArg := fmt.Sprintf("%s:%d:%s", probeURL.Hostname(), u.Port, u.IP)
-		curlCmd := fmt.Sprintf(
-			`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"tcp":%%{time_connect},"tls":%%{time_appconnect},"ttfb":%%{time_starttransfer},"http":%%{http_code}}' --resolve "%s" --connect-timeout 3 --max-time %d 'https://%s:%d%s'`,
-			resolveArg, d.cfg.TimeoutSec+2, probeURL.Hostname(), u.Port, probeURL.Path,
-		)
-		if probeURL.RawQuery != "" {
-			curlCmd = fmt.Sprintf(
-				`curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"tcp":%%{time_connect},"tls":%%{time_appconnect},"ttfb":%%{time_starttransfer},"http":%%{http_code}}' --resolve "%s" --connect-timeout 3 --max-time %d 'https://%s:%d%s?%s'`,
-				resolveArg, d.cfg.TimeoutSec+2, probeURL.Hostname(), u.Port, probeURL.Path, probeURL.RawQuery,
-			)
+		
+		baseArgs := []string{
+			"-4", "-k", "-s", "--noproxy", "*", "--retry", "0",
+			"-o", "/dev/null",
+			"-w", "{\"tcp\":%{time_connect},\"tls\":%{time_appconnect},\"ttfb\":%{time_starttransfer},\"http\":%{http_code}}",
+			"--resolve", resolveArg,
+			"--connect-timeout", "3",
+			"--max-time", strconv.Itoa(d.cfg.TimeoutSec + 2),
 		}
+		
+		targetURL := fmt.Sprintf("https://%s:%d%s", probeURL.Hostname(), u.Port, probeURL.Path)
+		if probeURL.RawQuery != "" {
+			targetURL = fmt.Sprintf("https://%s:%d%s?%s", probeURL.Hostname(), u.Port, probeURL.Path, probeURL.RawQuery)
+		}
+		baseArgs = append(baseArgs, targetURL)
 
-		out, code := d.runCurl(curlCmd, ms+2500)
+		out, code := d.runCurlArgs(baseArgs, ms+2500)
 		res := parseCurlJSON(out)
 		
 		httpCode := "000"
@@ -547,12 +560,20 @@ func (d *Detector) ProbeSpeed(u *models.Unit) *models.SpeedResult {
 		querySep = "&"
 	}
 	
-	curlCmd := fmt.Sprintf(
-		`curl -k -s --retry 0 -o /dev/null -w '{"speed":%%{speed_download},"size":%%{size_download},"time":%%{time_total},"http":%%{http_code}}' --resolve "%s" --connect-timeout 3 --max-time %d 'https://%s:%d%s%s_t=%d'`,
-		resolveArg, d.cfg.SpeedTimeoutSec, speedURL.Hostname(), u.Port, speedURL.Path, querySep, timestamp,
-	)
+	targetURL := fmt.Sprintf("https://%s:%d%s%s_t=%d", speedURL.Hostname(), u.Port, speedURL.Path, querySep, timestamp)
 
-	out, code := d.runCurl(curlCmd, d.cfg.SpeedTimeoutSec*1000+2500)
+	// 构建 curl 参数（参数化方式，避免命令注入）
+	baseArgs := []string{
+		"-k", "-s", "--retry", "0",
+		"-o", "/dev/null",
+		"-w", "{\"speed\":%{speed_download},\"size\":%{size_download},\"time\":%{time_total},\"http\":%{http_code}}",
+		"--resolve", resolveArg,
+		"--connect-timeout", "3",
+		"--max-time", strconv.Itoa(d.cfg.SpeedTimeoutSec),
+		targetURL,
+	}
+
+	out, code := d.runCurlArgs(baseArgs, d.cfg.SpeedTimeoutSec*1000+2500)
 	j := parseCurlJSON(out)
 
 	const speedMinBytes = 64 * 1024
@@ -602,11 +623,12 @@ func (d *Detector) ProbeSpeed(u *models.Unit) *models.SpeedResult {
 	return result
 }
 
-func (d *Detector) runCurl(cmd string, timeoutMs int) (string, int) {
+// runCurlArgs 运行 curl 命令（参数化方式，避免命令注入）
+func (d *Detector) runCurlArgs(args []string, timeoutMs int) (string, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
 	defer cancel()
 
-	execCmd := exec.CommandContext(ctx, "sh", "-c", cmd)
+	execCmd := exec.CommandContext(ctx, "curl", args...)
 	var stdout bytes.Buffer
 	execCmd.Stdout = &stdout
 	execCmd.Stderr = nil
@@ -623,6 +645,11 @@ func (d *Detector) runCurl(cmd string, timeoutMs int) (string, int) {
 	}
 
 	return stdout.String(), exitCode
+}
+
+func (d *Detector) runCurl(cmd string, timeoutMs int) (string, int) {
+	// 遗留兼容方法，实际不再使用
+	return "", -1
 }
 
 func parseCurlJSON(out string) *CurlResult {

@@ -5,7 +5,7 @@ Proxy Monitor v36-window
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const dnsPromises = require('dns').promises;
 const net = require('net');
 const VERSION = 'v36-window';
@@ -187,9 +187,25 @@ function sourceKeyForLine(line) {
   return 'dom:' + r.host + ':' + r.port;
 }
 function splitId(id) { const i = id.lastIndexOf(':'); return [id.slice(0, i), +id.slice(i + 1)]; }
-function runCurl(c, ms) { return new Promise(r => exec(c, { timeout: ms, maxBuffer: 4 * 1024 * 1024 }, (e, o) => r(e ? null : o))); }
-// 注意: 保留 stdout, 即使 curl 非零退出(如28超时)也带回 -w 统计, 供测速截断计算使用
-function runCurl2(c, ms) { return new Promise(r => exec(c, { timeout: ms, maxBuffer: 4 * 1024 * 1024 }, (e, o) => r({ out: o, code: e ? (e.killed ? -1 : e.code) : 0 }))); }
+
+// runCurlArgs - 参数化执行 curl，避免命令注入漏洞
+function runCurlArgs(args, ms) {
+  return new Promise(resolve => {
+    const child = spawn('curl', args, {
+      timeout: ms,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 4 * 1024 * 1024
+    });
+    let stdout = '';
+    child.stdout.on('data', data => { stdout += data.toString(); });
+    child.on('close', code => { resolve({ out: stdout, code: code || 0 }); });
+    child.on('error', () => { resolve({ out: '', code: -1 }); });
+    setTimeout(() => { child.kill('SIGKILL'); }, ms);
+  });
+}
+
+function runCurl(c, ms) { console.error('[DEPRECATED] runCurl called'); return Promise.resolve(null); }
+function runCurl2(c, ms) { console.error('[DEPRECATED] runCurl2 called'); return Promise.resolve({ out: '', code: -1 }); }
 function curlFailText(code) {
   if (code === 28) return '超时'; if (code === 7) return '连接被拒';
   if (code === 35 || code === 60 || code === 61) return 'TLS错误';
@@ -260,9 +276,9 @@ async function mapLimit(items, limit, fn) {
 }
 function timeoutPromise(ms) { return new Promise((_, rj) => setTimeout(() => rj(new Error('t')), ms)); }
 async function fetchList(url) {
-  const safe = url.replace(/'/g, "'\\''");
-  const out = await runCurl(`curl -4 -k -s --noproxy '*' --compressed -m 20 '${safe}'`, 25000);
-  if (out && out.trim()) { if (out.length > 2 * 1024 * 1024) return out.slice(0, 2 * 1024 * 1024); return out; }
+  const args = ['-4', '-k', '-s', '--noproxy', '*', '--compressed', '-m', '20', url];
+  const r = await runCurlArgs(args, 25000);
+  if (r.out && r.out.trim()) { if (r.out.length > 2 * 1024 * 1024) return r.out.slice(0, 2 * 1024 * 1024); return r.out; }
   return '';
 }
 // ==================== 启动网络就绪检查（新增） ====================
@@ -274,7 +290,8 @@ async function waitNetworkReady(maxMs, stepMs) {
   const started = Date.now(); let tried = 0;
   while (Date.now() - started < maxMs) {
     tried++;
-    const out = await runCurl(`curl -4 -k -s --noproxy '*' -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 6 'https://${probe.host}${probe.path}'`, 8000);
+    const r = await runCurlArgs(['-4', '-k', '-s', '--noproxy', '*', '-o', '/dev/null', '-w', '%{http_code}', '--connect-timeout', '3', '--max-time', '6', 'https://' + probe.host + probe.path], 8000);
+    const out = r.code === 0 ? r.out : null;
     if (out && String(out).trim() !== '000') { if (tried > 1) log('🌐 网络已就绪（第 ' + tried + ' 次尝试）'); return true; }
     await new Promise(r => setTimeout(r, stepMs));
   }
@@ -386,8 +403,15 @@ async function probeLatency(u) {
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
   const probe = splitProbe(CONFIG.probeUrl); const ms = CONFIG.timeoutSec * 1000;
   const ua = 'PM-' + Math.random().toString(36).slice(2, 10);
-  const latCmd = `curl -4 -k -s --noproxy '*' --retry 0 -A '${ua}' -w '\\n{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${probe.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec + 2} 'https://${probe.host}:${u.port}${probe.path}'`;
+  const resolveArg = probe.host + ':' + u.port + ':' + u.ip;
+  const targetPath = probe.search ? probe.path + probe.search : probe.path;
+  const targetUrl = 'https://' + probe.host + ':' + u.port + targetPath;
+  const args = ['-4', '-k', '-s', '--noproxy', '*', '--retry', '0', '-A', ua,
+    '-w', '\n{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}',
+    '--resolve', resolveArg, '--connect-timeout', '3', '--max-time', String(CONFIG.timeoutSec + 2), targetUrl];
   let lat = null, lastCode = 0, lastOut = null;
+  for (let a = 0; a < 2; a++) {
+    const r = await runCurlArgs(args, ms + 2500); lastCode = r.code; lastOut = r.out; lat = parseCurlJson(r.out);
   for (let a = 0; a < 2; a++) {
     const r = await runCurl2(latCmd, ms + 2500); lastCode = r.code; lastOut = r.out; lat = parseCurlJson(r.out);
     if (lat && lat.http && String(lat.http) !== '000') break;
@@ -409,8 +433,12 @@ async function probeCustoms(u) {
   for (const p of CONFIG.customProbes) {
     try {
       const cu = new URL(p.url); const expectCode = String(p.expect || '200');
-      const cmd = `curl -4 -k -s --noproxy '*' --retry 0 -o /dev/null -w '{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}' --resolve "${cu.hostname}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.timeoutSec + 2} 'https://${cu.hostname}:${u.port}${cu.pathname}${cu.search}'`;
-      const r = await runCurl2(cmd, ms + 2500);
+      const resolveArg = cu.hostname + ':' + u.port + ':' + u.ip;
+      const targetUrl = 'https://' + cu.hostname + ':' + u.port + cu.pathname + cu.search;
+      const args = ['-4', '-k', '-s', '--noproxy', '*', '--retry', '0', '-o', '/dev/null',
+        '-w', '{"tcp":%{time_connect},"tls":%{time_appconnect},"ttfb":%{time_starttransfer},"http":%{http_code}}',
+        '--resolve', resolveArg, '--connect-timeout', '3', '--max-time', String(CONFIG.timeoutSec + 2), targetUrl];
+      const r = await runCurlArgs(args, ms + 2500);
       const res = parseCurlJson(r.out);
       const code = res ? String(res.http) : '000';
       const segs = buildSegs(res);
@@ -431,8 +459,13 @@ async function probeSpeed(u) {
   if (!u.ip) { point.failReason = '无有效IP'; return point; }
   const sp = splitProbe(CONFIG.speedUrl);
   const timestamp = Date.now();
-  const cmd = `curl -k -s --retry 0 -o /dev/null -w '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}' --resolve "${sp.host}:${u.port}:${u.ip}" --connect-timeout 3 --max-time ${CONFIG.speedTimeoutSec} 'https://${sp.host}:${u.port}${sp.path}${sp.path.includes('?') ? '&' : '?'}_t=${timestamp}'`;
-  const r = await runCurl2(cmd, CONFIG.speedTimeoutSec * 1000 + 2500);
+  const resolveArg = sp.host + ':' + u.port + ':' + u.ip;
+  const querySep = sp.path.includes('?') ? '&' : '?';
+  const targetUrl = 'https://' + sp.host + ':' + u.port + sp.path + querySep + '_t=' + timestamp;
+  const args = ['-k', '-s', '--retry', '0', '-o', '/dev/null',
+    '-w', '{"speed":%{speed_download},"size":%{size_download},"time":%{time_total},"http":%{http_code}}',
+    '--resolve', resolveArg, '--connect-timeout', '3', '--max-time', String(CONFIG.speedTimeoutSec), targetUrl];
+  const r = await runCurlArgs(args, CONFIG.speedTimeoutSec * 1000 + 2500);
   const j = parseCurlJson(r.out);
   const size = (j && isFinite(j.size)) ? j.size : 0;
   const secs = (j && isFinite(j.time) && j.time > 0) ? j.time : 0;
