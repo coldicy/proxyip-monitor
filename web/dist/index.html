@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy Monitor v2.0</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Proxy Monitor v2.0</h1>
+            <p class="text-gray-600">Go + Vue High Performance Proxy Testing System</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm">Status</div>
+                <div class="flex items-center mt-2">
+                    <div :class="state.running ? 'bg-green-500' : 'bg-red-500'" class="w-3 h-3 rounded-full mr-2"></div>
+                    <span class="text-xl font-semibold">{{ state.running ? 'Running' : 'Stopped' }}</span>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm">Total Nodes</div>
+                <div class="text-2xl font-bold mt-2">{{ state.node_count }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm">Active Nodes</div>
+                <div class="text-2xl font-bold text-green-600 mt-2">{{ state.active_count }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm">Uptime</div>
+                <div class="text-xl font-semibold mt-2">{{ formatUptime(state.uptime_sec) }}</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Controls</h2>
+            <div class="flex flex-wrap gap-4">
+                <button @click="startMonitor" :disabled="state.running" 
+                    class="px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50">
+                    Start
+                </button>
+                <button @click="stopMonitor" :disabled="!state.running"
+                    class="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50">
+                    Stop
+                </button>
+                <button @click="refreshData"
+                    class="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Add Node</h2>
+            <div class="flex gap-4">
+                <input v-model="newNodeUrl" type="text" placeholder="http://proxy:port"
+                    class="flex-1 px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button @click="addNode"
+                    class="px-6 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600">
+                    Add
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b">
+                <h2 class="text-xl font-semibold">Nodes ({{ nodes.length }})</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Speed (ms)</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Check</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <tr v-for="node in nodes" :key="node.id" class="hover:bg-gray-50">
+                            <td class="px-6 py-4">
+                                <span :class="getStatusClass(node.status)" class="px-2 py-1 text-xs text-white rounded">
+                                    {{ node.status }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 font-mono text-sm">{{ node.url }}</td>
+                            <td class="px-6 py-4">{{ node.speed_ms > 0 ? node.speed_ms : '-' }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">{{ formatDate(node.last_check) }}</td>
+                            <td class="px-6 py-4">
+                                <span v-if="node.manual" class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Manual</span>
+                                <span v-else class="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded">Auto</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <button @click="speedTest(node)" class="text-blue-600 hover:text-blue-800 mr-3">Speed Test</button>
+                                <button @click="deleteNode(node.id)" class="text-red-600 hover:text-red-800">Delete</button>
+                            </td>
+                        </tr>
+                        <tr v-if="nodes.length === 0">
+                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                No nodes configured. Add a node to get started.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    state: { running: false, node_count: 0, active_count: 0, uptime_sec: 0 },
+                    nodes: [],
+                    newNodeUrl: '',
+                    apiBase: '/api'
+                };
+            },
+            mounted() { this.refreshData(); setInterval(this.refreshData, 5000); },
+            methods: {
+                async refreshData() {
+                    try {
+                        const [stateRes, nodesRes] = await Promise.all([
+                            fetch(this.apiBase + '/state'),
+                            fetch(this.apiBase + '/nodes')
+                        ]);
+                        this.state = await stateRes.json();
+                        this.nodes = await nodesRes.json();
+                    } catch (err) { console.error('Failed to refresh:', err); }
+                },
+                async startMonitor() { await fetch(this.apiBase + '/control/start', { method: 'POST' }); this.refreshData(); },
+                async stopMonitor() { await fetch(this.apiBase + '/control/stop', { method: 'POST' }); this.refreshData(); },
+                async addNode() {
+                    if (!this.newNodeUrl.trim()) return;
+                    await fetch(this.apiBase + '/node', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: this.newNodeUrl })
+                    });
+                    this.newNodeUrl = '';
+                    this.refreshData();
+                },
+                async deleteNode(id) {
+                    if (!confirm('Delete this node?')) return;
+                    await fetch(this.apiBase + '/node/' + encodeURIComponent(id), { method: 'DELETE' });
+                    this.refreshData();
+                },
+                async speedTest(node) {
+                    alert('Starting speed test for ' + node.url);
+                    try {
+                        const res = await fetch(this.apiBase + '/node/' + encodeURIComponent(node.id) + '/speedtest', { method: 'POST' });
+                        const result = await res.json();
+                        alert(result.success ? `Speed: ${result.speed_mbps.toFixed(2)} Mbps\nLatency: ${result.latency_ms}ms` : 'Failed: ' + result.error);
+                    } catch (err) { alert('Error: ' + err.message); }
+                },
+                formatUptime(seconds) {
+                    const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
+                    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                },
+                formatDate(dateStr) { return dateStr ? new Date(dateStr).toLocaleString() : '-'; },
+                getStatusClass(status) {
+                    const classes = { active: 'bg-green-500', inactive: 'bg-red-500', unknown: 'bg-gray-500', error: 'bg-orange-500' };
+                    return classes[status] || 'bg-gray-500';
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
