@@ -1,6 +1,21 @@
 # Proxy Monitor 📡
 
-Proxy Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周期性探测节点列表中的 IP/域名，计算 **TCP/TLS/HTTP 分段延迟**，结合 **成功率** 与 **达标率**（延迟上限），并配合 **一次性下载测速**，最终筛选出 **优质节点**，可自动上传至 GitHub 供订阅使用。
+[![Docker Pulls](https://img.shields.io/docker/pulls/coldicy7/proxyip-monitor)](https://hub.docker.com/r/coldicy7/proxyip-monitor)
+[![GitHub License](https://img.shields.io/github/license/coldicy7/proxyip-monitor)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
+
+Proxy Monitor 是一款高性能的代理 IP 质量监控工具，采用纯 Node.js 内置模块开发（零依赖）。它周期性探测节点列表中的 IP/域名，计算 **TCP/TLS/HTTP 分段延迟**，结合 **成功率** 与 **达标率**（延迟上限），并配合 **一次性下载测速**，最终筛选出 **优质节点**，可自动上传至 GitHub 供订阅使用。
+
+## ✨ 核心特性
+
+- 🚀 **高性能架构**：高并发异步探测，智能无效轮保护机制
+- 📊 **多维质量评估**：成功率 + 达标率 + 下载速度四维严格筛选
+- ⚡ **一次性测速**：智能测速策略，节省带宽和性能
+- 🔒 **安全存储**：Token 加密存储，文件权限保护
+- 🐳 **容器化部署**：多阶段构建，非 root 运行，开箱即用
+- 🌐 **GitHub 同步**：自动按地区拆分上传优质节点
+- 🎯 **自定义探针**：支持官方 CF 探针 + 多源站验证
+- 📈 **实时监控面板**：现代化 Web UI，实时日志和可视化图表
 
 ---
 
@@ -25,27 +40,81 @@ Proxy Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周�
 
 ## 2. 快速开始
 
-**部署**
+### 🐳 Docker 部署（推荐）
 
 推荐使用 Docker Compose 进行部署，数据完全持久化，升级无缝衔接。
 
+#### 方式一：使用 Docker Compose
+
+1. **创建项目目录**
 ```bash
-services:
-  proxy-monitor:
-    image: coldicy7/proxyip-monitor
-    container_name: proxy-monitor
-    restart: unless-stopped
-    ports:
-      - "8787:8787"
-    volumes:
-      - ./proxy-monitor/config:/app/config # 配置文件目录
-      - ./proxy-monitor/data:/app/data # 数据目录
+mkdir -p proxy-monitor && cd proxy-monitor
 ```
 
-访问 `http://你的服务器IP:8787` 即可打开监控面板。同时监控面板提供了详尽的手册，方便使用本应用
+2. **下载 docker-compose.yml**
+```bash
+curl -O https://raw.githubusercontent.com/coldicy7/proxyip-monitor/main/docker-compose.yml
+```
 
-本项目也提供了 `Dockerfile` 可自行进行构建
+3. **启动服务**
+```bash
+docker compose up -d
+```
 
+4. **访问面板**
+打开浏览器访问 `http://你的服务器 IP:8787`
+
+#### 方式二：使用 Docker 命令
+
+```bash
+# 创建数据目录
+mkdir -p proxy-monitor/{config,data}
+
+# 运行容器
+docker run -d \
+  --name proxy-monitor \
+  --restart unless-stopped \
+  -p 8787:8787 \
+  -e TZ=Asia/Shanghai \
+  -v $(pwd)/proxy-monitor/config:/app/config \
+  -v $(pwd)/proxy-monitor/data:/app/data \
+  coldicy7/proxyip-monitor:latest
+```
+
+### 🔧 自行构建镜像
+
+如果需要使用最新代码或自定义镜像：
+
+```bash
+# 克隆仓库
+git clone https://github.com/coldicy7/proxyip-monitor.git
+cd proxyip-monitor
+
+# 构建镜像
+docker build -t proxyip-monitor:latest .
+
+# 运行容器
+docker run -d \
+  --name proxy-monitor \
+  --restart unless-stopped \
+  -p 8787:8787 \
+  -v $(pwd)/config:/app/config \
+  -v $(pwd)/data:/app/data \
+  proxyip-monitor:latest
+```
+
+### 📋 验证安装
+
+```bash
+# 查看容器状态
+docker ps | grep proxy-monitor
+
+# 查看日志
+docker logs -f proxy-monitor
+
+# 测试 API
+curl http://localhost:8787/api/state
+```
 **启动服务**  
 - 默认监听 `8787` 端口（可通过 `PORT` 环境变量修改）
 - 数据目录默认为 `/app/data`（可通过 `DATA_DIR` 修改）
