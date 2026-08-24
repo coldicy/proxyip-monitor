@@ -1,34 +1,72 @@
 ```
+# Environment
+.env
+.env.local
+*.env.*
+
 # Dependencies
 node_modules/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.julia/
+zig*/
+target/
+.gradle/
 
-# Build artifacts
-backend/dist/
-backend/node_modules/
+# Compiled/Build artifacts
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
+dist/
+build/
+coverage/
+htmlcov/
+.coverage
 
-# Environment variables
-.env.local
-
-# Editor files
+# Editors/IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# System
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
 
-# Temporary files
-*.tmp
-
-# Database
-backend/data/proxy.db
-
-# Package lock
-backend/node_modules/.package-lock.json
-package-lock.json
-
-# TypeScript build
-backend/dist/
-
-# IDE
-.idea/
-
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
