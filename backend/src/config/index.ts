@@ -172,4 +172,4 @@ export const CF_SUPERNETS = [
   '197.234.240.0/22', '198.41.128.0/17'
 ];
 
-export { VERSION, DEFAULT_CONFIG, AppConfigClass };
+export { VERSION, DEFAULT_CONFIG };

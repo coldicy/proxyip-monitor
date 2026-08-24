@@ -6,7 +6,7 @@ import { ProxyNode, HistoryEntry, GraveyardEntry, SpeedResult, MonitorState, Pro
 import { DataService } from './data.service';
 import { ProbeService } from './probe.service';
 import { Logger } from '../utils/logger';
-import { AppConfig as ConfigClass, DEFAULT_CONFIG } from '../config';
+import { AppConfigClass, DEFAULT_CONFIG } from '../config';
 import { runCurlWithCode, parseCurlJson } from '../utils/helpers';
 
 const HISTORY_MAX_ENTRIES = 50;
@@ -14,7 +14,7 @@ const GRAVEYARD_BLOCK_EXPIRE_MS = 24 * 3600 * 1000;
 const CYCLE_CLEANUP_MINUTES = 60;
 
 export class MonitorService extends EventEmitter {
-  private config: ConfigClass;
+  private config: AppConfigClass;
   private dataService: DataService;
   private probeService: ProbeService;
   private logger: Logger;
@@ -28,7 +28,7 @@ export class MonitorService extends EventEmitter {
   constructor() {
     super();
     const dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-    this.config = new ConfigClass(dataDir);
+    this.config = new AppConfigClass(dataDir);
     this.logger = new Logger({} as any); // Temporary logger
     this.dataService = new DataService(dataDir, this.logger);
     this.probeService = new ProbeService(this.config);

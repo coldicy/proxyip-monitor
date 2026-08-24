@@ -8,7 +8,7 @@ export interface ProxyNode {
     kind: 'pure' | 'dom' | 'url' | 'file';
     name: string;
   };
-  kind?: 'cf' | 'proxy' | 'unknown';
+  kind?: 'cf' | 'proxy' | 'unknown' | 'manual';
 }
 
 export interface SpeedResult {
