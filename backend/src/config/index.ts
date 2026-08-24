@@ -1,7 +1,54 @@
-import { AppConfig, GithubConfig, CustomProbe } from '../types';
+import { CustomProbe } from '../types';
 import * as path from 'path';
+import * as fs from 'fs';
 
 const VERSION = 'v2.0.0';
+
+export interface AppConfigInterface {
+  dataDir: string;
+  intervalSec: number;
+  probeUrl: string;
+  customProbes: CustomProbe[];
+  timeoutSec: number;
+  concurrency: number;
+  autoCleanDays: number;
+  maxTotalMs: number;
+  qualityWindow: number;
+  successThreshold: number;
+  qualThreshold: number;
+  speedEnabled: boolean;
+  speedUrl: string;
+  speedTimeoutSec: number;
+  speedMinMBps: number;
+  speedConcurrency: number;
+  speedPerCycle: number;
+  githubToken?: string;
+  githubRepo?: string;
+  githubBranch?: string;
+}
+
+const DEFAULT_CONFIG: AppConfigInterface = {
+  dataDir: '/app/data',
+  intervalSec: 60,
+  probeUrl: 'https://www.cloudflare.com/cdn-cgi/trace',
+  customProbes: [],
+  timeoutSec: 5,
+  concurrency: 50,
+  autoCleanDays: 7,
+  maxTotalMs: 0,
+  qualityWindow: 10,
+  successThreshold: 1,
+  qualThreshold: 1,
+  speedEnabled: true,
+  speedUrl: 'https://speed.cloudflare.com/__down?bytes=20000000',
+  speedTimeoutSec: 10,
+  speedMinMBps: 0,
+  speedConcurrency: 1,
+  speedPerCycle: 20,
+  githubToken: undefined,
+  githubRepo: undefined,
+  githubBranch: 'main'
+};
 
 function parseNumber(env: string | undefined, defaultVal: number): number {
   const parsed = parseFloat(env || String(defaultVal));
@@ -13,46 +60,107 @@ function parseBoolean(env: string | undefined, defaultVal: boolean): boolean {
   return env === 'true' || env === '1';
 }
 
-export function loadConfig(): AppConfig {
-  const dataDir = process.env.DATA_DIR || '/app/data';
-  
-  const config: AppConfig = {
-    port: parseNumber(process.env.PORT, 8787),
-    ipFile: process.env.IP_FILE || '/app/config/ip.txt',
-    dataDir,
-    intervalSec: parseNumber(process.env.INTERVAL_SEC, 60),
-    probeUrl: process.env.PROBE_URL || 'https://www.cloudflare.com/cdn-cgi/trace',
-    customProbes: [],
-    timeoutSec: parseNumber(process.env.TIMEOUT_SEC, 5),
-    concurrency: parseNumber(process.env.CONCURRENCY, 50),
-    autoCleanDays: parseNumber(process.env.AUTO_CLEAN_DAYS, 7),
-    maxTotalMs: parseNumber(process.env.MAX_TOTAL_MS, 0),
-    qualityWindow: parseNumber(process.env.QUALITY_WINDOW, 10),
-    successThreshold: parseNumber(process.env.SUCCESS_THRESHOLD, 1),
-    qualThreshold: parseNumber(process.env.QUAL_THRESHOLD, 1),
-    speedEnabled: parseBoolean(process.env.SPEED_ENABLED, true),
-    speedUrl: process.env.SPEED_URL || 'https://speed.cloudflare.com/__down?bytes=20000000',
-    speedTimeoutSec: parseNumber(process.env.SPEED_TIMEOUT_SEC, 10),
-    speedMinMBps: parseNumber(process.env.SPEED_MIN_MBPS, 0),
-    speedConcurrency: Math.min(3, Math.max(1, parseNumber(process.env.SPEED_CONCURRENCY, 1))),
-    speedPerCycle: Math.max(1, parseNumber(process.env.SPEED_PER_CYCLE, 20)),
-    github: {
-      token: process.env.GITHUB_TOKEN || '',
-      repo: process.env.GITHUB_REPO || '',
-      path: process.env.GITHUB_PATH || 'proxyip',
-      branch: process.env.GITHUB_BRANCH || 'main',
-      auto: parseBoolean(process.env.GITHUB_AUTO_UPLOAD, false),
-      uploadIntervalMin: parseNumber(process.env.GITHUB_UPLOAD_INTERVAL_MIN, 0)
-    },
-    dataFile: path.join(dataDir, 'history.json'),
-    configFile: path.join(dataDir, 'config.json'),
-    graveyardFile: path.join(dataDir, 'graveyard.json'),
-    secretFile: path.join(dataDir, 'github.secret')
-  };
+export class AppConfigClass implements AppConfigInterface {
+  dataDir: string;
+  intervalSec: number;
+  probeUrl: string;
+  customProbes: CustomProbe[];
+  timeoutSec: number;
+  concurrency: number;
+  autoCleanDays: number;
+  maxTotalMs: number;
+  qualityWindow: number;
+  successThreshold: number;
+  qualThreshold: number;
+  speedEnabled: boolean;
+  speedUrl: string;
+  speedTimeoutSec: number;
+  speedMinMBps: number;
+  speedConcurrency: number;
+  speedPerCycle: number;
+  githubToken?: string;
+  githubRepo?: string;
+  githubBranch?: string;
 
-  return config;
+  constructor(dataDir?: string) {
+    this.dataDir = dataDir || process.env.DATA_DIR || path.join(process.cwd(), 'data');
+    this.intervalSec = parseNumber(process.env.INTERVAL_SEC, DEFAULT_CONFIG.intervalSec);
+    this.probeUrl = process.env.PROBE_URL || DEFAULT_CONFIG.probeUrl;
+    this.customProbes = this.parseCustomProbes();
+    this.timeoutSec = parseNumber(process.env.TIMEOUT_SEC, DEFAULT_CONFIG.timeoutSec);
+    this.concurrency = parseNumber(process.env.CONCURRENCY, DEFAULT_CONFIG.concurrency);
+    this.autoCleanDays = parseNumber(process.env.AUTO_CLEAN_DAYS, DEFAULT_CONFIG.autoCleanDays);
+    this.maxTotalMs = parseNumber(process.env.MAX_TOTAL_MS, DEFAULT_CONFIG.maxTotalMs);
+    this.qualityWindow = parseNumber(process.env.QUALITY_WINDOW, DEFAULT_CONFIG.qualityWindow);
+    this.successThreshold = parseNumber(process.env.SUCCESS_THRESHOLD, DEFAULT_CONFIG.successThreshold);
+    this.qualThreshold = parseNumber(process.env.QUAL_THRESHOLD, DEFAULT_CONFIG.qualThreshold);
+    this.speedEnabled = parseBoolean(process.env.SPEED_ENABLED, DEFAULT_CONFIG.speedEnabled);
+    this.speedUrl = process.env.SPEED_URL || DEFAULT_CONFIG.speedUrl;
+    this.speedTimeoutSec = parseNumber(process.env.SPEED_TIMEOUT_SEC, DEFAULT_CONFIG.speedTimeoutSec);
+    this.speedMinMBps = parseNumber(process.env.SPEED_MIN_MBPS, DEFAULT_CONFIG.speedMinMBps);
+    this.speedConcurrency = Math.min(3, Math.max(1, parseNumber(process.env.SPEED_CONCURRENCY, DEFAULT_CONFIG.speedConcurrency)));
+    this.speedPerCycle = Math.max(1, parseNumber(process.env.SPEED_PER_CYCLE, DEFAULT_CONFIG.speedPerCycle));
+    this.githubToken = process.env.GITHUB_TOKEN;
+    this.githubRepo = process.env.GITHUB_REPO;
+    this.githubBranch = process.env.GITHUB_BRANCH || DEFAULT_CONFIG.githubBranch;
+  }
+
+  private parseCustomProbes(): CustomProbe[] {
+    const probesStr = process.env.CUSTOM_PROBES;
+    if (!probesStr) return [];
+    
+    try {
+      const probes = JSON.parse(probesStr);
+      if (Array.isArray(probes)) {
+        return probes.filter(p => p.url && p.expect).map(p => ({ url: p.url, expect: String(p.expect) }));
+      }
+    } catch (e) {
+      // Invalid JSON, ignore
+    }
+    return [];
+  }
+
+  async load(): Promise<void> {
+    const configFile = path.join(this.dataDir, 'config.json');
+    try {
+      if (fs.existsSync(configFile)) {
+        const savedConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+        this.update(savedConfig);
+      }
+    } catch (error) {
+      console.error(`Failed to load config file: ${(error as Error).message}`);
+    }
+  }
+
+  update(updates: Partial<AppConfig>): void {
+    const validKeys: (keyof AppConfig)[] = [
+      'dataDir', 'intervalSec', 'probeUrl', 'customProbes', 'timeoutSec',
+      'concurrency', 'autoCleanDays', 'maxTotalMs', 'qualityWindow',
+      'successThreshold', 'qualThreshold', 'speedEnabled', 'speedUrl',
+      'speedTimeoutSec', 'speedMinMBps', 'speedConcurrency', 'speedPerCycle',
+      'githubToken', 'githubRepo', 'githubBranch'
+    ];
+
+    for (const key of validKeys) {
+      if (updates[key] !== undefined) {
+        (this as any)[key] = updates[key];
+      }
+    }
+
+    // Save config to file
+    try {
+      fs.mkdirSync(this.dataDir, { recursive: true });
+      const configFile = path.join(this.dataDir, 'config.json');
+      const saveData: Partial<AppConfigInterface> = { ...this };
+      delete (saveData as any).dataDir; // Don't save dataDir
+      fs.writeFileSync(configFile, JSON.stringify(saveData, null, 2));
+    } catch (error) {
+      console.error(`Failed to save config: ${(error as Error).message}`);
+    }
+  }
 }
 
+export type AppConfig = AppConfigInterface;
 export function getHistoryCap(qualityWindow: number): number {
   return Math.min(50, Math.max(1, Math.round(qualityWindow) || 10));
 }
@@ -64,4 +172,4 @@ export const CF_SUPERNETS = [
   '197.234.240.0/22', '198.41.128.0/17'
 ];
 
-export { VERSION };
+export { VERSION, DEFAULT_CONFIG, AppConfigClass };

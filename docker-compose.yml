@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  proxy-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: proxy-monitor
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+      - PORT=8787
+      - DATA_DIR=/app/data
+      - INTERVAL_SEC=60
+      - CONCURRENCY=50
+      - TIMEOUT_SEC=5
+      - SPEED_ENABLED=true
+      # GitHub 上传配置 (可选)
+      # - GITHUB_TOKEN=your_token
+      # - GITHUB_REPO=username/repo
+      # - GITHUB_BRANCH=main
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  proxy-network:
+    driver: bridge
+
+volumes:
+  data:
+  config:

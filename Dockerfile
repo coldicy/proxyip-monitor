@@ -1,23 +1,51 @@
-FROM node:20-alpine AS builder
+# Build stage
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# 安装必要的依赖
+# Copy package files
+COPY backend/package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy source code
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
+
+# Build TypeScript
+RUN npm install -g typescript ts-node && npm run build
+
+# Runtime stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install curl for probes
 RUN apk add --no-cache curl
 
-# 复制应用文件
-COPY server.js ./server.js
-COPY public ./public
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
-# 创建数据目录
-RUN mkdir -p /app/config /app/data
+# Copy built files from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY backend/public ./public
+COPY backend/package.json ./
 
-# 暴露端口
+# Create data directory
+RUN mkdir -p /app/data && chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
+
+# Expose port
 EXPOSE 8787
 
-# 健康检查
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8787/api/state || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8787/health || exit 1
 
-# 启动应用
-CMD ["node", "server.js"]
+# Start application
+CMD ["node", "dist/index.js"]

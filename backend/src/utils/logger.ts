@@ -1,58 +1,46 @@
-import winston from 'winston';
-import { AppState } from '../types';
-
-const { combine, timestamp, printf, colorize } = winston.format;
-
-const logFormat = printf(({ level, message, timestamp }) => {
-  return `${timestamp} [${level}]: ${message}`;
-});
+import { MonitorState } from '../types';
 
 export class Logger {
-  private logger: winston.Logger;
-  private state: AppState;
+  private state: MonitorState;
 
-  constructor(state: AppState) {
+  constructor(state: MonitorState) {
     this.state = state;
-    this.logger = winston.createLogger({
-      level: process.env.LOG_LEVEL || 'info',
-      format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        logFormat
-      ),
-      defaultMeta: { service: 'proxy-monitor' },
-      transports: [
-        new winston.transports.Console({
-          format: combine(colorize(), logFormat)
-        })
-      ]
-    });
   }
 
   log(message: string): void {
-    this.state.logs.push({ t: Date.now(), m: message });
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const logEntry = `${timestamp} [INFO]: ${message}`;
+    this.state.logs.push(logEntry);
     if (this.state.logs.length > 400) {
       this.state.logs = this.state.logs.slice(-400);
     }
-    this.logger.info(message);
+    console.log(logEntry);
   }
 
   error(message: string): void {
-    this.state.logs.push({ t: Date.now(), m: `ERROR: ${message}` });
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const logEntry = `${timestamp} [ERROR]: ${message}`;
+    this.state.logs.push(logEntry);
     if (this.state.logs.length > 400) {
       this.state.logs = this.state.logs.slice(-400);
     }
-    this.logger.error(message);
+    console.error(logEntry);
   }
 
   warn(message: string): void {
-    this.state.logs.push({ t: Date.now(), m: `WARN: ${message}` });
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const logEntry = `${timestamp} [WARN]: ${message}`;
+    this.state.logs.push(logEntry);
     if (this.state.logs.length > 400) {
       this.state.logs = this.state.logs.slice(-400);
     }
-    this.logger.warn(message);
+    console.warn(logEntry);
   }
 
   debug(message: string): void {
-    this.logger.debug(message);
+    if (process.env.DEBUG) {
+      const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      console.debug(`${timestamp} [DEBUG]: ${message}`);
+    }
   }
 }

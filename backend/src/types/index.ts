@@ -3,13 +3,12 @@ export interface ProxyNode {
   ip: string;
   port: number;
   firstSeen: number;
-  lastOnlineAt?: number;
+  lastOnlineAt?: number | null;
   firstSource: {
-    kind: 'pure' | 'dom' | 'url';
+    kind: 'pure' | 'dom' | 'url' | 'file';
     name: string;
   };
   kind?: 'cf' | 'proxy' | 'unknown';
-  speed?: SpeedResult;
 }
 
 export interface SpeedResult {
@@ -24,7 +23,7 @@ export interface ProbeResult {
   t: number;
   ok: boolean;
   off: TimingSegments | null;
-  cus: TimingSegments | null;
+  cus?: { url: string; ok: boolean; segs: TimingSegments | null; failReason: string | null }[] | null;
   total: number | null;
   avgTcp: number | null;
   avgTls: number | null;
@@ -53,10 +52,10 @@ export interface TimingSegments {
 
 export interface HistoryEntry {
   t: number;
-  ok: boolean;
+  ok?: boolean;
   total?: number | null;
   off?: TimingSegments | null;
-  cus?: TimingSegments | null;
+  cus?: { url: string; ok: boolean; segs: TimingSegments | null; failReason: string | null }[] | null;
   avgTcp?: number | null;
   avgTls?: number | null;
   avgHttp?: number | null;
@@ -65,6 +64,7 @@ export interface HistoryEntry {
   loc?: string | null;
   exitIp?: string | null;
   probes?: ProbeDetail[];
+  speed?: number | null;
 }
 
 export interface QualityResult {
@@ -81,14 +81,17 @@ export interface QualityResult {
 
 export interface GraveyardEntry {
   id: string;
-  label: string;
-  removedAt: number;
-  lastOnlineAt: number;
-  mode: 'auto' | 'manual';
+  ip: string;
+  port: number;
+  label?: string;
+  removedAt?: number;
+  lastOnlineAt?: number;
+  mode?: 'auto' | 'manual';
+  t: number;
   reason: string;
 }
 
-export interface AppState {
+export interface MonitorState {
   nodes: Record<string, ProxyNode>;
   history: Record<string, HistoryEntry[]>;
   blocked: Record<string, number>;
@@ -99,15 +102,18 @@ export interface AppState {
   cfCidrsAt: number;
   checking: boolean;
   lastCycle: number | null;
-  progress: {
-    tested: number;
-    total: number;
-  };
-  logs: LogEntry[];
+  progress: Progress;
+  logs: string[];
   github: {
     lastUpload: number | null;
     lastError: string | null;
   };
+  speed: Record<string, SpeedResult>;
+}
+
+export interface Progress {
+  tested: number;
+  total: number;
 }
 
 export interface LogEntry {
@@ -116,8 +122,6 @@ export interface LogEntry {
 }
 
 export interface AppConfig {
-  port: number;
-  ipFile: string;
   dataDir: string;
   intervalSec: number;
   probeUrl: string;
@@ -135,25 +139,14 @@ export interface AppConfig {
   speedMinMBps: number;
   speedConcurrency: number;
   speedPerCycle: number;
-  github: GithubConfig;
-  dataFile: string;
-  configFile: string;
-  graveyardFile: string;
-  secretFile: string;
+  githubToken?: string;
+  githubRepo?: string;
+  githubBranch?: string;
 }
 
 export interface CustomProbe {
   url: string;
   expect: string;
-}
-
-export interface GithubConfig {
-  token: string;
-  repo: string;
-  path: string;
-  branch: string;
-  auto: boolean;
-  uploadIntervalMin: number;
 }
 
 export interface PublicConfig {
@@ -173,68 +166,6 @@ export interface PublicConfig {
   speedMinMBps: number;
   speedConcurrency: number;
   speedPerCycle: number;
-  github: {
-    tokenSet: boolean;
-    tokenMasked: string;
-    repo: string;
-    path: string;
-    branch: string;
-    auto: boolean;
-    uploadIntervalMin: number;
-  };
-}
-
-export interface ApiStateResponse {
-  version: string;
-  checking: boolean;
-  progress: { tested: number; total: number };
-  lastCycle: number | null;
-  intervalSec: number;
-  config: {
-    maxTotalMs: number;
-    qualityWindow: number;
-    successThreshold: number;
-    qualThreshold: number;
-    autoCleanDays: number;
-    customProbes: CustomProbe[];
-    concurrency: number;
-    speedEnabled: boolean;
-    speedMinMBps: number;
-    speedUrl: string;
-    speedTimeoutSec: number;
-    speedConcurrency: number;
-    speedPerCycle: number;
-  };
-  github: {
-    configured: boolean;
-    auto: boolean;
-    lastUpload: number | null;
-    lastError: string | null;
-    uploadIntervalMin: number;
-  };
-  summary: {
-    total: number;
-    online: number;
-    quality: number;
-    offline: number;
-  };
-  items: StateItem[];
-}
-
-export interface StateItem {
-  id: string;
-  label: string;
-  ip: string;
-  port: number;
-  ipKind: string;
-  srcKind: string;
-  srcName: string;
-  firstSeen: number | null;
-  colo: string | null;
-  loc: string | null;
-  exitIp: string | null;
-  speed: SpeedResult | null;
-  latest: ProbeResult | null;
-  quality: QualityResult;
-  recent: HistoryEntry[];
+  githubRepo?: string;
+  githubBranch?: string;
 }
