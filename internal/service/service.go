@@ -610,10 +610,10 @@ func (s *Service) GetState() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"version":    config.Version,
-		"checking":   s.checking,
-		"progress":   s.progress,
-		"lastCycle":  s.lastCycle,
+		"version":     config.Version,
+		"checking":    s.checking,
+		"progress":    s.progress,
+		"lastCycle":   s.lastCycle,
 		"intervalSec": s.cfg.IntervalSec,
 		"config": map[string]interface{}{
 			"maxTotalMs":       s.cfg.MaxTotalMs,
@@ -631,10 +631,10 @@ func (s *Service) GetState() map[string]interface{} {
 			"speedPerCycle":    s.cfg.SpeedPerCycle,
 		},
 		"github": map[string]interface{}{
-			"configured":      s.cfg.GitHub.Token != "" && s.cfg.GitHub.Repo != "",
-			"auto":            s.cfg.GitHub.Auto,
-			"lastUpload":      nil,
-			"lastError":       nil,
+			"configured":        s.cfg.GitHub.Token != "" && s.cfg.GitHub.Repo != "",
+			"auto":              s.cfg.GitHub.Auto,
+			"lastUpload":        nil,
+			"lastError":         nil,
 			"uploadIntervalMin": s.cfg.GitHub.UploadIntervalMin,
 		},
 		"summary": map[string]interface{}{
@@ -722,12 +722,12 @@ func (s *Service) GetConfig() map[string]interface{} {
 		"speedConcurrency": s.cfg.SpeedConcurrency,
 		"speedPerCycle":    s.cfg.SpeedPerCycle,
 		"github": map[string]interface{}{
-			"tokenSet":        s.cfg.GitHub.Token != "",
-			"tokenMasked":     config.MaskToken(s.cfg.GitHub.Token),
-			"repo":            s.cfg.GitHub.Repo,
-			"path":            s.cfg.GitHub.Path,
-			"branch":          s.cfg.GitHub.Branch,
-			"auto":            s.cfg.GitHub.Auto,
+			"tokenSet":          s.cfg.GitHub.Token != "",
+			"tokenMasked":       config.MaskToken(s.cfg.GitHub.Token),
+			"repo":              s.cfg.GitHub.Repo,
+			"path":              s.cfg.GitHub.Path,
+			"branch":            s.cfg.GitHub.Branch,
+			"auto":              s.cfg.GitHub.Auto,
 			"uploadIntervalMin": s.cfg.GitHub.UploadIntervalMin,
 		},
 	}

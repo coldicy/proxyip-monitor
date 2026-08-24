@@ -12,40 +12,40 @@ const Version = "v36-window-go"
 
 // GitHubConfig GitHub 配置
 type GitHubConfig struct {
-	Token            string `json:"token,omitempty"`
-	Repo             string `json:"repo"`
-	Path             string `json:"path"`
-	Branch           string `json:"branch"`
-	Auto             bool   `json:"auto"`
-	UploadIntervalMin int   `json:"uploadIntervalMin"`
+	Token             string `json:"token,omitempty"`
+	Repo              string `json:"repo"`
+	Path              string `json:"path"`
+	Branch            string `json:"branch"`
+	Auto              bool   `json:"auto"`
+	UploadIntervalMin int    `json:"uploadIntervalMin"`
 }
 
 // Config 应用配置
 type Config struct {
-	Port              int            `json:"port"`
-	IPFile            string         `json:"ipFile"`
-	DataDir           string         `json:"dataDir"`
-	IntervalSec       int            `json:"intervalSec"`
-	ProbeURL          string         `json:"probeUrl"`
-	CustomProbes      []CustomProbe  `json:"customProbes"`
-	TimeoutSec        int            `json:"timeoutSec"`
-	Concurrency       int            `json:"concurrency"`
-	AutoCleanDays     float64        `json:"autoCleanDays"`
-	MaxTotalMs        float64        `json:"maxTotalMs"`
-	QualityWindow     int            `json:"qualityWindow"`
-	SuccessThreshold  float64        `json:"successThreshold"`
-	QualThreshold     float64        `json:"qualThreshold"`
-	SpeedEnabled      bool           `json:"speedEnabled"`
-	SpeedURL          string         `json:"speedUrl"`
-	SpeedTimeoutSec   int            `json:"speedTimeoutSec"`
-	SpeedMinMBps      float64        `json:"speedMinMBps"`
-	SpeedConcurrency  int            `json:"speedConcurrency"`
-	SpeedPerCycle     int            `json:"speedPerCycle"`
-	GitHub            GitHubConfig   `json:"github"`
-	ConfigFile        string         `json:"-"`
-	DataFile          string         `json:"-"`
-	GraveyardFile     string         `json:"-"`
-	SecretFile        string         `json:"-"`
+	Port             int           `json:"port"`
+	IPFile           string        `json:"ipFile"`
+	DataDir          string        `json:"dataDir"`
+	IntervalSec      int           `json:"intervalSec"`
+	ProbeURL         string        `json:"probeUrl"`
+	CustomProbes     []CustomProbe `json:"customProbes"`
+	TimeoutSec       int           `json:"timeoutSec"`
+	Concurrency      int           `json:"concurrency"`
+	AutoCleanDays    float64       `json:"autoCleanDays"`
+	MaxTotalMs       float64       `json:"maxTotalMs"`
+	QualityWindow    int           `json:"qualityWindow"`
+	SuccessThreshold float64       `json:"successThreshold"`
+	QualThreshold    float64       `json:"qualThreshold"`
+	SpeedEnabled     bool          `json:"speedEnabled"`
+	SpeedURL         string        `json:"speedUrl"`
+	SpeedTimeoutSec  int           `json:"speedTimeoutSec"`
+	SpeedMinMBps     float64       `json:"speedMinMBps"`
+	SpeedConcurrency int           `json:"speedConcurrency"`
+	SpeedPerCycle    int           `json:"speedPerCycle"`
+	GitHub           GitHubConfig  `json:"github"`
+	ConfigFile       string        `json:"-"`
+	DataFile         string        `json:"-"`
+	GraveyardFile    string        `json:"-"`
+	SecretFile       string        `json:"-"`
 }
 
 // CustomProbe 自定义探针
@@ -57,25 +57,25 @@ type CustomProbe struct {
 // LoadConfig 从环境变量和文件加载配置
 func LoadConfig(configFilePath string) (*Config, error) {
 	cfg := &Config{
-		Port:              getEnvInt("PORT", 8787),
-		IPFile:            getEnv("IP_FILE", "/app/config/ip.txt"),
-		DataDir:           getEnv("DATA_DIR", "/app/data"),
-		IntervalSec:       getEnvInt("INTERVAL_SEC", 60),
-		ProbeURL:          getEnv("PROBE_URL", "https://www.cloudflare.com/cdn-cgi/trace"),
-		CustomProbes:      []CustomProbe{},
-		TimeoutSec:        getEnvInt("TIMEOUT_SEC", 5),
-		Concurrency:       getEnvInt("CONCURRENCY", 50),
-		AutoCleanDays:     getEnvFloat("AUTO_CLEAN_DAYS", 7),
-		MaxTotalMs:        getEnvFloat("MAX_TOTAL_MS", 0),
-		QualityWindow:     getEnvInt("QUALITY_WINDOW", 10),
-		SuccessThreshold:  getEnvFloat("SUCCESS_THRESHOLD", 1),
-		QualThreshold:     getEnvFloat("QUAL_THRESHOLD", 1),
-		SpeedEnabled:      getEnvBool("SPEED_ENABLED", true),
-		SpeedURL:          getEnv("SPEED_URL", "https://speed.cloudflare.com/__down?bytes=20000000"),
-		SpeedTimeoutSec:   getEnvInt("SPEED_TIMEOUT_SEC", 10),
-		SpeedMinMBps:      getEnvFloat("SPEED_MIN_MBPS", 0),
-		SpeedConcurrency:  min(3, max(1, getEnvInt("SPEED_CONCURRENCY", 1))),
-		SpeedPerCycle:     max(1, getEnvInt("SPEED_PER_CYCLE", 20)),
+		Port:             getEnvInt("PORT", 8787),
+		IPFile:           getEnv("IP_FILE", "/app/config/ip.txt"),
+		DataDir:          getEnv("DATA_DIR", "/app/data"),
+		IntervalSec:      getEnvInt("INTERVAL_SEC", 60),
+		ProbeURL:         getEnv("PROBE_URL", "https://www.cloudflare.com/cdn-cgi/trace"),
+		CustomProbes:     []CustomProbe{},
+		TimeoutSec:       getEnvInt("TIMEOUT_SEC", 5),
+		Concurrency:      getEnvInt("CONCURRENCY", 50),
+		AutoCleanDays:    getEnvFloat("AUTO_CLEAN_DAYS", 7),
+		MaxTotalMs:       getEnvFloat("MAX_TOTAL_MS", 0),
+		QualityWindow:    getEnvInt("QUALITY_WINDOW", 10),
+		SuccessThreshold: getEnvFloat("SUCCESS_THRESHOLD", 1),
+		QualThreshold:    getEnvFloat("QUAL_THRESHOLD", 1),
+		SpeedEnabled:     getEnvBool("SPEED_ENABLED", true),
+		SpeedURL:         getEnv("SPEED_URL", "https://speed.cloudflare.com/__down?bytes=20000000"),
+		SpeedTimeoutSec:  getEnvInt("SPEED_TIMEOUT_SEC", 10),
+		SpeedMinMBps:     getEnvFloat("SPEED_MIN_MBPS", 0),
+		SpeedConcurrency: min(3, max(1, getEnvInt("SPEED_CONCURRENCY", 1))),
+		SpeedPerCycle:    max(1, getEnvInt("SPEED_PER_CYCLE", 20)),
 		GitHub: GitHubConfig{
 			Token:             getEnv("GITHUB_TOKEN", ""),
 			Repo:              getEnv("GITHUB_REPO", ""),
@@ -247,12 +247,12 @@ func SaveConfig(cfg *Config) error {
 		"speedConcurrency": cfg.SpeedConcurrency,
 		"speedPerCycle":    cfg.SpeedPerCycle,
 		"github": map[string]interface{}{
-			"tokenSet":        cfg.GitHub.Token != "",
-			"tokenMasked":     maskToken(cfg.GitHub.Token),
-			"repo":            cfg.GitHub.Repo,
-			"path":            cfg.GitHub.Path,
-			"branch":          cfg.GitHub.Branch,
-			"auto":            cfg.GitHub.Auto,
+			"tokenSet":          cfg.GitHub.Token != "",
+			"tokenMasked":       maskToken(cfg.GitHub.Token),
+			"repo":              cfg.GitHub.Repo,
+			"path":              cfg.GitHub.Path,
+			"branch":            cfg.GitHub.Branch,
+			"auto":              cfg.GitHub.Auto,
 			"uploadIntervalMin": cfg.GitHub.UploadIntervalMin,
 		},
 	}

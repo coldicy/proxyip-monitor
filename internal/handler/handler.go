@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -18,9 +19,9 @@ var staticFS embed.FS
 
 // Server HTTP 服务器
 type Server struct {
-	cfg    *config.Config
-	svc    *service.Service
-	mux    *http.ServeMux
+	cfg     *config.Config
+	svc     *service.Service
+	mux     *http.ServeMux
 	httpSrv *http.Server
 }
 
@@ -32,8 +33,8 @@ func NewServer(cfg *config.Config, svc *service.Service) *Server {
 		mux: http.NewServeMux(),
 	}
 	s.setupRoutes()
-	
-	addr := ":" + string(rune(cfg.Port))
+
+	addr := fmt.Sprintf(":%d", cfg.Port)
 	s.httpSrv = &http.Server{
 		Addr:         addr,
 		Handler:      s.mux,

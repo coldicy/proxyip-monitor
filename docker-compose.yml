@@ -1,26 +1,68 @@
+version: '3.8'
+
 services:
   proxy-monitor:
-    image: coldicy7/proxyip-monitor:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: proxy-monitor
     restart: unless-stopped
     ports:
       - "8787:8787"
-    environment:
-      - PORT=8787
-      - TZ=Asia/Shanghai
-      # 可选：通过环境变量配置 GitHub Token（推荐方式）
-      # - GITHUB_TOKEN=your_github_token_here
     volumes:
-      - ./proxy-monitor/config:/app/config:rw  # 配置文件目录
-      - ./proxy-monitor/data:/app/data:rw      # 数据目录
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8787/api/state"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      # 持久化数据目录（存储检测结果、墓碑记录等）
+      - ./data:/app/data
+      # IP 配置文件（自定义需要检测的 IP/域名列表）
+      - ./config/ip.txt:/app/config/ip.txt
+    environment:
+      # ==================== 基本配置 ====================
+      - PORT=8787                    # 服务端口
+      - IP_FILE=/app/config/ip.txt   # IP 配置文件路径
+      - DATA_DIR=/app/data           # 数据持久化目录
+      
+      # ==================== 检测配置 ====================
+      - INTERVAL_SEC=60              # 定时检测间隔（秒）
+      - TIMEOUT_SEC=5                # 单个 IP 请求超时时间（秒）
+      - CONCURRENCY=50               # 并发检测数量
+      
+      # ==================== 质量评估配置 ====================
+      - MAX_TOTAL_MS=0               # 最大总延迟限制（0=不限制）
+      - QUALITY_WINDOW=10            # 质量评估窗口大小（最近 N 次检测）
+      - SUCCESS_THRESHOLD=1          # 成功率阈值（0-1，1 表示 100%）
+      - QUAL_THRESHOLD=1             # 质量阈值（0-1，1 表示最优）
+      
+      # ==================== 测速配置 ====================
+      - SPEED_ENABLED=true           # 是否启用速度测试
+      - SPEED_URL=https://speed.cloudflare.com/__down?bytes=20000000  # 测速地址
+      - SPEED_TIMEOUT_SEC=10         # 测速超时时间（秒）
+      - SPEED_MIN_MBPS=0             # 最小速度要求（MBps，0=不限制）
+      
+      # ==================== GitHub 自动上传（可选）====================
+      # 取消注释并填写以下变量以启用 GitHub 自动上传功能
+      # - GITHUB_TOKEN=your_personal_access_token  # GitHub 个人访问令牌
+      # - GITHUB_REPO=username/repo                # GitHub 仓库（格式：用户名/仓库名）
+      # - GITHUB_PATH=proxyip                      # 上传文件路径
+      # - GITHUB_BRANCH=main                       # 分支名称
+      # - GITHUB_AUTO_UPLOAD=false                 # 是否自动上传
+      # - GITHUB_UPLOAD_INTERVAL_MIN=60            # 上传间隔（分钟）
+      
+      # ==================== 日志配置 ====================
+      # - LOG_LEVEL=info             # 日志级别（debug, info, warn, error）
+      
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "10m"    # 单个日志文件最大大小
+        max-file: "3"      # 最多保留的日志文件数量
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8787/api/state"]
+      interval: 30s        # 健康检查间隔
+      timeout: 10s         # 超时时间
+      retries: 3           # 重试次数
+      start_period: 10s    # 启动宽限期
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    driver: bridge

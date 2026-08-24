@@ -2,33 +2,21 @@
 .git
 .gitignore
 
-# 数据和配置（不应该打包进镜像）
-config/
-data/
-*.json
-*.txt
-*.secret
-
-# 日志
-*.log
-logs/
+# 测试文件
+*_test.go
 
 # 文档
 *.md
-README.md
+!README.md
+
+# 开发相关
+data/
+*.log
+
+# Docker 文件（不需要复制到镜像中）
+Dockerfile
 docker-compose.yml
-
-# 环境变量
-.env
-.env.*
-
-# 测试文件
-test/
-tests/
-*.test.js
-
-# Node modules
-node_modules/
+.dockerignore
 
 # IDE
 .idea/
@@ -36,6 +24,7 @@ node_modules/
 *.swp
 *.swo
 
-# OS files
-.DS_Store
-Thumbs.db
+# 临时文件
+tmp/
+temp/
+*.tmp
