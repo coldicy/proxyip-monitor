@@ -1,60 +1,88 @@
 ```
-# Environment variables
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Logs
+*.log
+
+# Environment
 .env
 .env.local
 *.env.*
 
-# Logs and temporary files
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
-*.tmp
+.git/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
 
-# Dependencies and build artifacts
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 node_modules/
 dist/
 build/
-target/
-__pycache__/
-.venv/
-venv/
-.env
-.env.local
+.nyc_output
+coverage/
+.nyc_output/
+istanbul.yml
+.jscs-cache/
+.jshint-cache/
+.eslintcache
+.nodemon/
+.prettierignore
+.pnp.cjs
+.pnp.loader.mjs
+.yarn/
+!.yarn/cache
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
-# Editors and IDEs
+# TypeScript
+*.tsbuildinfo
+*.bak
+*.tmp
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# System files
+*~
 .DS_Store
 Thumbs.db
 
-# Coverage reports
+# Test
 coverage/
-htmlcov/
-.coverage
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+.nyc_output/
+.jest/
+jest/
+test-report.xml
 ```

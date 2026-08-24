@@ -66,6 +66,26 @@ export function parseTrace(traceText: string): Record<string, string> {
   return result;
 }
 
+export function parseNodeInfo(traceText: string): { ip: string; country?: string; city?: string } | null {
+  const data = parseTrace(traceText);
+  if (!data.ip) return null;
+  return {
+    ip: data.ip,
+    country: data.country,
+    city: data.city
+  };
+}
+
+export function isValidIP(ip: string): boolean {
+  if (!ip) return false;
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(part => {
+    const num = parseInt(part, 10);
+    return !isNaN(num) && num >= 0 && num <= 255 && String(num) === part;
+  });
+}
+
 export function ipToInt(ip: string): number {
   const parts = ip.split('.').map(Number);
   return (parts[0] * 16777216 + parts[1] * 65536 + parts[2] * 256 + parts[3]) >>> 0;
