@@ -1,0 +1,15 @@
+# Proxy Monitor IP 配置文件示例
+# 每行一个 IP 地址或域名，可带端口（默认 443）
+# 支持格式：
+#   - 纯 IP: 1.2.3.4
+#   - IP+ 端口：1.2.3.4:8443
+#   - 域名：example.com
+#   - 域名 + 端口：example.com:8443
+
+# Cloudflare IPv4 示例
+104.16.0.1
+104.16.1.1
+172.64.0.1
+
+# 域名示例（会自动解析 DNS）
+www.cloudflare.com

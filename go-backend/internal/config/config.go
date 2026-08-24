@@ -296,3 +296,8 @@ func maskToken(token string) string {
 	}
 	return token[:4] + "****" + token[len(token)-4:]
 }
+
+// MaskToken 导出用于 handler 包
+func MaskToken(token string) string {
+	return maskToken(token)
+}
