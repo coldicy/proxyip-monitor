@@ -1,6 +1,6 @@
-# Proxy Monitor 📡
+# ProxyIP Monitor 📡
 
-Proxy Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周期性探测节点列表中的 IP/域名，计算 **TCP/TLS/HTTP 分段延迟**，结合 **成功率** 与 **达标率**（延迟上限），并配合 **一次性下载测速**，最终筛选出 **优质节点**，可自动上传至 GitHub 供订阅使用。
+ProxyIP Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周期性探测节点列表中的 IP/域名，计算 **TCP/TLS/HTTP 分段延迟**，结合 **成功率** 与 **达标率**（延迟上限），并配合 **一次性下载测速**，最终筛选出 **优质节点**，可自动上传至 GitHub 供订阅使用。
 
 ---
 
@@ -33,13 +33,13 @@ Proxy Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周�
 services:
   proxy-monitor:
     image: coldicy7/proxyip-monitor
-    container_name: proxy-monitor
+    container_name: proxyip-monitor
     restart: unless-stopped
     ports:
       - "8787:8787"
     volumes:
-      - ./proxy-monitor/config:/app/config # 配置文件目录
-      - ./proxy-monitor/data:/app/data # 数据目录
+      - ./proxyip-monitor/config:/app/config # 配置文件目录
+      - ./proxyip-monitor/data:/app/data # 数据目录
 ```
 
 访问 `http://你的服务器IP:8787` 即可打开监控面板。同时监控面板提供了详尽的手册，方便使用本应用
