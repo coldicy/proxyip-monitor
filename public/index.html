@@ -179,6 +179,7 @@ tbody tr.selected{background:rgba(56,189,248,.09)}
 <option value="success_desc">成功率降序</option>
 <option value="qual_desc">达标率降序</option>
 <option value="speed_desc">下载速度降序</option>
+<option value="online_desc">连续在线时长降序</option>
 </select>
 <button id="btnCopyFiltered" class="btn">📋 复制筛选节点</button>
 <span id="filteredCount" class="muted">筛选 0 / 0</span>
@@ -260,7 +261,7 @@ https://example.com/proxyip-list.txt</code></pre>
 <ul>
 <li>状态：全部/优质/达标/未达标/在线/离线。其中「在线」= 优质+达标+未达标（即最近一次检测通过）；「未达标」= 在线但最近一次总延迟超上限（未设上限时在线即达标）。</li>
 <li>数值筛选：总延迟 / 速度 / 达标率 / 成功率 / 连续在线 的运算符（≤ / ≥ / &lt; / &gt; / =）为可点击文本，点击展开切换，默认总延迟 ≤、其余 ≥；输入框留空 = 不启用该条件。连续在线单位为小时（离线节点按 0 计）。</li>
-<li>排序新增“下载速度降序”。</li></ul>
+<li>排序新增“下载速度降序”“连续在线时长降序”（离线节点按 0 小时计，降序时排在最后）。</li></ul>
 <h3>表格</h3>
 <ul>
 <li>节点信息：IP:端口 同行显示身份标签（CloudflareIP/ProxyIP）；下方三行依次为 ① 首次引入时间 + 来源；② 地区(国旗) + 数据中心 + 出口IP（离线时历史补齐）；③ 最近检测时间。</li>
@@ -457,11 +458,13 @@ const msc=parseRatioInput(f.minSuccess);if(msc!=null)arr=arr.filter(i=>cmpOp(f.s
 const mh=parseFloat(f.minOnline);if(isFinite(mh))arr=arr.filter(i=>{const hrs=i.onlineSince?(Date.now()-i.onlineSince)/3600000:0;return cmpOp(f.onlineOp,hrs,mh);});
 if(f.colo)arr=arr.filter(i=>effectiveMeta(i).colo.v===f.colo);
 if(f.loc)arr=arr.filter(i=>effectiveMeta(i).loc.v===f.loc);
-const tv=i=>i.quality?.avgTotal??Infinity,sv=i=>i.quality?.rate??-1,qv=i=>i.quality?.qualRate??-1,pv=i=>speedOf(i)??-1;
+// 排序: ov=连续在线小时数(离线0), 降序时离线节点排最后; 同值按总延迟升序
+const tv=i=>i.quality?.avgTotal??Infinity,sv=i=>i.quality?.rate??-1,qv=i=>i.quality?.qualRate??-1,pv=i=>speedOf(i)??-1,ov=i=>i.onlineSince?(Date.now()-i.onlineSince)/3600000:0;
 if(SORT==="total_asc")arr.sort((a,b)=>tv(a)-tv(b)||sv(b)-sv(a));
 else if(SORT==="success_desc")arr.sort((a,b)=>sv(b)-sv(a)||tv(a)-tv(b));
 else if(SORT==="qual_desc")arr.sort((a,b)=>qv(b)-qv(a)||tv(a)-tv(b));
 else if(SORT==="speed_desc")arr.sort((a,b)=>pv(b)-pv(a)||tv(a)-tv(b));
+else if(SORT==="online_desc")arr.sort((a,b)=>ov(b)-ov(a)||tv(a)-tv(b));
 return arr;}
 function updateSelectedCount(){els.selCount.textContent=SELECTED.size;els.btnDeleteSelected.disabled=SELECTED.size===0;}
 function updateSelectAll(){const vis=currentFiltered.filter(i=>SELECTED.has(i.id)).length;els.selectAll.checked=currentFiltered.length>0&&vis===currentFiltered.length;els.selectAll.indeterminate=vis>0&&vis<currentFiltered.length;}
