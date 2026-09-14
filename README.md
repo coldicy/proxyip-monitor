@@ -1,4 +1,4 @@
-# ProxyIP Monitor 📡
+# ProxyIP Monitor
 
 ProxyIP Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周期性探测节点列表中的 IP/域名，计算 **TCP/TLS/HTTP 分段延迟**，结合 **成功率** 与 **达标率**（延迟上限），并配合 **一次性下载测速**，最终筛选出 **优质节点**，可自动上传至 GitHub 供订阅使用。
 
