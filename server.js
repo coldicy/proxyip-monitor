@@ -30,6 +30,7 @@ speedTimeoutSec: parseInt(process.env.SPEED_TIMEOUT_SEC || '10', 10),
 speedMinMBps: parseFloat(process.env.SPEED_MIN_MBPS || '0'),
 speedConcurrency: Math.min(3, Math.max(1, parseInt(process.env.SPEED_CONCURRENCY || '1', 10))),
 speedPerCycle: Math.max(1, parseInt(process.env.SPEED_PER_CYCLE || '20', 10)),
+minOnlineHours: parseFloat(process.env.MIN_ONLINE_HOURS || '0'),
 github: {
 token: '', repo: process.env.GITHUB_REPO || '',
 path: process.env.GITHUB_PATH || 'proxyip', branch: process.env.GITHUB_BRANCH || 'main',
@@ -127,6 +128,7 @@ if (o.speedTimeoutSec != null) CONFIG.speedTimeoutSec = Math.max(3, Math.round(n
 if (o.speedMinMBps != null) CONFIG.speedMinMBps = Math.max(0, num(o.speedMinMBps, 0));
 if (o.speedConcurrency != null) CONFIG.speedConcurrency = Math.min(3, Math.max(1, Math.round(num(o.speedConcurrency, CONFIG.speedConcurrency))));
 if (o.speedPerCycle != null) CONFIG.speedPerCycle = Math.max(1, Math.round(num(o.speedPerCycle, CONFIG.speedPerCycle)));
+if (o.minOnlineHours != null) CONFIG.minOnlineHours = Math.max(0, num(o.minOnlineHours, 0));
 if (o.github) {
 const g = o.github;
 if (g.token != null) {
@@ -150,6 +152,7 @@ customProbes: CONFIG.customProbes, qualityWindow: CONFIG.qualityWindow,
 successThreshold: CONFIG.successThreshold, qualThreshold: CONFIG.qualThreshold,
 speedEnabled: CONFIG.speedEnabled, speedUrl: CONFIG.speedUrl, speedTimeoutSec: CONFIG.speedTimeoutSec,
 speedMinMBps: CONFIG.speedMinMBps, speedConcurrency: CONFIG.speedConcurrency, speedPerCycle: CONFIG.speedPerCycle,
+minOnlineHours: CONFIG.minOnlineHours,
 github: {
 tokenSet: !!CONFIG.github.token, tokenMasked: maskToken(CONFIG.github.token),
 repo: CONFIG.github.repo, path: CONFIG.github.path, branch: CONFIG.github.branch,
@@ -482,7 +485,7 @@ const tls = Math.round(probes.reduce((s, p) => s + p.tls, 0) / probes.length);
 const src = Math.round(probes.reduce((s, p) => s + p.src, 0) / probes.length);
 return { total: tcp + tls + src, tcp, tls, src };
 }
-// 历史只保留窗口大小; 在线样本记录 lastOnlineAt
+// 历史只保留窗口大小; 在线样本记录 lastOnlineAt 与连续在线起点 onlineSince
 function pushHistory(id, point) {
 if (!state.history[id]) state.history[id] = [];
 state.history[id].push(point);
@@ -585,17 +588,17 @@ return sp;
 }
 state.lastCycle = Date.now(); invalidateStateCache();
 const online = state.units.filter(u => { const h = state.history[u.id]; return h && h.length && h[h.length - 1].ok; }).length;
-const quality = state.units.filter(u => computeQuality(state.history[u.id], u.speed).quality).length;
+const quality = state.units.filter(u => computeQuality(state.history[u.id], u.speed, u.onlineSince).quality).length;
 log('🏁 检测完成：在线 ' + online + ' / 优质 ' + quality + ' / 总数 ' + total);
 await cleanGraveyard();
 saveData();
 if (CONFIG.github.auto) autoUpload().catch(e => { state.github.lastError = e.message; invalidateStateCache(); log('⚠️ 自动上传失败: ' + e.message); });
 } finally { state.checking = false; state.abort = false; invalidateStateCache(); }
 }
-// ==================== 优质判定（含速度下限） ====================
-function computeQuality(points, speed) {
+// ==================== 优质判定（含速度下限 + 连续在线闸门） ====================
+function computeQuality(points, speed, onlineSince) {
 const recent = (points || []).slice(-CONFIG.qualityWindow);
-if (!recent.length) return { quality: false, rate: 0, qualRate: 0, avgTotal: null, avgTcp: null, avgTls: null, avgHttp: null, samples: 0, speedPass: true };
+if (!recent.length) return { quality: false, rate: 0, qualRate: 0, avgTotal: null, avgTcp: null, avgTls: null, avgHttp: null, samples: 0, speedPass: true, onlinePass: true };
 const oks = recent.filter(p => p.ok);
 const rate = oks.length / recent.length;
 let qualRate = rate;
@@ -623,8 +626,12 @@ if (https.length) avgHttp = Math.round(https.reduce((a, b) => a + b, 0) / https.
 const enough = recent.length >= CONFIG.qualityWindow;
 const minSp = CONFIG.speedEnabled ? CONFIG.speedMinMBps : 0;
 const speedPass = minSp <= 0 ? true : !!(speed && speed.ok && speed.mbps != null && speed.mbps >= minSp);
-const quality = enough && rate >= CONFIG.successThreshold && qualRate >= CONFIG.qualThreshold && speedPass;
-return { quality, rate, qualRate, avgTotal, avgTcp, avgTls, avgHttp, samples: recent.length, speedPass };
+// 连续在线时长闸门: 0=不限; >0 要求当前连续在线 ≥ 该小时数(失败清零后需重新累积)
+const minHours = CONFIG.minOnlineHours;
+const onlineHours = onlineSince ? (Date.now() - onlineSince) / 3600000 : 0;
+const onlinePass = minHours <= 0 ? true : onlineHours >= minHours;
+const quality = enough && rate >= CONFIG.successThreshold && qualRate >= CONFIG.qualThreshold && speedPass && onlinePass;
+return { quality, rate, qualRate, avgTotal, avgTcp, avgTls, avgHttp, samples: recent.length, speedPass, onlinePass };
 }
 // ==================== 清理 ====================
 async function cleanGraveyard() {
@@ -666,7 +673,7 @@ function buildUploadData() {
 const seen = new Map();
 state.units.filter(u => u.ip).forEach(u => {
 const hist = state.history[u.id] || [];
-const q = computeQuality(hist, u.speed); if (!q.quality) return;
+const q = computeQuality(hist, u.speed, u.onlineSince); if (!q.quality) return;
 const k = u.ip + ':' + u.port; const cur = seen.get(k);
 if (!cur || (q.avgTotal ?? 99999) < (cur.q.avgTotal ?? 99999)) seen.set(k, { u, q, hist });
 });
@@ -750,8 +757,8 @@ firstSeen: u.firstSeen || null,
 onlineSince: u.onlineSince || null,
 colo: latest ? latest.colo : null, loc: latest ? latest.loc : null, exitIp: latest ? latest.exitIp : null,
 speed: u.speed || null,
-latest, quality: computeQuality(hist, u.speed),
-// 修改: 只发优质窗口大小的数量
+latest, quality: computeQuality(hist, u.speed, u.onlineSince),
+// 只发优质窗口大小的数量
 recent: hist.slice(-cap).map(p => ({
 t: p.t, ok: !!p.ok, total: p.total, off: p.off, cus: p.cus, probes: p.probes || [],
 avgTcp: p.avgTcp, avgTls: p.avgTls, avgHttp: p.avgHttp,
@@ -768,7 +775,8 @@ maxTotalMs: CONFIG.maxTotalMs, qualityWindow: CONFIG.qualityWindow,
 successThreshold: CONFIG.successThreshold, qualThreshold: CONFIG.qualThreshold,
 autoCleanDays: CONFIG.autoCleanDays, customProbes: CONFIG.customProbes, concurrency: CONFIG.concurrency,
 speedEnabled: CONFIG.speedEnabled, speedMinMBps: CONFIG.speedMinMBps, speedUrl: CONFIG.speedUrl,
-speedTimeoutSec: CONFIG.speedTimeoutSec, speedConcurrency: CONFIG.speedConcurrency, speedPerCycle: CONFIG.speedPerCycle
+speedTimeoutSec: CONFIG.speedTimeoutSec, speedConcurrency: CONFIG.speedConcurrency, speedPerCycle: CONFIG.speedPerCycle,
+minOnlineHours: CONFIG.minOnlineHours
 },
 github: { configured: !!(CONFIG.github.token && CONFIG.github.repo), auto: CONFIG.github.auto, lastUpload: state.github.lastUpload, lastError: state.github.lastError, uploadIntervalMin: CONFIG.github.uploadIntervalMin },
 summary: { total: items.length, online, quality, offline: items.length - online }, items
@@ -776,7 +784,7 @@ summary: { total: items.length, online, quality, offline: items.length - online 
 } catch (e) {
 return {
 version: VERSION, checking: false, progress: { tested: 0, total: 0 }, lastCycle: null, intervalSec: CONFIG.intervalSec,
-config: { maxTotalMs: 0, qualityWindow: 10, successThreshold: 1, qualThreshold: 1, autoCleanDays: 7, customProbes: [], concurrency: 50, speedEnabled: true, speedMinMBps: 0, speedUrl: CONFIG.speedUrl, speedTimeoutSec: 10, speedConcurrency: 1, speedPerCycle: 20 },
+config: { maxTotalMs: 0, qualityWindow: 10, successThreshold: 1, qualThreshold: 1, autoCleanDays: 7, customProbes: [], concurrency: 50, speedEnabled: true, speedMinMBps: 0, speedUrl: CONFIG.speedUrl, speedTimeoutSec: 10, speedConcurrency: 1, speedPerCycle: 20, minOnlineHours: 0 },
 github: { configured: false, auto: false, lastUpload: null, lastError: e.message, uploadIntervalMin: 0 },
 summary: { total: 0, online: 0, quality: 0, offline: 0 }, items: []
 };
@@ -852,7 +860,7 @@ if (p === '/api/upload' && req.method === 'POST') { try { return json({ ok: true
 return json({ error: 'not found' }, 404);
 } catch (e) { return json({ error: e.message }, 500); }
 });
-// ==================== 启动（含旧明文Token迁移 + lastOnlineAt回填 + 网络就绪检查） ====================
+// ==================== 启动（含旧明文Token迁移 + lastOnlineAt/onlineSince回填 + 网络就绪检查） ====================
 server.on('error', (e) => { log('💥 HTTP server 错误: ' + e.message); });
 CONFIG.github.token = process.env.GITHUB_TOKEN || readSecret() || '';
 try {
