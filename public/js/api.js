@@ -1,2 +1,14 @@
 // api.js — 唯一允许发起网络请求的模块（views / domain 一律经此取数）
-export function api(path,method="GET",body){const o={method};if(body!==undefined){o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(body);}return fetch(path,o).then(async r=>{const ct=r.headers.get("content-type")||"";const d=ct.includes("application/json")?await r.json():await r.text();if(!r.ok)throw new Error(d&&d.error?d.error:("HTTP "+r.status));return d;});}
+export function api(path, method = 'GET', body) {
+  const o = { method };
+  if (body !== undefined) {
+    o.headers = { 'Content-Type': 'application/json' };
+    o.body = JSON.stringify(body);
+  }
+  return fetch(path, o).then(async (r) => {
+    const ct = r.headers.get('content-type') || '';
+    const d = ct.includes('application/json') ? await r.json() : await r.text();
+    if (!r.ok) throw new Error(d && d.error ? d.error : 'HTTP ' + r.status);
+    return d;
+  });
+}

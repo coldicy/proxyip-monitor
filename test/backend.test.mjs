@@ -86,8 +86,16 @@ describe('src/domain/quality.js · computeQuality', () => {
 
   it('无样本时不判定优质', () => {
     expect(computeQuality([], null, null)).toEqual({
-      quality: false, rate: 0, qualRate: 0, avgTotal: null, avgTcp: null, avgTls: null, avgHttp: null,
-      samples: 0, speedPass: true, onlinePass: true,
+      quality: false,
+      rate: 0,
+      qualRate: 0,
+      avgTotal: null,
+      avgTcp: null,
+      avgTls: null,
+      avgHttp: null,
+      samples: 0,
+      speedPass: true,
+      onlinePass: true,
     });
   });
 
@@ -147,17 +155,28 @@ describe('src/domain/history.js · computeOnlineSince', () => {
   });
 
   it('连续全部在线时返回最早样本时间', () => {
-    state.history.a = [{ t: 100, ok: true }, { t: 200, ok: true }, { t: 300, ok: true }];
+    state.history.a = [
+      { t: 100, ok: true },
+      { t: 200, ok: true },
+      { t: 300, ok: true },
+    ];
     expect(computeOnlineSince('a')).toBe(100);
   });
 
   it('最近一次失败后重新在线时返回失败之后的首个成功样本时间', () => {
-    state.history.a = [{ t: 10, ok: false }, { t: 20, ok: true }, { t: 30, ok: true }];
+    state.history.a = [
+      { t: 10, ok: false },
+      { t: 20, ok: true },
+      { t: 30, ok: true },
+    ];
     expect(computeOnlineSince('a')).toBe(20);
   });
 
   it('最新样本失败返回 null', () => {
-    state.history.a = [{ t: 1, ok: true }, { t: 2, ok: false }];
+    state.history.a = [
+      { t: 1, ok: true },
+      { t: 2, ok: false },
+    ];
     expect(computeOnlineSince('a')).toBeNull();
   });
 
@@ -179,7 +198,10 @@ describe('src/domain/history.js · offlineSince', () => {
 
   it('无 lastOnlineAt 时取最近一次成功样本时间', () => {
     state.nodes.a = {};
-    state.history.a = [{ t: 10, ok: true }, { t: 20, ok: false }];
+    state.history.a = [
+      { t: 10, ok: true },
+      { t: 20, ok: false },
+    ];
     expect(offlineSince('a')).toBe(10);
   });
 
@@ -206,8 +228,12 @@ describe('src/domain/history.js · offlineSince', () => {
 
 describe('src/config.js · historyCap', () => {
   let original;
-  beforeEach(() => { original = CONFIG.qualityWindow; });
-  afterEach(() => { CONFIG.qualityWindow = original; });
+  beforeEach(() => {
+    original = CONFIG.qualityWindow;
+  });
+  afterEach(() => {
+    CONFIG.qualityWindow = original;
+  });
 
   it('默认 qualityWindow=10 → 10', () => {
     CONFIG.qualityWindow = 10;
@@ -238,14 +264,20 @@ describe('src/storage.js · 落盘失败必须暴露真实原因', () => {
   let origIp, origDataDir, origConfigFile, tmpRoot;
 
   beforeEach(() => {
-    origIp = CONFIG.ipFile; origDataDir = CONFIG.dataDir; origConfigFile = CONFIG.configFile;
+    origIp = CONFIG.ipFile;
+    origDataDir = CONFIG.dataDir;
+    origConfigFile = CONFIG.configFile;
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-storage-'));
     // 用一个「普通文件」充当父目录，保证 mkdir 必然失败（不依赖具体环境权限）
     fs.writeFileSync(path.join(tmpRoot, 'blocker'), 'x');
   });
   afterEach(() => {
-    CONFIG.ipFile = origIp; CONFIG.dataDir = origDataDir; CONFIG.configFile = origConfigFile;
-    try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { }
+    CONFIG.ipFile = origIp;
+    CONFIG.dataDir = origDataDir;
+    CONFIG.configFile = origConfigFile;
+    try {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    } catch (e) {}
   });
 
   it('父路径不可创建时返回 ok:false，并携带真实 errno（而不是「占用为目录」）', () => {

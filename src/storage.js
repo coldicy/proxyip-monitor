@@ -1,9 +1,9 @@
 // 所有本地文件读写（原子落盘）（源 server.js:163、221-238、261-269、340-348）
-const fs = require("fs");
-const path = require("path");
-const { CONFIG, publicConfig } = require("./config");
-const { state, isDataDirty, clearDataDirty } = require("./state");
-const { migrateNodes } = require("./nodes/registry");
+const fs = require('fs');
+const path = require('path');
+const { CONFIG, publicConfig } = require('./config');
+const { state, isDataDirty, clearDataDirty } = require('./state');
+const { migrateNodes } = require('./nodes/registry');
 function ensureIpFile() {
   try {
     fs.mkdirSync(path.dirname(CONFIG.ipFile), { recursive: true });
@@ -19,7 +19,7 @@ function ensureIpFile() {
       }
     }
     if (!fs.existsSync(CONFIG.ipFile)) {
-      fs.writeFileSync(CONFIG.ipFile, "# 每行: 纯IP / 域名 / http(s)列表源\n");
+      fs.writeFileSync(CONFIG.ipFile, '# 每行: 纯IP / 域名 / http(s)列表源\n');
     }
     return { ok: true };
   } catch (e) {
@@ -28,15 +28,12 @@ function ensureIpFile() {
 }
 function persistGraveyard() {
   try {
-    fs.writeFileSync(
-      CONFIG.graveyardFile,
-      JSON.stringify({ list: state.graveyard.list, blocked: state.blocked }),
-    );
+    fs.writeFileSync(CONFIG.graveyardFile, JSON.stringify({ list: state.graveyard.list, blocked: state.blocked }));
   } catch (e) {}
 }
 function loadGraveyard() {
   try {
-    const d = JSON.parse(fs.readFileSync(CONFIG.graveyardFile, "utf8"));
+    const d = JSON.parse(fs.readFileSync(CONFIG.graveyardFile, 'utf8'));
     if (Array.isArray(d)) {
       state.graveyard.list = d;
       state.blocked = {};
@@ -50,18 +47,14 @@ function loadGraveyard() {
   }
 }
 function capGraveyard() {
-  if (state.graveyard.list.length > 1000)
-    state.graveyard.list = state.graveyard.list.slice(-1000);
+  if (state.graveyard.list.length > 1000) state.graveyard.list = state.graveyard.list.slice(-1000);
 }
 function saveData() {
   if (!isDataDirty()) return;
   try {
     fs.mkdirSync(CONFIG.dataDir, { recursive: true });
-    const tmp = CONFIG.dataFile + ".tmp";
-    fs.writeFileSync(
-      tmp,
-      JSON.stringify({ history: state.history, nodes: state.nodes }),
-    );
+    const tmp = CONFIG.dataFile + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ history: state.history, nodes: state.nodes }));
     fs.renameSync(tmp, CONFIG.dataFile);
   } catch (e) {
   } finally {
@@ -70,7 +63,7 @@ function saveData() {
 }
 function loadData() {
   try {
-    const d = JSON.parse(fs.readFileSync(CONFIG.dataFile, "utf8"));
+    const d = JSON.parse(fs.readFileSync(CONFIG.dataFile, 'utf8'));
     if (d && d.history) state.history = d.history;
     if (d && d.nodes && Object.keys(d.nodes).length) {
       state.nodes = d.nodes;
@@ -85,10 +78,7 @@ function loadData() {
 function persistConfig() {
   try {
     fs.mkdirSync(CONFIG.dataDir, { recursive: true });
-    fs.writeFileSync(
-      CONFIG.configFile,
-      JSON.stringify(publicConfig(), null, 2),
-    );
+    fs.writeFileSync(CONFIG.configFile, JSON.stringify(publicConfig(), null, 2));
     return true;
   } catch (e) {
     return false;

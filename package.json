@@ -4,9 +4,12 @@
   "private": true,
   "description": "Proxy IP monitor (runtime zero-dependency)",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write \"server.js\" \"src/**/*.js\" \"public/js/**/*.js\" \"test/**/*.mjs\""
   },
   "devDependencies": {
+    "prettier": "^3.9.10",
     "vitest": "^2.1.8"
   }
 }
