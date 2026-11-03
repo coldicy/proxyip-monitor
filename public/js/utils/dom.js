@@ -13,14 +13,39 @@ export function toast(msg, type = 'info') {
     setTimeout(() => d.remove(), 260);
   }, 4200);
 }
+// 可聚焦元素选择器，用于弹窗焦点陷阱
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+let lastFocused = null;
 export function openModal(el) {
+  lastFocused = document.activeElement;
   el.classList.add('show');
   document.body.classList.add('modal-open');
+  // 焦点移入弹窗卡片，屏幕阅读器与键盘用户可直接进入对话框内容
+  const card = el.querySelector('.modal-card') || el;
+  if (typeof card.focus === 'function') card.focus();
 }
 // 仅负责显隐；关闭相关的副作用（日志轮询、确认框兜底）由调用方在 events.js 统一处理
 export function closeModal(el) {
   el.classList.remove('show');
   if (!document.querySelector('.modal.show')) document.body.classList.remove('modal-open');
+  // 焦点归还给打开弹窗前的元素，避免焦点丢回 <body>
+  if (lastFocused && typeof lastFocused.focus === 'function' && document.contains(lastFocused)) lastFocused.focus();
+  lastFocused = null;
+}
+// 焦点陷阱：Tab / Shift+Tab 在最上层弹窗内循环，不逃逸到背景内容
+export function trapFocus(container, e) {
+  const items = Array.from(container.querySelectorAll(FOCUSABLE));
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 let confirmResolve = null;
 export function showConfirm(title, message, okText = '确定', danger = false) {

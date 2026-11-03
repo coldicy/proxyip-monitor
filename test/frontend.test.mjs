@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import {
   escapeHtml,
   fmtTime,
@@ -23,6 +25,7 @@ import {
 } from '../public/js/domain/node.js';
 import { DATA, FILTERS, SORT, setSort, resetFilters } from '../public/js/store.js';
 import { getFiltered } from '../public/js/views/filters.js';
+import { openModal, closeModal, trapFocus, setBtnLoading } from '../public/js/utils/dom.js';
 
 const setConfig = (cfg) => {
   DATA.state = {
@@ -292,5 +295,74 @@ describe('public/js/views/filters.js · getFiltered 筛选与排序', () => {
 
   it('sort 变量默认值为 total_asc（模块内可读）', () => {
     expect(SORT).toBe('total_asc');
+  });
+});
+
+describe('public/js/utils/dom.js · 弹窗焦点管理', () => {
+  it('openModal 把焦点移入弹窗卡片，closeModal 归还触发元素', () => {
+    document.body.innerHTML =
+      '<button id="trigger">t</button><div class="modal" id="m"><div class="modal-card" tabindex="-1"><button id="inner">b</button></div></div>';
+    const trigger = document.getElementById('trigger');
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+
+    const modal = document.getElementById('m');
+    openModal(modal);
+    expect(modal.classList.contains('show')).toBe(true);
+    expect(document.body.classList.contains('modal-open')).toBe(true);
+    expect(document.activeElement.classList.contains('modal-card')).toBe(true);
+
+    closeModal(modal);
+    expect(modal.classList.contains('show')).toBe(false);
+    expect(document.body.classList.contains('modal-open')).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('trapFocus 在首尾可聚焦元素之间循环', () => {
+    document.body.innerHTML =
+      '<div class="modal" id="m"><div class="modal-card"><button id="first">1</button><button id="last">2</button></div></div>';
+    const modal = document.getElementById('m');
+    const first = document.getElementById('first');
+    const last = document.getElementById('last');
+
+    first.focus();
+    const back = { shiftKey: true, preventDefault: vi.fn() };
+    trapFocus(modal, back);
+    expect(document.activeElement).toBe(last);
+    expect(back.preventDefault).toHaveBeenCalled();
+
+    const forward = { shiftKey: false, preventDefault: vi.fn() };
+    trapFocus(modal, forward);
+    expect(document.activeElement).toBe(first);
+    expect(forward.preventDefault).toHaveBeenCalled();
+  });
+
+  it('setBtnLoading 切换禁用态并在恢复时还原内容', () => {
+    document.body.innerHTML = '<button id="btn">保存</button>';
+    const btn = document.getElementById('btn');
+    setBtnLoading(btn, true, '处理中...');
+    expect(btn.disabled).toBe(true);
+    expect(btn.innerHTML).toBe('处理中...');
+    setBtnLoading(btn, false);
+    expect(btn.disabled).toBe(false);
+    expect(btn.innerHTML).toBe('保存');
+  });
+});
+
+describe('public/index.html · 可访问性标记', () => {
+  const html = fs.readFileSync(path.resolve(process.cwd(), 'public/index.html'), 'utf8');
+
+  it('四个弹窗均声明 role=dialog 与 aria-modal', () => {
+    const dialogs = html.match(/role="dialog"/g) || [];
+    expect(dialogs.length).toBe(4);
+    expect(html.match(/aria-modal="true"/g)?.length).toBe(4);
+  });
+
+  it('Toast 容器是 live region', () => {
+    expect(html).toMatch(/id="toastWrap"[^>]*aria-live="polite"/);
+  });
+
+  it('页脚手册是带 href 的可聚焦链接', () => {
+    expect(html).toMatch(/<a id="footerManual" href="#manualModal">/);
   });
 });

@@ -10,7 +10,7 @@ import {
   resetFilters,
   setSort,
 } from './store.js';
-import { $, closeModal, setBtnLoading, settleConfirm, showConfirm, toast } from './utils/dom.js';
+import { $, closeModal, setBtnLoading, settleConfirm, showConfirm, toast, trapFocus } from './utils/dom.js';
 import { api } from './api.js';
 import { copyItems, removeIds, runSpeedTest } from './actions.js';
 import { renderTable } from './views/table.js';
@@ -30,7 +30,11 @@ function closeAny(el) {
 
 export function bindEvents() {
   $('#btnManual').addEventListener('click', openManual);
-  $('#footerManual').addEventListener('click', openManual);
+  // 页脚手册是带 href 的链接（可键盘聚焦），拦截默认跳转后仍走同一打开逻辑
+  $('#footerManual').addEventListener('click', (e) => {
+    e.preventDefault();
+    openManual();
+  });
   $('#btnLogs').addEventListener('click', openLogs);
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnRefreshLogs').addEventListener('click', loadLogs);
@@ -223,10 +227,13 @@ export function bindEvents() {
     }),
   );
   document.addEventListener('keydown', (e) => {
+    const open = document.querySelectorAll('.modal.show');
     if (e.key === 'Escape') {
-      const open = document.querySelectorAll('.modal.show');
       if (open.length) closeAny(open[open.length - 1]);
+      return;
     }
+    // Tab 在弹窗内循环，保持焦点不逃逸到背景内容
+    if (e.key === 'Tab' && open.length) trapFocus(open[open.length - 1], e);
   });
   $('#confirmOkBtn').addEventListener('click', () => {
     settleConfirm(true);

@@ -19,6 +19,7 @@
 <div><h1>Proxy Monitor</h1><p>探针平均 · 独立阈值 · 达标率+成功率双维优质 · 一次性测速 · GitHub 同步</p></div>
 </div>
 <div class="actions">
+<span id="connState" class="conn-badge" role="status" aria-live="polite" hidden>后端离线</span>
 <button id="btnManual" class="btn">📖 手册</button>
 <button id="btnLogs" class="btn">📜 日志</button>
 <button id="btnSettings" class="btn">⚙️ 设置</button>
@@ -78,19 +79,19 @@
 </div>
 <div id="emptyTip" class="empty" hidden>暂无节点。请先在 ⚙️ 设置中填写 ip.txt，或等待列表源发现节点。</div>
 </section>
-<footer class="footer">Proxy Monitor · 达标 = 在线且总延迟 ≤ 上限 · 优质 = 样本充足 &amp; 成功率 &amp; 达标率 &amp; 速度 &amp; 连续在线 ≥ 下限 · <a id="footerManual">📖 手册</a> · <span id="footerVersion">版本 -</span></footer>
+<footer class="footer">Proxy Monitor · 达标 = 在线且总延迟 ≤ 上限 · 优质 = 样本充足 &amp; 成功率 &amp; 达标率 &amp; 速度 &amp; 连续在线 ≥ 下限 · <a id="footerManual" href="#manualModal">📖 手册</a> · <span id="footerVersion">版本 -</span></footer>
 </main>
-<div class="modal" id="manualModal"><div class="modal-card large">
-<div class="modal-head"><h2>📖 使用手册</h2><button class="close-btn" data-close="manualModal">✕</button></div>
+<div class="modal" id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manualModalTitle"><div class="modal-card large" tabindex="-1">
+<div class="modal-head"><h2 id="manualModalTitle">📖 使用手册</h2><button class="close-btn" data-close="manualModal">✕</button></div>
 <div id="manualContent"></div>
 </div></div>
-<div class="modal" id="logsModal"><div class="modal-card">
-<div class="modal-head"><h2>📜 运行日志</h2><button class="close-btn" data-close="logsModal">✕</button></div>
+<div class="modal" id="logsModal" role="dialog" aria-modal="true" aria-labelledby="logsModalTitle"><div class="modal-card" tabindex="-1">
+<div class="modal-head"><h2 id="logsModalTitle">📜 运行日志</h2><button class="close-btn" data-close="logsModal">✕</button></div>
 <div class="logs-box" id="logsBox">加载中...</div>
 <div class="modal-foot"><button id="btnRefreshLogs" class="btn">刷新</button><button class="btn ghost" data-close="logsModal">关闭</button></div>
 </div></div>
-<div class="modal" id="settingsModal"><div class="modal-card large">
-<div class="modal-head"><h2>⚙️ 设置</h2><button class="close-btn" data-close="settingsModal">✕</button></div>
+<div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle"><div class="modal-card large" tabindex="-1">
+<div class="modal-head"><h2 id="settingsModalTitle">⚙️ 设置</h2><button class="close-btn" data-close="settingsModal">✕</button></div>
 <div class="section-title">运行配置</div>
 <div class="settings-grid">
 <div class="field"><label>监测间隔 (秒)</label><input id="cfg_intervalSec" type="number" min="5" class="input" /></div>
@@ -143,13 +144,13 @@
 </div>
 <div id="graveyardList" class="graveyard-list">加载中...</div>
 </div></div>
-<div class="modal" id="confirmModal"><div class="modal-card" style="max-width:480px;">
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"><div class="modal-card" style="max-width:480px;" tabindex="-1">
 <div class="modal-head"><h2 id="confirmTitle">确认</h2><button class="close-btn" data-close="confirmModal">✕</button></div>
 <p id="confirmMessage" style="color:var(--muted);line-height:1.75;">确定执行该操作吗？</p>
 <div class="modal-foot"><button id="confirmCancelBtn" class="btn ghost">取消</button><button id="confirmOkBtn" class="btn primary">确定</button></div>
 </div></div>
 <div id="tooltip" class="tooltip"></div>
-<div id="toastWrap" class="toast-wrap"></div>
+<div id="toastWrap" class="toast-wrap" role="status" aria-live="polite"></div>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

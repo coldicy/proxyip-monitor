@@ -78,3 +78,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:#38bdf8;cursor:pointe
 .toast{min-width:240px;max-width:400px;padding:12px 14px;border-radius:13px;color:#fff;box-shadow:0 16px 40px rgba(0,0,0,.3);font-size:13px;line-height:1.55;border:1px solid rgba(255,255,255,.12);transition:.25s ease;animation:slideIn .25s ease;backdrop-filter:blur(10px)}
 .toast.info{background:rgba(15,23,42,.95)}.toast.success{background:rgba(5,150,105,.94)}.toast.error{background:rgba(225,29,72,.94)}.toast.warn{background:rgba(180,83,9,.94)}
 @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* 后端不可达时常驻的连接状态提示 */
+.conn-badge{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border-radius:11px;border:1px solid rgba(244,63,94,.5);background:rgba(190,18,60,.18);color:#fda4af;font-size:12px;line-height:1;white-space:nowrap}
+.conn-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:#f43f5e}
+.conn-badge[hidden]{display:none}

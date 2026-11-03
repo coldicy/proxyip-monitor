@@ -6,3 +6,8 @@ body.modal-open{overflow:hidden}
 .bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(circle at 15% 20%,rgba(56,189,248,.14),transparent 32%),radial-gradient(circle at 85% 10%,rgba(139,92,246,.12),transparent 28%),radial-gradient(circle at 70% 80%,rgba(16,185,129,.08),transparent 30%),linear-gradient(180deg,#050810 0%,#070b14 45%,#060a13 100%)}
 .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px);background-size:100% 34px;opacity:.22;pointer-events:none}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(148,163,184,.22);border-radius:999px;border:2px solid rgba(6,10,19,.6)}::-webkit-scrollbar-thumb:hover{background:rgba(148,163,184,.34)}
+/* 尊重系统「减少动态效果」偏好：关闭过渡/动画与平滑滚动 */
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}

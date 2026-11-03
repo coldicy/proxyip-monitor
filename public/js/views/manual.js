@@ -4,12 +4,16 @@ import { $, openModal } from '../utils/dom.js';
 import { escapeHtml } from '../utils/format.js';
 let loaded = false,
   failed = false;
+// 尊重系统「减少动态效果」偏好：开启时用瞬时定位代替平滑滚动
+function scrollBehavior() {
+  return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
 function bindNav(root) {
   root.querySelectorAll('.manual-nav a').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
       const t = document.querySelector(a.getAttribute('href'));
-      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (t) t.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
     }),
   );
 }

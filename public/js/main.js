@@ -1,6 +1,6 @@
 // main.js — 唯一入口：轮询调度 + renderAll 编排 + DOMContentLoaded 启动
 import { DATA, SELECTED, setRefreshFn } from './store.js';
-import { toast } from './utils/dom.js';
+import { $, toast } from './utils/dom.js';
 import { api } from './api.js';
 import { renderSummary } from './views/summary.js';
 import { renderFilterOptions } from './views/filters.js';
@@ -22,15 +22,19 @@ export function schedulePoll() {
   pollTimer = setTimeout(refreshState, DATA.state && DATA.state.checking ? 2500 : 8000);
 }
 export async function refreshState() {
+  const conn = $('#connState');
   try {
     DATA.state = await api('/api/state');
     stateErrorShown = false;
+    if (conn) conn.hidden = true;
     renderAll();
   } catch (e) {
     if (!stateErrorShown) {
       toast('状态加载失败: ' + e.message, 'error');
       stateErrorShown = true;
     }
+    // 后端不可达时保持常驻提示，恢复后自动隐藏（role=status 会向辅助技术播报）
+    if (conn) conn.hidden = false;
   } finally {
     schedulePoll();
   }
