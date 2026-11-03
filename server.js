@@ -40,7 +40,10 @@ log('🔒 旧版明文 Token 已迁移至加密存储');
 }
 setConfig(onDisk);
 } catch (e) { }
-const ipReady = ensureIpFile(); if (!ipReady.ok) log('⚠️ ip.txt 不可用 (' + CONFIG.ipFile + '): ' + ipReady.error + ' — 请用 IP_FILE 指定可写路径'); loadData(); backfillLastOnline();
+const ipReady = ensureIpFile();
+if (!ipReady.ok) log('⚠️ ip.txt 不可用 (' + CONFIG.ipFile + '): ' + ipReady.error + ' — 请用 IP_FILE 指定可写路径');
+loadData();
+backfillLastOnline();
 server.listen(CONFIG.port, () => {
 console.log(`🚀 Proxy Monitor ${VERSION} on http://0.0.0.0:${CONFIG.port}`);
 log(`🚀 服务启动 (${VERSION})`);
