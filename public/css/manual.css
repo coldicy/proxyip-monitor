@@ -1,0 +1,21 @@
+/* manual.css — 使用手册弹窗排版 */
+.manual{display:grid;grid-template-columns:225px minmax(0,1fr);gap:18px}
+.manual-nav{position:sticky;top:0;align-self:start;max-height:72vh;overflow:auto;display:grid;gap:6px;padding-right:4px}
+.manual-nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:8px 10px;border-radius:10px;transition:.16s ease}
+.manual-nav a:hover{background:rgba(56,189,248,.09);color:#e0f2fe}
+.manual-body{min-width:0;scroll-behavior:smooth}
+.manual-body section{margin-bottom:26px;scroll-margin-top:12px}
+.manual-body h2{font-size:18px;color:#e0f2fe;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(148,163,184,.12)}
+.manual-body h3{font-size:14px;color:#bae6fd;margin:14px 0 7px}
+.manual-body p,.manual-body li{color:#cbd5e1;line-height:1.8;font-size:13px}
+.manual-body ul,.manual-body ol{padding-left:20px;display:grid;gap:6px}
+.manual-body code{background:rgba(148,163,184,.14);padding:2px 6px;border-radius:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
+.manual-body pre{background:#050810;border:1px solid var(--line);padding:12px;border-radius:12px;overflow:auto;margin:10px 0}
+.manual-body pre code{background:transparent;padding:0;font-size:12px;line-height:1.75;color:#dbeafe;white-space:pre}
+.callout{padding:12px 14px;border-radius:12px;border:1px solid rgba(56,189,248,.25);background:rgba(14,165,233,.08);margin:12px 0}
+.callout.warn{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08)}
+.callout p,.callout li{color:#e2e8f0}
+.table-mini{width:100%;border-collapse:collapse;margin:12px 0}
+.table-mini th,.table-mini td{border:1px solid rgba(148,163,184,.15);padding:9px;font-size:12px;text-align:left;vertical-align:top;line-height:1.7}
+.table-mini th{color:#e0f2fe;background:rgba(148,163,184,.08);white-space:nowrap}
+.code-area{width:100%;min-height:220px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.7;resize:vertical}

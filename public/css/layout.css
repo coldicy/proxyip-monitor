@@ -1,0 +1,31 @@
+/* layout.css — 顶栏、主容器、统计卡片、面板、表格骨架与页脚 */
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 22px;background:rgba(5,8,16,.72);border-bottom:1px solid var(--line);backdrop-filter:blur(16px)}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.logo{width:54px;height:54px;display:grid;place-items:center;font-size:29px;border-radius:18px;background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(139,92,246,.22));border:1px solid rgba(148,163,184,.16);box-shadow:0 10px 30px rgba(56,189,248,.12);flex:0 0 auto}
+.brand h1{font-size:23px;letter-spacing:.4px;line-height:1.15}
+.brand p{margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}
+.actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px}
+main{width:min(1760px,calc(100% - 40px));margin:20px auto 0;display:grid;gap:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;backdrop-filter:blur(14px)}
+.card .label{color:var(--muted);font-size:12px;margin-bottom:8px}
+.card .value{font-size:26px;font-weight:800;letter-spacing:.3px}
+.card .sub{margin-top:7px;color:var(--muted);font-size:12px;line-height:1.5}
+.span-2{grid-column:span 2}
+.progress-wrap{height:10px;border-radius:999px;overflow:hidden;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.08)}
+.progress-fill{width:0%;height:100%;border-radius:999px;background:linear-gradient(90deg,#38bdf8,#8b5cf6,#34d399);transition:width .45s ease}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(14px);padding:16px}
+.toolbar{display:grid;gap:12px}
+.toolbar-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.table-panel{padding:12px}
+.table-wrap{overflow:auto;max-height:calc(100vh - 340px);min-height:320px;border-radius:14px;border:1px solid rgba(148,163,184,.08);background:rgba(8,12,22,.32)}
+table{width:100%;border-collapse:collapse;min-width:1590px}
+thead th{position:sticky;top:0;z-index:3;background:rgba(8,12,24,.98);color:var(--muted);font-size:12px;font-weight:700;text-align:left;padding:13px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody td{padding:11px 10px;border-bottom:1px solid rgba(148,163,184,.08);vertical-align:middle}
+tbody tr{transition:background .15s ease}
+tbody tr:hover{background:rgba(56,189,248,.055)}
+tbody tr.selected{background:rgba(56,189,248,.09)}
+.footer{color:var(--muted);text-align:center;padding:8px 0 28px;font-size:12px;line-height:1.7}
+.footer a{color:#7dd3fc;cursor:pointer;text-decoration:none}
+.footer a:hover{text-decoration:underline}

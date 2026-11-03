@@ -1,3 +1,5 @@
+node_modules/
 config/
 data/
+.claude/artifacts/
 .DS_Store

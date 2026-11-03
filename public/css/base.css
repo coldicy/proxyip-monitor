@@ -1,0 +1,8 @@
+/* base.css — 设计变量、全局重置、页面背景与滚动条 */
+:root{--bg:#060a13;--panel:rgba(11,18,32,.72);--line:rgba(148,163,184,.14);--text:#e5eef8;--muted:#93a4bc;--accent:#38bdf8;--good:#34d399;--warn:#fbbf24;--bad:#fb7185;--radius:18px;--shadow:0 18px 50px rgba(0,0,0,.32)}
+*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}
+body{font-family:Inter,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body.modal-open{overflow:hidden}
+.bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(circle at 15% 20%,rgba(56,189,248,.14),transparent 32%),radial-gradient(circle at 85% 10%,rgba(139,92,246,.12),transparent 28%),radial-gradient(circle at 70% 80%,rgba(16,185,129,.08),transparent 30%),linear-gradient(180deg,#050810 0%,#070b14 45%,#060a13 100%)}
+.bg::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px);background-size:100% 34px;opacity:.22;pointer-events:none}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(148,163,184,.22);border-radius:999px;border:2px solid rgba(6,10,19,.6)}::-webkit-scrollbar-thumb:hover{background:rgba(148,163,184,.34)}

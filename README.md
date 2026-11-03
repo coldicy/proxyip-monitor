@@ -48,9 +48,11 @@ services:
 
 **启动服务**  
 - 默认监听 `8787` 端口（可通过 `PORT` 环境变量修改）
-- 数据目录默认为 `/app/data`（可通过 `DATA_DIR` 修改）
-- 节点列表默认路径 `/app/config/ip.txt`（可通过 `IP_FILE` 修改）
+- 数据目录：默认 `./data`（项目内），可用 `DATA_DIR` 覆盖
+- 节点列表：默认 `./config/ip.txt`（项目内），可用 `IP_FILE` 覆盖
+- 容器部署时由 `Dockerfile` 的 `ENV` 注入 `/app/data`、`/app/config/ip.txt`，应用代码不含容器路径
 - 首次启动自动创建必要文件和目录
+- 本地裸机直接 `node server.js` 即可，无需额外配置环境变量
 
 **配置节点列表**  
 - 打开 Web UI → 点击「⚙️ 设置」→ 在「节点列表 ip.txt」文本框中按格式填入节点来源（见第 3 节），点击「💾 保存并重载节点」。
