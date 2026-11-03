@@ -134,6 +134,14 @@ describe('路由层集成 · 基础端点', () => {
     expect(r.status).toBe(404);
     expect(r.json).toEqual({ error: 'not found' });
   });
+
+  it('GET /health 返回存活探针信息', async () => {
+    const r = await request('/health');
+    expect(r.status).toBe(200);
+    expect(r.json.ok).toBe(true);
+    expect(r.json.version).toBe('v36-window');
+    expect(typeof r.json.uptimeSec).toBe('number');
+  });
 });
 
 describe('路由层集成 · /api/state 视图', () => {

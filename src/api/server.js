@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { htmlCache } = require('../state');
+const { VERSION } = require('../config');
 const routes = require('./routes');
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 // 只读静态服务仅允许的白名单扩展名与对应 Content-Type
@@ -63,6 +64,8 @@ function createServer() {
     };
     try {
       if (p === '/' || p === '/index.html') return serveIndex(res);
+      // 存活探针：进程可响应即视为健康，供容器 healthcheck 使用
+      if (p === '/health') return json({ ok: true, version: VERSION, uptimeSec: Math.round(process.uptime()) });
       if (p.startsWith('/api/')) return await routes.handle(p, req, res, json);
       if (serveStatic(res, p)) return;
       return json({ error: 'not found' }, 404);

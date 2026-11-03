@@ -8,3 +8,9 @@ services:
     volumes:
       - ./proxy-monitor/config:/app/config # 配置文件目录
       - ./proxy-monitor/data:/app/data # 数据目录
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
