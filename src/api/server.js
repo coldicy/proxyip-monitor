@@ -71,4 +71,4 @@ function createServer() {
     }
   });
 }
-module.exports = { createServer, serveIndex };
+module.exports = { createServer };

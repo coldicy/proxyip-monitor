@@ -4,6 +4,25 @@ const { state } = require('../state');
 const { computeQuality } = require('../domain/quality');
 const { classifyIp } = require('../domain/cidr');
 // ==================== API ====================
+// 前端需要的配置视图。成功与失败分支共用同一份来源，避免默认值出现第二副本并漂移
+function configView() {
+  return {
+    maxTotalMs: CONFIG.maxTotalMs,
+    qualityWindow: CONFIG.qualityWindow,
+    successThreshold: CONFIG.successThreshold,
+    qualThreshold: CONFIG.qualThreshold,
+    autoCleanDays: CONFIG.autoCleanDays,
+    customProbes: CONFIG.customProbes,
+    concurrency: CONFIG.concurrency,
+    speedEnabled: CONFIG.speedEnabled,
+    speedMinMBps: CONFIG.speedMinMBps,
+    speedUrl: CONFIG.speedUrl,
+    speedTimeoutSec: CONFIG.speedTimeoutSec,
+    speedConcurrency: CONFIG.speedConcurrency,
+    speedPerCycle: CONFIG.speedPerCycle,
+    minOnlineHours: CONFIG.minOnlineHours,
+  };
+}
 function buildState() {
   try {
     state.units = Object.values(state.nodes);
@@ -54,22 +73,7 @@ function buildState() {
       progress: { ...state.progress },
       lastCycle: state.lastCycle,
       intervalSec: CONFIG.intervalSec,
-      config: {
-        maxTotalMs: CONFIG.maxTotalMs,
-        qualityWindow: CONFIG.qualityWindow,
-        successThreshold: CONFIG.successThreshold,
-        qualThreshold: CONFIG.qualThreshold,
-        autoCleanDays: CONFIG.autoCleanDays,
-        customProbes: CONFIG.customProbes,
-        concurrency: CONFIG.concurrency,
-        speedEnabled: CONFIG.speedEnabled,
-        speedMinMBps: CONFIG.speedMinMBps,
-        speedUrl: CONFIG.speedUrl,
-        speedTimeoutSec: CONFIG.speedTimeoutSec,
-        speedConcurrency: CONFIG.speedConcurrency,
-        speedPerCycle: CONFIG.speedPerCycle,
-        minOnlineHours: CONFIG.minOnlineHours,
-      },
+      config: configView(),
       github: {
         configured: !!(CONFIG.github.token && CONFIG.github.repo),
         auto: CONFIG.github.auto,
@@ -87,22 +91,7 @@ function buildState() {
       progress: { tested: 0, total: 0 },
       lastCycle: null,
       intervalSec: CONFIG.intervalSec,
-      config: {
-        maxTotalMs: 0,
-        qualityWindow: 10,
-        successThreshold: 1,
-        qualThreshold: 1,
-        autoCleanDays: 7,
-        customProbes: [],
-        concurrency: 50,
-        speedEnabled: true,
-        speedMinMBps: 0,
-        speedUrl: CONFIG.speedUrl,
-        speedTimeoutSec: 10,
-        speedConcurrency: 1,
-        speedPerCycle: 20,
-        minOnlineHours: 0,
-      },
+      config: configView(),
       github: { configured: false, auto: false, lastUpload: null, lastError: e.message, uploadIntervalMin: 0 },
       summary: { total: 0, online: 0, quality: 0, offline: 0 },
       items: [],
