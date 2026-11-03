@@ -53,22 +53,13 @@ function setRestartGithubTimer(fn) {
 function historyCap() {
   return Math.min(50, Math.max(1, Math.round(CONFIG.qualityWindow) || 10));
 }
-function setConfig(o) {
-  const { isMaskedToken, writeSecret } = require('./security');
-  if (!o) return;
-  const num = (v, d) => {
-    const n = parseFloat(v);
-    return isFinite(n) ? n : d;
-  };
+// 数值类配置：阈值 / 计数 / 窗口长度，统一做范围钳制
+function applyNumericConfig(o, num) {
   if (o.intervalSec != null) CONFIG.intervalSec = Math.max(5, Math.round(num(o.intervalSec, CONFIG.intervalSec)));
   if (o.timeoutSec != null) CONFIG.timeoutSec = Math.max(1, Math.round(num(o.timeoutSec, CONFIG.timeoutSec)));
   if (o.concurrency != null) CONFIG.concurrency = Math.max(1, Math.round(num(o.concurrency, CONFIG.concurrency)));
   if (o.autoCleanDays != null) CONFIG.autoCleanDays = Math.max(0, num(o.autoCleanDays, 0));
   if (o.maxTotalMs != null) CONFIG.maxTotalMs = num(o.maxTotalMs, 0);
-  if (o.probeUrl) {
-    const u = sanitizeUrl(o.probeUrl);
-    if (isUrl(u)) CONFIG.probeUrl = u;
-  }
   if (o.qualityWindow != null)
     CONFIG.qualityWindow = Math.min(50, Math.max(1, Math.round(num(o.qualityWindow, CONFIG.qualityWindow))));
   if (o.successThreshold != null)
@@ -85,6 +76,21 @@ function setConfig(o) {
     );
     CONFIG.qualThreshold = CONFIG.successThreshold;
   }
+  if (o.speedTimeoutSec != null)
+    CONFIG.speedTimeoutSec = Math.max(3, Math.round(num(o.speedTimeoutSec, CONFIG.speedTimeoutSec)));
+  if (o.speedMinMBps != null) CONFIG.speedMinMBps = Math.max(0, num(o.speedMinMBps, 0));
+  if (o.speedConcurrency != null)
+    CONFIG.speedConcurrency = Math.min(3, Math.max(1, Math.round(num(o.speedConcurrency, CONFIG.speedConcurrency))));
+  if (o.speedPerCycle != null)
+    CONFIG.speedPerCycle = Math.max(1, Math.round(num(o.speedPerCycle, CONFIG.speedPerCycle)));
+  if (o.minOnlineHours != null) CONFIG.minOnlineHours = Math.max(0, num(o.minOnlineHours, 0));
+}
+// 端点类配置：探针 URL / 测速 URL / 测速开关，全部经 sanitizeUrl 与白名单校验
+function applyEndpointConfig(o) {
+  if (o.probeUrl) {
+    const u = sanitizeUrl(o.probeUrl);
+    if (isUrl(u)) CONFIG.probeUrl = u;
+  }
   if (o.customProbes && Array.isArray(o.customProbes)) {
     CONFIG.customProbes = o.customProbes
       .filter((p) => p && p.url)
@@ -99,31 +105,36 @@ function setConfig(o) {
     const u = sanitizeUrl(o.speedUrl);
     if (isUrl(u)) CONFIG.speedUrl = u;
   }
-  if (o.speedTimeoutSec != null)
-    CONFIG.speedTimeoutSec = Math.max(3, Math.round(num(o.speedTimeoutSec, CONFIG.speedTimeoutSec)));
-  if (o.speedMinMBps != null) CONFIG.speedMinMBps = Math.max(0, num(o.speedMinMBps, 0));
-  if (o.speedConcurrency != null)
-    CONFIG.speedConcurrency = Math.min(3, Math.max(1, Math.round(num(o.speedConcurrency, CONFIG.speedConcurrency))));
-  if (o.speedPerCycle != null)
-    CONFIG.speedPerCycle = Math.max(1, Math.round(num(o.speedPerCycle, CONFIG.speedPerCycle)));
-  if (o.minOnlineHours != null) CONFIG.minOnlineHours = Math.max(0, num(o.minOnlineHours, 0));
-  if (o.github) {
-    const g = o.github;
-    if (g.token != null) {
-      const t = String(g.token).trim();
-      if (t && !isMaskedToken(t)) {
-        CONFIG.github.token = t;
-        writeSecret(t);
-        log('🔒 GitHub Token 已更新');
-      }
+}
+// GitHub 同步配置：token 落盘、仓库与分支、自动上传开关
+function applyGithubConfig(o, num) {
+  if (!o.github) return;
+  const { isMaskedToken, writeSecret } = require('./security');
+  const g = o.github;
+  if (g.token != null) {
+    const t = String(g.token).trim();
+    if (t && !isMaskedToken(t)) {
+      CONFIG.github.token = t;
+      writeSecret(t);
+      log('🔒 GitHub Token 已更新');
     }
-    if (g.repo != null) CONFIG.github.repo = String(g.repo);
-    if (g.path != null) CONFIG.github.path = String(g.path) || 'proxyip';
-    if (g.branch != null) CONFIG.github.branch = String(g.branch) || 'main';
-    if (g.auto != null) CONFIG.github.auto = g.auto === true || g.auto === 'true';
-    if (g.uploadIntervalMin != null)
-      CONFIG.github.uploadIntervalMin = Math.max(0, Math.round(num(g.uploadIntervalMin, 0)));
   }
+  if (g.repo != null) CONFIG.github.repo = String(g.repo);
+  if (g.path != null) CONFIG.github.path = String(g.path) || 'proxyip';
+  if (g.branch != null) CONFIG.github.branch = String(g.branch) || 'main';
+  if (g.auto != null) CONFIG.github.auto = g.auto === true || g.auto === 'true';
+  if (g.uploadIntervalMin != null)
+    CONFIG.github.uploadIntervalMin = Math.max(0, Math.round(num(g.uploadIntervalMin, 0)));
+}
+function setConfig(o) {
+  if (!o) return;
+  const num = (v, d) => {
+    const n = parseFloat(v);
+    return isFinite(n) ? n : d;
+  };
+  applyNumericConfig(o, num);
+  applyEndpointConfig(o);
+  applyGithubConfig(o, num);
   restartGithubTimerFn();
   invalidateStateCache();
 }
