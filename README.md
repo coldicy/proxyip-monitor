@@ -19,7 +19,8 @@ ProxyIP Monitor 是一款基于 Node.js 的代理 IP 质量监控工具。它周
 - 完整的 Web UI 与 REST API
 - GitHub 同步（全部节点 + 按地区拆分）
 - 零依赖后端：纯 Node.js 内置模块开发，无需 `npm install`
-- 开箱即用的面板：单文件 HTML 前端，提供延迟统计图、失败原因回溯、手动复测等丰富交互
+- 开箱即用的面板：模块化原生 ESM 前端（零构建），提供延迟统计图、失败原因回溯、手动复测等丰富交互，并具备弹窗焦点管理、屏幕阅读器友好的 live region 与「减少动态效果」适配
+- 内置 `/health` 存活探针，配合 Docker Compose `healthcheck` 可自动感知服务异常
 
 ---
 
@@ -40,6 +41,12 @@ services:
     volumes:
       - ./proxyip-monitor/config:/app/config # 配置文件目录
       - ./proxyip-monitor/data:/app/data # 数据目录
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 ```
 
 访问 `http://你的服务器IP:8787` 即可打开监控面板。同时监控面板提供了详尽的手册，方便使用本应用
@@ -162,6 +169,9 @@ services:
 - **中断**：强制停止当前正在进行的检测轮次。
 - **立即检测**：手动触发一轮完整检测（含延迟 + 测速）。
 - **上传优质节点**：手动将当前优质节点列表上传至 GitHub。
+- **后端离线提示**：当页面无法访问后端时，工具栏出现常驻的「后端离线」提示，恢复后自动消失。
+
+> **可访问性**：四个弹窗均为 `role="dialog"` + `aria-modal`，打开时焦点进入弹窗、关闭时归还触发位置，`Tab` 不会逃逸到背景；Toast 为 `aria-live` 播报区域；页脚「手册」入口可用键盘聚焦打开；系统开启「减少动态效果」时自动关闭过渡/动画。
 
 ### 7.2 状态卡片
 - 节点总数、当前在线、优质节点、离线节点、检测进度条、GitHub 同步状态。
@@ -198,7 +208,7 @@ services:
 |--------|------|
 | 监测间隔 (秒) | 自动检测周期，最小 5 秒 |
 | 单次超时 (秒) | 单节点延迟探测超时，默认 5 秒 |
-| 并发数 | 延迟探测并发，默认 50 |
+| 并发数 | 延迟探测并发，默认 20 |
 | 优质总延迟上限 (ms) | 达标判定的延迟门槛，0=不限 |
 | 自动清理离线节点 (天) | 超过此天数离线则自动删除并屏蔽，0=关闭 |
 | 优质判定窗口 (次) | 统计窗口大小（1-50），后端仅保留最近 N 次样本 |
@@ -314,8 +324,11 @@ A：必须点击「保存并重载节点」或等待下次自动检测（间隔�
 | `/remove` | POST | 删除指定节点（`ids` 数组） |
 | `/graveyard` | GET | 获取屏蔽记录列表 |
 | `/graveyard/clear` | POST | 清空屏蔽记录 |
+| `/graveyard/unblock` | POST | 解除屏蔽（`ids` 数组） |
 | `/speedtest` | POST | 手动复测指定节点（`ids` 数组，最多 10 个，串行执行） |
 | `/upload` | POST | 手动上传优质节点到 GitHub |
+
+**健康检查**：`GET /health`（**不含** `/api` 前缀）返回 `{ ok, version, uptimeSec }`，进程可响应即 `200`，用于容器 `healthcheck`。
 
 **注意**：POST 请求需携带 `Content-Type: application/json`，请求体为对应 JSON 结构。
 
