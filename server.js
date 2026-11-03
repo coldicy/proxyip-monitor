@@ -4,7 +4,8 @@ Proxy Monitor v36-window
 */
 const fs = require('fs');
 const { CONFIG, VERSION, setConfig, setRestartGithubTimer } = require('./src/config');
-const { state, setStateBuilder } = require('./src/state');
+const { state } = require('./src/state');
+const { setStateBuilder } = require('./src/api/stateCache');
 const { readSecret, writeSecret } = require('./src/security');
 const { ensureIpFile, loadData } = require('./src/storage');
 const { backfillLastOnline } = require('./src/nodes/registry');

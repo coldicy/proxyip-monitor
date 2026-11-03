@@ -9,7 +9,8 @@ import path from 'path';
 const require = createRequire(import.meta.url);
 const { createServer } = require('../src/api/server.js');
 const { buildState } = require('../src/api/view.js');
-const { state, setStateBuilder } = require('../src/state.js');
+const { state } = require('../src/state.js');
+const { setStateBuilder } = require('../src/api/stateCache.js');
 const { CONFIG } = require('../src/config.js');
 
 let server;

@@ -2,7 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const { CONFIG, publicConfig } = require('./config');
-const { state, isDataDirty, clearDataDirty } = require('./state');
+const { state } = require('./state');
+const { isDataDirty, clearDataDirty } = require('./changeBus');
 const { migrateNodes } = require('./nodes/registry');
 function ensureIpFile() {
   try {

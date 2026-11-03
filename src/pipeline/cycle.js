@@ -1,6 +1,7 @@
 // 检测流水线 + 无效轮保护（源 server.js:504-597）
 const { CONFIG } = require('../config');
-const { state, markDirty, invalidateStateCache } = require('../state');
+const { state } = require('../state');
+const { markDirty, invalidate } = require('../changeBus');
 const { discover } = require('../nodes/discovery');
 const { pushHistory, averageProbes, computeOnlineSince } = require('../domain/history');
 const { computeQuality } = require('../domain/quality');
@@ -17,14 +18,14 @@ async function runCycle() {
   if (state.checking) return;
   state.checking = true;
   state.abort = false;
-  invalidateStateCache();
+  invalidate();
   try {
     const added = await discover();
     if (added) log('🆕 发现 ' + added + ' 个新节点');
     state.units = Object.values(state.nodes);
     const total = state.units.length;
     state.progress = { tested: 0, total };
-    invalidateStateCache();
+    invalidate();
     log('🔄 开始检测 ' + total + ' 个节点（并发 ' + CONFIG.concurrency + '）');
     // 新增: 记录本轮开始时间与上轮在线数, 供无效轮保护判定
     const roundT = Date.now();
@@ -164,7 +165,7 @@ async function runCycle() {
       });
     }
     state.lastCycle = Date.now();
-    invalidateStateCache();
+    invalidate();
     const online = state.units.filter((u) => {
       const h = state.history[u.id];
       return h && h.length && h[h.length - 1].ok;
@@ -178,13 +179,13 @@ async function runCycle() {
     if (CONFIG.github.auto)
       autoUpload().catch((e) => {
         state.github.lastError = e.message;
-        invalidateStateCache();
+        invalidate();
         log('⚠️ 自动上传失败: ' + e.message);
       });
   } finally {
     state.checking = false;
     state.abort = false;
-    invalidateStateCache();
+    invalidate();
   }
 }
 module.exports = { runCycle };

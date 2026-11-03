@@ -1,6 +1,7 @@
 // 样本窗口写入 + 连续在线 + 离线起点（源 server.js:240-258、481-503）
 const { historyCap } = require('../config');
-const { state, markDirty } = require('../state');
+const { state } = require('../state');
+const { markDirty } = require('../changeBus');
 // 修复: 优先取节点注册表 lastOnlineAt, 历史裁剪后自动清理仍正确
 function offlineSince(id) {
   const u = state.nodes[id];

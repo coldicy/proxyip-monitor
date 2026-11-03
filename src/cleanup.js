@@ -1,6 +1,7 @@
 // 手动删除 + 自动清理 + 屏蔽记录（源 server.js:260、636-662）
 const { CONFIG } = require('./config');
-const { state, markDirty } = require('./state');
+const { state } = require('./state');
+const { markDirty } = require('./changeBus');
 const { offlineSince } = require('./domain/history');
 const { saveData, capGraveyard, persistGraveyard } = require('./storage');
 const { log } = require('./logger');

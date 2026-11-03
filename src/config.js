@@ -2,7 +2,7 @@
 const path = require('path');
 const { sanitizeUrl, isUrl } = require('./utils/text');
 const { log } = require('./logger');
-const { invalidateStateCache } = require('./state');
+const { invalidate } = require('./changeBus');
 const VERSION = 'v36-window';
 const SPEED_RETRY_MS = 10 * 60 * 1000;
 // 应用默认值一律为项目相对路径（与启动目录无关）；容器内的绝对路径由 Dockerfile 的 ENV 注入
@@ -136,7 +136,7 @@ function setConfig(o) {
   applyEndpointConfig(o);
   applyGithubConfig(o, num);
   restartGithubTimerFn();
-  invalidateStateCache();
+  invalidate();
 }
 function publicConfig() {
   const { maskToken } = require('./security');

@@ -1,6 +1,7 @@
 // 周期检测与定时上传定时器（源 server.js:51、164-174）
 const { CONFIG } = require('./config');
-const { state, invalidateStateCache } = require('./state');
+const { state } = require('./state');
+const { invalidate } = require('./changeBus');
 const { runCycle } = require('./pipeline/cycle');
 const { uploadGithub } = require('./sync/github');
 const { log } = require('./logger');
@@ -21,7 +22,7 @@ function restartGithubTimer() {
         log('⏰ 定时触发 GitHub 上传');
         uploadGithub().catch((e) => {
           state.github.lastError = e.message;
-          invalidateStateCache();
+          invalidate();
           log('⚠️ 定时上传失败: ' + e.message);
         });
       },

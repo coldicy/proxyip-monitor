@@ -1,6 +1,7 @@
 // 上传数据构建 + 上传 / 自动上传（源 server.js:663-744）
 const { CONFIG, VERSION } = require('../config');
-const { state, invalidateStateCache } = require('../state');
+const { state } = require('../state');
+const { invalidate } = require('../changeBus');
 const { computeQuality } = require('../domain/quality');
 const { log } = require('../logger');
 // ==================== 格式（复制 & GitHub 上传） ====================
@@ -105,14 +106,14 @@ async function uploadGithub() {
     }
   }
   state.github.lastUpload = Date.now();
-  invalidateStateCache();
+  invalidate();
   if (failed > 0) {
     state.github.lastError = `${failed} 个文件上传失败`;
-    invalidateStateCache();
+    invalidate();
     log('⚠️ ' + state.github.lastError + '（下轮自动重试）');
   } else {
     state.github.lastError = null;
-    invalidateStateCache();
+    invalidate();
     state.lastUploadedContent = fingerprint;
     log(`📤 已上传 ${count} 个优质节点 (${Object.keys(bodies).length} 个文件)`);
   }

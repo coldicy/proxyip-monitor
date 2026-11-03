@@ -2,10 +2,11 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { htmlCache } = require('../state');
 const { VERSION } = require('../config');
 const routes = require('./routes');
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
+// index.html 文件缓存（按 mtime 复用），仅在静态服务内部使用，无需外置到全局 state
+const htmlCache = { mtime: 0, content: '' };
 // 只读静态服务仅允许的白名单扩展名与对应 Content-Type
 const ALLOWED_EXT = new Set(['.html', '.css', '.js']);
 const STATIC_MIME = {

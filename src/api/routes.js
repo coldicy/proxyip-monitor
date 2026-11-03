@@ -1,7 +1,9 @@
 // 路由表与各端点处理（源 server.js:804-862 中 /api/* 分支）
 const fs = require('fs');
 const { CONFIG, publicConfig, setConfig } = require('../config');
-const { state, getStateJson, markDirty, invalidateStateCache } = require('../state');
+const { state } = require('../state');
+const { getStateJson } = require('./stateCache');
+const { markDirty, invalidate } = require('../changeBus');
 const { readBody } = require('../utils/http');
 const { persistGraveyard, persistConfig, ensureIpFile, saveData } = require('../storage');
 const { removeUnits } = require('../cleanup');
@@ -116,7 +118,7 @@ async function handle(p, req, res, json) {
       return json({ ok: true, ...(await uploadGithub()) });
     } catch (e) {
       state.github.lastError = e.message;
-      invalidateStateCache();
+      invalidate();
       log('⚠️ 手动上传失败: ' + e.message);
       return json({ ok: false, error: e.message }, 500);
     }
